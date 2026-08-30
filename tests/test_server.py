@@ -29,7 +29,9 @@ async def test_search_public_laws_description_carries_recipe_and_recall_caveat()
     server = create_server()
     tool = {t.name: t for t in await server.list_tools()}["search_public_laws"]
     assert "uscodecitation" in tool.description
-    assert "NOT evidence" in tool.description
+    assert "never evidence" in tool.description
+    assert "25/33" in tool.description
+    assert "structural" in tool.description
     assert "complete" in tool.description
 
 
@@ -77,3 +79,30 @@ async def test_call_tool_end_to_end_section_retrieval(make_client):
     assert payload["outcome"] == "success"
     assert payload["provenance"]["currentthrough"] == "2025-01-06"
     assert "fair use of a copyrighted work" in payload["text"]["content"]
+
+
+async def test_create_server_registers_tracing_middleware(tmp_path):
+    from uscode_mcp.trace import Tracer, TracingMiddleware
+
+    server = create_server(tracer=Tracer(tmp_path))
+    assert any(isinstance(m, TracingMiddleware) for m in server.middleware)
+
+
+async def test_create_server_without_tracer_registers_no_tracing_middleware(monkeypatch):
+    from uscode_mcp.trace import TRACE_DIR_ENV_VAR, TracingMiddleware
+
+    monkeypatch.delenv(TRACE_DIR_ENV_VAR, raising=False)
+    server = create_server()
+    assert not any(isinstance(m, TracingMiddleware) for m in server.middleware)
+
+
+async def test_create_server_fails_at_startup_on_unusable_trace_dir(monkeypatch, tmp_path):
+    from uscode_mcp.trace import TRACE_DIR_ENV_VAR
+
+    blocker = tmp_path / "blocker"
+    blocker.write_text("file, not dir")
+    monkeypatch.setenv(TRACE_DIR_ENV_VAR, str(blocker))
+    import pytest
+
+    with pytest.raises(RuntimeError, match=TRACE_DIR_ENV_VAR):
+        create_server()

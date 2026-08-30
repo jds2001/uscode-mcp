@@ -39,7 +39,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    server = create_server()
+    try:
+        server = create_server()
+    except RuntimeError as exc:
+        # e.g. an unusable USCODE_MCP_TRACE_DIR — R8 says fail at startup, loudly.
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     if args.transport == "http":
         server.run(transport="streamable-http", host=args.host, port=args.port)
     else:

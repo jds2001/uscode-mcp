@@ -12,6 +12,7 @@ from mcp.server.mcpserver import MCPServer
 from . import tools
 from ._version import __version__
 from .govinfo import GovInfoClient, client_from_env
+from .trace import Tracer, TracingMiddleware, tracer_from_env
 
 SERVER_INSTRUCTIONS = """\
 Search and retrieval over the United States Code and Public Laws as published by GPO on GovInfo.
@@ -26,10 +27,17 @@ recipe's documented recall gap (absence from results is not evidence of absence)
 """
 
 
-def create_server(client: GovInfoClient | None = None) -> MCPServer:
+def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = None) -> MCPServer:
     """Build the MCP server. A client may be injected for tests; otherwise one is
-    created lazily from GOVINFO_API_KEY on first tool call."""
-    mcp = MCPServer("uscode-mcp", instructions=SERVER_INSTRUCTIONS, version=__version__)
+    created lazily from GOVINFO_API_KEY on first tool call.
+
+    R8 tracing: when no tracer is injected, one is built from USCODE_MCP_TRACE_DIR
+    if set — an unusable trace directory raises here, at startup, per the spec's
+    instrument rules. Absence of the variable means tracing is off."""
+    if tracer is None:
+        tracer = tracer_from_env()
+    middleware = [TracingMiddleware(tracer)] if tracer is not None else None
+    mcp = MCPServer("uscode-mcp", instructions=SERVER_INSTRUCTIONS, version=__version__, middleware=middleware)
     state: dict[str, GovInfoClient] = {}
     if client is not None:
         state["client"] = client
@@ -123,10 +131,11 @@ def create_server(client: GovInfoClient | None = None) -> MCPServer:
         """Full-text and fielded search over the PLAW collection (public laws only). Reverse lookup —
         which public laws touch a US Code section — is `uscodecitation:"42 U.S.C. 2210"`.
 
-        CAVEAT (measured, O17/O18): the uscodecitation field's recall is incomplete — a law whose own
-        package metadata lists a section can be absent from that field's search results. Absence of a
-        law from these results is NOT evidence it doesn't touch the section, and this result set must
-        never be presented as complete. Other useful fields: `congress:118 docnumber:31`,
+        CAVEAT (measured, structural — O21, O17/O18): the uscodecitation field's recall gap is
+        25/33 on sampled membership tests, with misses in every congress sampled from the 115th on,
+        varying per (law, section) — not a recency artifact. Absence of a law from these results is
+        never evidence it doesn't touch the section, and this result set must never be presented as
+        complete. Other useful fields: `congress:118 docnumber:31`,
         `approveddate:range(...)`, `billscitation:...`. Returns result pointers, not text — follow up
         with get_public_law.
         """
