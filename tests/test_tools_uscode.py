@@ -134,6 +134,20 @@ class TestGetSectionNonSuccessOutcomes:
             "USCODE-2024-title17-chap1-sec107a",
         }
 
+    async def test_capped_disambiguation_states_shown_of_total(self, make_client):
+        # The measured bare-appendix case (O24): 251 matches, one page shown —
+        # capping must be stated so it never reads as complete.
+        hits = [
+            fx.usc_hit(granule_id=f"USCODE-2024-title28-app-federalru-rule{i}") for i in range(100)
+        ]
+        client = make_client(section_handler(fx.search_response(hits, count=251)))
+        out = await tools.get_us_code_section(client, citation="28 U.S.C. App.")
+        assert out["outcome"] == "ambiguous"
+        assert out["count"] == 251
+        assert out["candidates_shown"] == 100
+        assert out["capped"] is True
+        assert "showing 100 of 251" in out["message"]
+
     async def test_upstream_500_is_never_not_found(self, make_client):
         client = make_client(lambda request: httpx.Response(500, text="internal error"))
         out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
@@ -233,6 +247,8 @@ class TestGetSectionAppendix:
         out = await tools.get_us_code_section(client, citation="28 U.S.C. App. Rule 9")
         assert out["outcome"] == "ambiguous"
         assert out["count"] == 2
+        assert out["capped"] is False  # 2 shown of 2 must not claim capping
+        assert "capped" not in out["message"]
         assert {c["granule_id"] for c in out["candidates"]} == {
             "USCODE-2024-title28-app-federalru-rule9",
             "USCODE-2024-title28-app-federalru-dup1-rule9",

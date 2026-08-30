@@ -129,6 +129,24 @@ def _invalid_argument(detail: str) -> dict[str, Any]:
     return {"outcome": "invalid_argument", "detail": detail}
 
 
+def _disambiguation_fields(count: Any, results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Shared fields for an ambiguous outcome: the true total from the response's
+    `count`, the shown candidates, and — stated, never implied — whether the list is
+    capped, so 100 shown of 251 never reads as 100 of 100 (40-tools.md, O24)."""
+    shown = len(results)
+    capped = isinstance(count, int) and count > shown
+    message = f"Multiple matches ({count} total); not guessing. Pick one and re-request by ids or year."
+    if capped:
+        message += f" The candidate list is capped at one search page: showing {shown} of {count}."
+    return {
+        "count": count,
+        "candidates_shown": shown,
+        "capped": capped,
+        "message": message,
+        "candidates": [_result_pointer(r) for r in results],
+    }
+
+
 # ---------------------------------------------------------------------------
 # get_us_code_section
 # ---------------------------------------------------------------------------
@@ -218,12 +236,7 @@ async def get_us_code_section(
             "normalized_citation": parsed.normalized,
             "query": query,
             "year": year,
-            "count": data.get("count"),
-            "message": (
-                "Multiple granules matched; not guessing. Pick one and re-request by year or ids. "
-                "The candidate list is capped at one search page; 'count' is the true total."
-            ),
-            "candidates": [_result_pointer(r) for r in results],
+            **_disambiguation_fields(data.get("count"), results),
         }
 
     hit = results[0]
@@ -417,8 +430,7 @@ async def get_public_law(
             "congress": congress,
             "law_number": law_number,
             "query": query,
-            "message": "Multiple packages matched; not guessing.",
-            "candidates": [_result_pointer(r) for r in results],
+            **_disambiguation_fields(data.get("count"), results),
         }
 
     package_id = results[0].get("packageId")

@@ -13,6 +13,8 @@
 
 ### Changed
 
+- Runtime dependencies now carry ceilings as well as floors (R9): `mcp>=2,<3`, `httpx>=0.27,<1`, `python-dotenv>=1.0,<2`. Raising a ceiling is a deliberate, tested change committed on its own.
+- Disambiguation (`ambiguous`) outcomes state capping explicitly: `count` (true total), `candidates_shown`, `capped`, and a "showing N of M" message when the candidate list is page-capped — and no capping claim when it isn't.
 - Appendix citations now resolve directly (`citation:"28 U.S.C. App. Rule 9"`, O24/E10); multi-hit appendix citations use the standard disambiguation list (which now also reports the true total `count`), and the redirect to `search_us_code` survives only as the zero-hit fallback (real for eliminated appendices like title 50's).
 - The `get_public_law` `format="uslm"` not-available outcome now states the measured boundary (absent for congresses 104–112, present from the 113th on, O25) instead of "unmeasured".
 - A set-but-blank `USCODE_MCP_TRACE_DIR` now fails the server at startup instead of silently disabling tracing; only an unset variable is the off switch (maintainer ruling, spec commit 2ebab5b).
