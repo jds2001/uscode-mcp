@@ -141,7 +141,9 @@ class TestSearchPublicLaws:
 
         out = await tools.search_public_laws(make_client(handler), 'uscodecitation:"42 U.S.C. 2210"')
         assert "recall_caveat" in out
-        assert "NOT evidence" in out["recall_caveat"]
+        assert "never evidence" in out["recall_caveat"]
+        assert "25/33" in out["recall_caveat"]
+        assert "structural" in out["recall_caveat"]
 
     async def test_non_reverse_lookup_has_no_caveat(self, make_client):
         out = await tools.search_public_laws(

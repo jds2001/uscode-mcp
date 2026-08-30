@@ -341,10 +341,10 @@ async def search_public_laws(
     result = await _scoped_search(client, "PLAW", query, page_size=page_size, offset_mark=offset_mark)
     if result.get("outcome") == "success" and "uscodecitation:" in result.get("query", ""):
         result["recall_caveat"] = (
-            "The uscodecitation field has a measured recall gap (O17/O18): at least one law whose own package "
-            "metadata lists a section is absent from that field's search results. Absence of a law from these "
-            "results is NOT evidence it doesn't touch the section; this result set must not be presented as "
-            "complete."
+            "The uscodecitation field's recall gap is measured and structural (O21, O17/O18): 25/33 sampled "
+            "recall against packages' own references arrays, with misses in every congress sampled from the "
+            "115th on, varying per (law, section). Absence of a law from these results is never evidence it "
+            "doesn't touch the section; this result set must not be presented as complete."
         )
     return result
 
