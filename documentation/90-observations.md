@@ -55,3 +55,20 @@ O19 — E8: full-text query `collection:USCODE "Federal Rules of Appellate Proce
 ## Measurements — 2026-08-29, third batch
 
 O20 — Resolution of an implementation-session discrepancy report, re-measured rather than argued: a citation search response's top-level keys are exactly `count`, `offsetMark`, `results`; `count:1` at top level; a result object's keys are `collectionCode, dateIngested, dateIssued, download, governmentAuthor, granuleId, lastModified, packageId, relatedLink, resultLink, title` — no `count`. The implementation's "count=None on section retrievals" is therefore a wrong-level read in one of its code paths, not API shape variance; consistent with every prior observation (O4, O10, O14). No spec change; `30-search.md` gains a clarifying sentence.
+
+O21 — E9 executed per the preregistered protocol (commit a455a66), 33 membership tests over the 10-law deterministic sample:
+
+| Law | ref pairs | sampled results |
+|---|---|---|
+| PLAW-115publ97 | 17 | 12/1817 HIT, 37/310 HIT, 43/1629e HIT |
+| PLAW-115publ232 | 601 | 10/7902 HIT, 2/192-194 HIT, 42/2210 MISS, 54/303102 HIT |
+| PLAW-116publ92 | 686 | 10/7448 HIT, 2/1301 HIT, 54/320301 MISS |
+| PLAW-116publ136 | 374 | 2/1070a HIT, 29/151 MISS, 54/300101 MISS |
+| PLAW-117publ58 | 610 | 2/661c HIT, 42/10362 HIT, 54/306121 HIT |
+| PLAW-117publ169 | 143 | 2/661a HIT, 42/1395w-104 HIT, 42/2210 HIT, 50/4501 HIT |
+| PLAW-118publ5 | 29 | 2/621 MISS, 20/1001 MISS, 45/352 HIT |
+| PLAW-118publ31 | 605 | 1/112b HIT, 10/9771 MISS, 51/50902 HIT |
+| PLAW-119publ4 | 50 | 2/901a HIT, 42/1395m HIT, 50/3094 HIT |
+| PLAW-119publ21 | 235 | 16/3839bb-2 HIT, 2/900 HIT, 42/2210 MISS, 51/50902 HIT |
+
+Outcomes against preregistration: recall < 100% CONFIRMED — 25/33 (denominator: the 33 sampled membership tests, not the corpus). The 119publ21×42/2210 miss REPRODUCES. Concentration in the 119th Congress FALSIFIED: 7 of 8 misses are in congresses 115–118. The gap is per-(law, section), not per-section — 42 U.S.C. 2210 misses for 115publ232 and 119publ21 but hits for 117publ169. Instrument validity: 25 positives across all five congresses show the `uscodecitation`+`congress`+`docnumber` conjunction composes; no law needed the all-miss control. Side observation: `references` sections can be range strings ("192-194"), and the range form itself was a HIT as a quoted citation.

@@ -13,7 +13,7 @@
 | `historical` | include superseded editions | default false; behavior measured in O7b |
 | `resultLevel` | `package` vs default mixed granule/package | documented (S1); untested (E3) |
 
-Responses carry `count`, next `offsetMark`, and `results[]` with `title`, `packageId`, `granuleId`, `dateIssued`, `collectionCode`, `lastModified`, a `download` link map, and a `resultLink` to the granule/package summary (O4). The service self-describes as public preview (S1) — the implementation should treat response-shape drift as a live risk and fail loudly, not coerce.
+Responses carry exactly three top-level fields — `count`, next `offsetMark`, and `results[]` (O20; result objects carry no `count` of their own) — with `title`, `packageId`, `granuleId`, `dateIssued`, `collectionCode`, `lastModified`, a `download` link map, and a `resultLink` to the granule/package summary (O4). The service self-describes as public preview (S1) — the implementation should treat response-shape drift as a live risk and fail loudly, not coerce.
 
 ## Query operators (S2 — govinfo.gov/help/search-operators, fetched 2026-08-29)
 
@@ -44,4 +44,4 @@ Edition-year requests add `historical:true` and select the hit whose `dateIssued
 
 To resolve a public law: `collection:PLAW congress:{n} docnumber:{m}` — measured: exactly one hit for 118/31 (O12). `lawtype:public` joins the query only if a collision is ever observed; none has been.
 
-Reverse lookup — which public laws touch a US Code section — is `collection:PLAW uscodecitation:"{title} U.S.C. {section}"`. It works (14 hits for 42 U.S.C. 2210, O17) but has a measured recall gap: PLAW-119publ21 is absent from those hits even though its own summary `references` array lists the section (O18). Every surface that exposes this recipe must carry the incompleteness caveat; see `40-tools.md` and E9.
+Reverse lookup — which public laws touch a US Code section — is `collection:PLAW uscodecitation:"{title} U.S.C. {section}"`. It works (14 hits for 42 U.S.C. 2210, O17) but has a measured, structural recall gap: sampled recall against packages' own `references` arrays is 25/33, with misses in every congress sampled from the 115th on and varying per (law, section) — not an ingestion-lag artifact (O21, which falsified the recency hypothesis; see also O18). Every surface that exposes this recipe must carry the incompleteness caveat; see `40-tools.md` and E9.
