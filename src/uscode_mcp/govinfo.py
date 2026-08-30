@@ -2,8 +2,10 @@
 
 Design constraints from documentation/20-govinfo-api.md and 40-tools.md:
 
-- Auth is the ``api_key`` query parameter (observed working, O1-O19), read from
-  ``GOVINFO_API_KEY``; the key is never logged and never echoed back in URLs.
+- Auth is the ``X-Api-Key`` request header ONLY (R7, O22), read from
+  ``GOVINFO_API_KEY``. The key never travels in a URL: the spec's error contracts
+  surface upstream URLs verbatim, so header transport keeps every URL the server
+  builds, logs, or surfaces key-free by construction.
 - Three distinct outcomes, never collapsed: callers get the raw HTTP status,
   headers, and body of every response so the tool layer can distinguish success,
   upstream failure, and rate-limiting (429 with x-ratelimit-*/Retry-After).
@@ -36,7 +38,7 @@ class UpstreamResponse:
     status: int
     headers: dict[str, str]
     text: str
-    url: str  # the request URL *without* the api_key parameter
+    url: str  # key-free by construction: the key travels only in the X-Api-Key header (R7)
 
     @property
     def ok(self) -> bool:
@@ -74,11 +76,12 @@ class GovInfoClient:
         await self._http.aclose()
 
     async def _request(self, method: str, url: str, json_body: dict[str, Any] | None = None) -> UpstreamResponse:
-        # copy_merge_params preserves any query already on a download link taken
-        # verbatim from a search result or summary; passing params= would replace it.
-        full_url = httpx.URL(url).copy_merge_params({"api_key": self._api_key})
+        # R7: the key travels only in the X-Api-Key header, never in a URL, so
+        # every URL this client touches or surfaces is key-free by construction.
         try:
-            response = await self._http.request(method, full_url, json=json_body)
+            response = await self._http.request(
+                method, url, headers={"X-Api-Key": self._api_key}, json=json_body
+            )
         except httpx.HTTPError as exc:
             raise GovInfoTransportError(f"{method} {url}: {type(exc).__name__}: {exc}") from exc
         return UpstreamResponse(

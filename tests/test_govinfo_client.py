@@ -7,16 +7,31 @@ import pytest
 from uscode_mcp.govinfo import GovInfoClient, GovInfoTransportError, client_from_env
 
 
-async def test_api_key_sent_as_query_param(make_client):
+async def test_api_key_sent_only_as_header_never_in_url(make_client):
+    """R7/O22: the key travels only in the X-Api-Key header; URLs stay key-free."""
     seen = {}
 
     def handler(request):
-        seen["api_key"] = request.url.params.get("api_key")
+        seen["header"] = request.headers.get("X-Api-Key")
+        seen["url"] = str(request.url)
         return fx.json_response(fx.search_response([]))
 
     client = make_client(handler)
     await client.search({"query": "x"})
-    assert seen["api_key"] == "test-key"
+    assert seen["header"] == "test-key"
+    assert "test-key" not in seen["url"]
+    assert "api_key" not in seen["url"]
+
+
+async def test_fetch_sends_header_too(make_client):
+    seen = {}
+
+    def handler(request):
+        seen["header"] = request.headers.get("X-Api-Key")
+        return httpx.Response(200, text="ok")
+
+    await make_client(handler).fetch("https://api.govinfo.gov/packages/X/htm")
+    assert seen["header"] == "test-key"
 
 
 async def test_api_key_not_echoed_in_response_url(make_client):
@@ -50,8 +65,7 @@ async def test_fetch_preserves_existing_query_params(make_client):
         return httpx.Response(200, text="ok")
 
     await make_client(handler).fetch("https://api.govinfo.gov/packages/X/htm?foo=1")
-    assert seen["params"]["foo"] == "1"
-    assert seen["params"]["api_key"] == "test-key"
+    assert seen["params"] == {"foo": "1"}  # untouched: no api_key merged into the URL (R7)
 
 
 async def test_rate_limit_info_extracted_from_429(make_client):
