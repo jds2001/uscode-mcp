@@ -8,6 +8,8 @@ Markdown in this repo is not hard-wrapped: one line per paragraph, long lines ar
 
 There is no implementation yet — the project is currently spec-first (see `documentation/00-INDEX.md`). The implementation session establishes the toolchain when it starts; the standing choices it inherits are Python (PEP 8, `ruff` at 120 columns as the hard limit with ~80 as a soft preference for new code), `uv` for environment management, and `pytest` for tests. Every piece of built functionality gets unit tests covering failure surfacing, not just the happy path, and the suite stays green.
 
+**Dependency versions get a ceiling, not just a floor.** Runtime dependencies with breaking-change potential are constrained on both ends — for the `mcp` SDK that means capping below the next major (e.g. `>=2,<3`), and the same shape applies to any dependency whose majors break APIs. The rule exists because MCP 2.0's breaking changes are what broke congressMCP (documentation/96-rulings.md R9): an uncapped floor turns someone else's release day into this server's outage. Raising a ceiling is a deliberate change — bump it in its own commit with the suite run against the new major, never as a side effect.
+
 ## Commit conventions
 
 Commit each logical unit of work as you go, rather than batching unrelated changes into one commit — prefer several small, clear commits over one large one. Wrap commit message bodies at ~80 columns (commit messages are the one place in this repo that *does* get a column wrap, since they're read as fixed-width text by `git log`, not edited later).
