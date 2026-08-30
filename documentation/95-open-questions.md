@@ -8,6 +8,8 @@ Q6. v2 candidates deferred by R1/R2, parked here so they aren't lost: (a) a `N S
 
 ## Run — see observations
 
+E5's remainder ran 2026-08-29 (O22): `X-Api-Key` header auth confirmed with a 401 no-credential control — and promoted from alternative to the only permitted transport by R7.
+
 E9 ran 2026-08-29 (protocol in commit a455a66, outcome O21): 25/33 recall, recency hypothesis falsified — the gap is structural. Q6(b) is now measured and awaits a maintainer ruling on whether a v2 references-array-based join gets designed.
 
 ## Preregistered experiments — not yet run
@@ -15,8 +17,6 @@ E9 ran 2026-08-29 (protocol in commit a455a66, outcome O21): 25/33 recall, recen
 E3. `resultLevel:"package"` behavior on a USCODE citation query — does it return the title package instead of the section granule? Determines whether the flag is useful for edition-level questions.
 
 E4a. USLM availability across PLAW congresses 104–119 (sample one package summary per congress for `uslmLink` presence). Bounds the `get_public_law` `format:"uslm"` story.
-
-E5 (remainder). `X-Api-Key` header auth as an alternative to the `api_key` query parameter. Expect it works (api.data.gov standard); falsifier: 403.
 
 E6. USCODE USLM via bulkdata (www.govinfo.gov/bulkdata): exists? current? If yes it changes the format story in `20-govinfo-api.md` — v2 question either way.
 

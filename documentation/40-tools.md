@@ -12,6 +12,8 @@ These bind every tool:
 
 **No silent truncation.** Text responses take an optional `max_chars` (default 100000) and `start_char` (default 0). When the payload exceeds the window, the response states total length, the window returned, and the `start_char` to continue from. Full text is never elided without these markers. Load-bearing in both collections: a section granule reached 142KB (O15) and a public law is a single multi-thousand-page package (O8).
 
+**Secret hygiene.** The API key is sent only via the `X-Api-Key` header (R7, O22) and must never appear in any URL the server builds, logs, echoes, or surfaces. The outcome contracts above require exposing upstream URLs, bodies, and queries verbatim — that exposure is safe if and only if this rule holds, so a key found in any surfaced string is a contract violation twice over, and redaction is a backstop, not the mechanism.
+
 **Links are data, never constructed.** Download URLs come from search results and summaries verbatim (settled, `00-INDEX.md`).
 
 **Text derivation.** The `/htm` payload is HTML (O5). The server strips it to readable plain text (preserving the header block that identifies edition and hierarchy) and returns that; it does not return raw HTML by default. No statutory content may be dropped — and after O15 "content" explicitly includes everything after the statutory text: source credits and statutory notes are the payload's majority for note-heavy sections and are the entire point for note citations (R4).

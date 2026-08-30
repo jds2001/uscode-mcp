@@ -160,3 +160,7 @@ You already have the alternative built. The FTS5/BM25 index and operative/quoted
 Me again:
 
 The difficulty with this approach is ingesting ALL of the USLM and building an index of it. The index already exists at GovInfo (of PLAW), so I'm not certain that I want to rebuild the thing that already exists of a later codifciation of the code where it's not available.
+
+## R7 — 2026-08-29, key transport
+
+Maintainer-reported defect in the implementation: the API key was sent as the `api_key` query parameter, which leaks into URL logging (the maintainer has seen httpx do exactly this). Ruling: **the key travels only in the `X-Api-Key` header, never in a URL** — verified working with a 401 no-credential control (O22). This interacts with the error contracts, which require surfacing upstream URLs and bodies verbatim: a URL-borne key would make the spec's own transparency requirements into a leak. Header transport makes surfaced URLs key-free by construction; see the secret-hygiene contract in `40-tools.md`.

@@ -4,7 +4,7 @@ The server depends on api.govinfo.gov. Everything here is either measured (O-ref
 
 ## Authentication
 
-An api.data.gov API key, passed as the `api_key` query parameter (observed working, O1–O19) or the `X-Api-Key` header (documented by api.data.gov; untested, E5). The server reads it from the `GOVINFO_API_KEY` environment variable. The key must never be committed; locally it lives in the repo-root `.env`, which is gitignored.
+An api.data.gov API key, read from the `GOVINFO_API_KEY` environment variable and sent **only as the `X-Api-Key` request header** (verified with a 401 no-credential control, O22) — never as the `api_key` query parameter, although that also works (O1–O19). Ruled in R7 after a maintainer-observed leak: URL-borne keys end up in HTTP-client logs (httpx logs request URLs), and this spec's own error contracts require surfacing upstream URLs verbatim, so a key in the URL would be surfaced by a compliant implementation. Header transport keeps every URL the server touches, logs, or surfaces key-free by construction. The key must never be committed; locally it lives in the repo-root `.env`, which is gitignored.
 
 Rate limit, measured on a registered key: `x-ratelimit-limit: 36000` per hour (O13) — generous, but the contract stands regardless: HTTP 429 surfaces as a distinct rate-limited outcome (`40-tools.md`), and current headroom is read from `x-ratelimit-remaining`, never assumed.
 
