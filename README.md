@@ -54,7 +54,7 @@ All tools distinguish three outcomes — success (including explicit zero result
 
 ## Tracing (R8)
 
-Set `USCODE_MCP_TRACE_DIR` to a directory to record every handled MCP tool call as one JSONL line (verbatim request and response, including error outcomes) in a per-run `trace-*.jsonl` file. Absence of the variable is the off switch. An unusable directory fails the server at startup; a failed trace write fails that request loudly rather than leaving a silently incomplete trace.
+Set `USCODE_MCP_TRACE_DIR` to a directory to record every handled MCP tool call as one JSONL line (verbatim request and response, including error outcomes) in a per-run `trace-*.jsonl` file. Only an unset variable disables tracing — set-but-blank fails the server at startup like any other unusable directory, so a typo cannot silently turn the instrument off. An unusable directory fails the server at startup; a failed trace write fails that request loudly rather than leaving a silently incomplete trace.
 
 ## Development
 

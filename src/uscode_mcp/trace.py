@@ -76,10 +76,20 @@ class Tracer:
 
 
 def tracer_from_env() -> Tracer | None:
-    """Build a Tracer iff USCODE_MCP_TRACE_DIR is set (non-empty); None means off."""
-    directory = os.environ.get(TRACE_DIR_ENV_VAR, "").strip()
-    if not directory:
+    """Build a Tracer iff USCODE_MCP_TRACE_DIR is set; None (tracing off) only when
+    the variable is UNSET. Set-but-blank fails at startup like any other unusable
+    directory (maintainer ruling, 2ebab5b): a typo like TRACE_DIR=$TYPOED_VAR must
+    not silently disable the instrument — an errored scan must not look like one
+    that found nothing."""
+    directory = os.environ.get(TRACE_DIR_ENV_VAR)
+    if directory is None:
         return None
+    if not directory.strip():
+        raise RuntimeError(
+            f"{TRACE_DIR_ENV_VAR} is set but blank — it must name a usable directory. "
+            "Unset the variable to disable tracing; a blank value is treated as an unusable "
+            "directory so a typo cannot silently turn the instrument off."
+        )
     return Tracer(directory)
 
 

@@ -14,9 +14,13 @@ class TestTracerFromEnv:
         monkeypatch.delenv(TRACE_DIR_ENV_VAR, raising=False)
         assert tracer_from_env() is None
 
-    def test_empty_env_var_means_off(self, monkeypatch):
-        monkeypatch.setenv(TRACE_DIR_ENV_VAR, "  ")
-        assert tracer_from_env() is None
+    def test_blank_env_var_fails_at_startup_not_silently_off(self, monkeypatch):
+        """Ruled in 2ebab5b: only UNSET disables. Set-but-blank (e.g. a typoed shell
+        variable expanding to nothing) must fail loudly, not read as 'tracing off'."""
+        for blank in ("", "  "):
+            monkeypatch.setenv(TRACE_DIR_ENV_VAR, blank)
+            with pytest.raises(RuntimeError, match="set but blank"):
+                tracer_from_env()
 
     def test_set_env_var_builds_tracer(self, monkeypatch, tmp_path):
         monkeypatch.setenv(TRACE_DIR_ENV_VAR, str(tmp_path / "traces"))

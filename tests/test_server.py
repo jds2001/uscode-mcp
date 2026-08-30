@@ -106,3 +106,13 @@ async def test_create_server_fails_at_startup_on_unusable_trace_dir(monkeypatch,
 
     with pytest.raises(RuntimeError, match=TRACE_DIR_ENV_VAR):
         create_server()
+
+
+async def test_create_server_fails_at_startup_on_blank_trace_dir(monkeypatch):
+    from uscode_mcp.trace import TRACE_DIR_ENV_VAR
+
+    monkeypatch.setenv(TRACE_DIR_ENV_VAR, "")
+    import pytest
+
+    with pytest.raises(RuntimeError, match="set but blank"):
+        create_server()
