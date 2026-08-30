@@ -6,27 +6,29 @@ Four tools. Small on purpose: each maps to one recipe in `30-search.md`, and eve
 
 These bind every tool:
 
-**Three distinct outcomes, never collapsed.** (1) Success, possibly with zero results — a zero-hit search says so explicitly and echoes the exact query sent upstream. (2) Upstream failure — HTTP status and body surfaced; a failed call must never present as "not found". (3) Rate-limited — HTTP 429 surfaced as its own outcome with any `X-RateLimit-*`/`Retry-After` information passed through.
+**Three distinct outcomes, never collapsed.** (1) Success, possibly with zero results — a zero-hit search says so explicitly and echoes the exact query sent upstream. (2) Upstream failure — HTTP status and body surfaced; a failed call must never present as "not found". (3) Rate-limited — HTTP 429 surfaced as its own outcome with `x-ratelimit-*`/`Retry-After` information passed through (limit measured at 36,000/hr, O13 — headroom is real but the contract doesn't depend on it).
 
-**Provenance on every text payload.** Any response containing statutory text states: `packageId`, `granuleId` (when granule-level), edition year, the `currentthrough` date parsed from the granule HTML comment (O5), `lastModified`, and the canonical PDF link. If `currentthrough` cannot be parsed, say so — do not omit silently.
+**Provenance on every text payload.** Any response containing statutory text states: `packageId`, `granuleId` (when granule-level), edition year, the `currentthrough` date parsed from the granule HTML comment (O5, O15), `lastModified`, and the canonical PDF link. If `currentthrough` cannot be parsed, say so — do not omit silently. Given the backend ruling (R1), `currentthrough` is the staleness disclosure and is non-optional.
 
-**No silent truncation.** Text responses take an optional `max_chars` (default 100000) and `start_char` (default 0). When the payload exceeds the window, the response states total length, the window returned, and the `start_char` to continue from. Full text is never elided without these markers. (PLAW packages can be thousands of pages, O8 — this contract is load-bearing there, but it applies uniformly.)
+**No silent truncation.** Text responses take an optional `max_chars` (default 100000) and `start_char` (default 0). When the payload exceeds the window, the response states total length, the window returned, and the `start_char` to continue from. Full text is never elided without these markers. Load-bearing in both collections: a section granule reached 142KB (O15) and a public law is a single multi-thousand-page package (O8).
 
 **Links are data, never constructed.** Download URLs come from search results and summaries verbatim (settled, `00-INDEX.md`).
 
-**Text derivation.** The `/htm` payload is HTML (O5). The server strips it to readable plain text (preserving the header block that identifies edition and hierarchy) and returns that; it does not return raw HTML by default. An implementation choice of HTML-to-text method is free so long as no statutory text is dropped — the leading metadata/header lines and trailing source-credit notes are part of the section and stay.
+**Text derivation.** The `/htm` payload is HTML (O5). The server strips it to readable plain text (preserving the header block that identifies edition and hierarchy) and returns that; it does not return raw HTML by default. No statutory content may be dropped — and after O15 "content" explicitly includes everything after the statutory text: source credits and statutory notes are the payload's majority for note-heavy sections and are the entire point for note citations (R4).
 
 ## `get_us_code_section`
 
-Resolve a citation and return the section's text.
+Resolve a citation and return the section's text, notes included.
 
-Arguments: `citation` (string — accepts "17 U.S.C. 107", "17 USC 107", "17 U.S.C. § 107(b)", or equivalently `title` + `section` as separate fields), optional `year` (edition year), optional `max_chars`/`start_char`.
+Arguments: `citation` (string — accepts "17 U.S.C. 107", "17 USC 107", "17 U.S.C. § 107(b)", "42 U.S.C. 2210 note", or equivalently `title` + `section` as separate fields), optional `year` (edition year), optional `max_chars`/`start_char`.
 
-Behavior: normalize per `30-search.md`; search `collection:USCODE citation:"…"` with `historical` set iff `year` given; on multiple hits after year filtering, return the disambiguation list (ids + titles) rather than guessing; fetch the winning granule's `txtLink`; return text + provenance. A citation that resolves to zero granules reports the normalized citation and the raw query so the caller can retry with `search_us_code`.
+Behavior: normalize per `30-search.md` — mandatory strips: parenthetical subsection (O11) and trailing "note" (O16); when either strip fires, the response says so and names the containing section it resolved instead. Search `collection:USCODE citation:"…"` with `historical` set iff `year` given; on multiple hits after year filtering, return the disambiguation list (ids + titles) rather than guessing; fetch the winning granule's `txtLink`; return text + provenance. A citation that resolves to zero granules reports the normalized citation and the raw query so the caller can retry with `search_us_code`.
+
+Appendix citations ("28 U.S.C. App. …"): no citation-field form is known to match appendix granules (O19 established full-text reachability only, E10 open). v1 contract: return a structured redirect — not an error, not zero-hits-silence — naming `search_us_code` and suggesting a query built from the appendix terms, since appendix granules are demonstrably full-text indexed (O19). If E10 later finds a direct form, this upgrades to resolution without an interface change.
 
 ## `search_us_code`
 
-Full-text and fielded search over the USCODE collection.
+Full-text and fielded search over the USCODE collection — the discovery path for topics, appendix material (O19), and anything citation resolution redirects here.
 
 Arguments: `query` (govinfo query syntax; the server prepends `collection:USCODE` unless the query already contains a `collection:` term), optional `page_size` (default 20, max 100), `offset_mark` (default `*`), `historical` (default false).
 
@@ -34,10 +36,12 @@ Returns: `count`, next `offset_mark`, and per hit: `title`, `packageId`, `granul
 
 ## `get_public_law`
 
-Arguments: `congress` + `law_number`, or a `citation` string ("Pub. L. 118-31", "Public Law 118-31", "P.L. 118-31" — all normalize to congress/number); optional `law_type` (default public), `max_chars`/`start_char`, and `format` (`text` default; `uslm` returns the USLM XML when the package offers a `uslmLink`, O8, and is a distinct not-available outcome when it doesn't).
+Public laws only (R6): a private-law request is a distinct out-of-scope outcome, not a failed lookup.
 
-Behavior: resolve via `collection:PLAW congress:{n} docnumber:{m}` (E2 — resolution path unmeasured; first implementation report here needs a trace), fetch package text, return with provenance (packageId, `dateIssued`, `lastModified`, PDF link).
+Arguments: `congress` + `law_number`, or a `citation` string ("Pub. L. 118-31", "Public Law 118-31", "P.L. 118-31" — all normalize to congress/number); optional `max_chars`/`start_char`, and `format` (`text` default; `uslm` returns the USLM XML when the package offers a `uslmLink`, O8, and is a distinct not-available outcome when it doesn't, coverage unmeasured, E4a).
+
+Behavior: resolve via `collection:PLAW congress:{n} docnumber:{m}` (measured exact for 118/31, O12), fetch package text, return with provenance (packageId, `dateIssued`, `lastModified`, PDF link).
 
 ## `search_public_laws`
 
-As `search_us_code` but scoped `collection:PLAW`. The tool description must document the reverse-lookup recipe — `uscodecitation:"17 U.S.C. 107"` finds public laws GovInfo has tagged as touching that section — because that recipe is the congressMCP-composition story (`10-product.md`).
+As `search_us_code` but scoped `collection:PLAW` (public laws only, R6). The tool description must document the reverse-lookup recipe — `uscodecitation:"42 U.S.C. 2210"` finds public laws tagged as touching that section — because that recipe is the congressMCP-composition story (`10-product.md`). The same description MUST state the measured incompleteness: the field's recall has a demonstrated gap (O17/O18), so absence of a law from these results is not evidence it doesn't touch the section. Presenting this result set as complete is a spec violation, not a style issue.
