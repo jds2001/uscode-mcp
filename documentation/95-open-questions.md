@@ -4,13 +4,160 @@
 
 Q1. Pre-1995 law: PLAW starts at the 104th Congress (S4). Is the STATUTE (Statutes at Large) collection in scope for older enacted law, or is "US Code + PLAW from 1995" the product?
 
+Well this is interesting. I posed this question (with some further questions that would decide it) to Claude Desktop:
+
+The first prompt:
+
+I'm starting to write a US Code MCP (all the existing stuff I found was way too bloated and didn't appear to search full text, only offer a download link to it, ugh).
+
+My spec session asked me a genuinely hard question that I need your help answering, do not guess at the answers to my questions and provide empirical evidence,
+
+
+```markdown
+Q1. Pre-1995 law: PLAW starts at the 104th Congress (S4). Is the STATUTE (Statutes at Large) collection in scope for older enacted law, or is "US Code + PLAW from 1995" the product?
+```
+
+The reason for including PLAW was recently enacted statutes that haven't made it into US Code yet. Do they all eventually wind up there? If so, antique Statutes at Large probably aren't useful since they:
+
+1) May have been repealed/modified by later law, and not currently useful (though may be for historical research, but that's not the initial point of this)
+2) Are obviously already codified into USC
+
+The answer to the first prompt:
+
+## Short answer
+
+No, they don't all eventually wind up there. That premise is the thing to fix in your spec, and it's fixable without adding STATUTE.
+
+## Evidence 1: OLRC says outright that most law doesn't get codified
+
+From OLRC's own classification page: the Code contains only the general and permanent laws, so not every provision in a public law goes into the Code; OLRC attorneys read each enrolled bill and decide whether a provision is general and permanent in nature — a provision defining a federal crime is general, one naming a post office is not; a provision requiring an annual report forever is permanent, a one-year appropriation is not.
+
+And the classification tables page states the constraint explicitly: the tables only include those provisions of law that have been classified to the Code.
+
+## Evidence 2: I counted it for the 119th Congress
+
+The public-law-order classification table for the 119th, 1st session (`tbl119pl_1st.htm`, prepared 2026-01-23) is sorted by PL number, so absences are meaningful. Across the range 119-1 through 119-37, only these laws appear at all: **1, 4, 12, 18, 21, 22, 23, 25, 26, 27, 29, 30, 31, 33, 34, 36, 37.**
+
+That's 17 of 37. **20 of the first 37 public laws of the 119th Congress produced zero U.S. Code text.** (My fetch truncated at 119-37, so treat this as the first 37, not the full session of 73.)
+
+The missing ones aren't random. 119-2, 119-3, 119-5, 119-6, 119-7 and many others at the start of the session are Congressional Review Act joint resolutions of disapproval. Those have real, ongoing legal effect (the rule is void and the agency can't reissue a substantially similar one), and they will never appear in the U.S. Code. Same for post office namings, land conveyances, commemorative acts, and private laws.
+
+So "USC + recent PLAW" is not "USC plus a small time-lag patch." PLAW is permanently the only home for a large, legally operative class of enacted law.
+
+## Evidence 3: even codified laws often land only in notes
+
+Look at the tail of Pub. L. 119-21 in that same table: `42 2210 nt | 119-21 | 100201-100205`. Five sections of a major act, classified entirely as a statutory note under one section. OLRC explains why: a freestanding provision that belongs in a positive law title by subject matter can only be classified as a statutory note under a section of that title, because positive law titles can only get new sections by direct amendment; a statutory note can consist of as much as an entire law.
+
+**Design consequence:** if your indexer walks USLM and only ingests `<section>` bodies, you will silently drop entire statutes. Notes have to be first-class searchable content with their own citation form (`42 U.S.C. § 2210 note`). This is probably the single highest-value thing to get right for a "search full text" product, and it's where the bloated tools you looked at tend to fail too.
+
+## On dropping STATUTE: the format argument is stronger than the recency argument
+
+Your instinct is right, but for a better reason than "it's antique." GovInfo's own help page: USLM XML is currently available for Statutes at Large back to volume 117 (2003); GPO plans to release USLM XML for volumes 116 (2002) back to volume 1 (1789) incrementally in an upcoming release cycle. Volumes 1-64 and 65-116 were made available through digitization and digital imaging efforts.
+
+So the structured tier of STATUTE starts at 2003 (108th Congress), which is *later* than PLAW's start at the 104th (1995). Everything before that is scanned page images with OCR text keyed by page granule (`STATUTE-{vol}-Pg{page}`), with no section structure. Indexing that for BM25 gets you noisy OCR against a page-number identifier you can't map to anything a user would cite.
+
+**PLAW strictly dominates the machine-readable portion of STATUTE for your use case.** Verify per-congress format availability in PLAW yourself before you commit, but the coverage floor is the point.
+
+## The one real argument for Statutes at Large, and why it doesn't need indexing
+
+Under 1 U.S.C. 204, the matter in a main edition of the Code plus its current supplement establishes the law prima facie, except that titles enacted into positive law are legal evidence of the law. For non-positive-law titles, if the Code and the underlying act conflict, the act controls. That is a genuine reason a serious user reaches for the Statutes at Large.
+
+But that's a *fetch-one-citation* need, not a *search-the-corpus* need. The Code's credit lines already give you the Pub. L. and Stat. cite, and OLRC's own tables link straight to `statviewer.htm?volume=139&page=NNN`. Resolve on demand, don't ingest.
+
+## Suggested scope answer for Q1
+
+**Product = USC (current release point, sections *and* notes) + PLAW from the 104th.** STATUTE is out of scope for the index; add a citation resolver that returns a GovInfo pointer for any `N Stat. M`.
+
+Two things to add that you may not have in the spec yet:
+
+1. **The classification tables as the bridge layer.** The Code is current through Public Law 119-102 (July 12, 2026), and today is August 29 — roughly a six-week lag, which fluctuates. The site also carries per-section "Pending Updates" listing the public laws affecting a section since its currency date. Ingesting the tables plus pending-updates lets you answer "this section is stale, and here's the PLAW section that changes it," which is the actual killer feature over a naive USC dump.
+
+2. **The editorial classification change table.** You'll see `ed chg` markers in the tables (e.g. `54 320101 nt ed chg | 119-25`). Sections get moved and renumbered editorially between release points. If you cache across release points, you need that table or your citations rot.
+
+One reproducible check for your spec session: for each session, diff the distinct PL numbers in `tbl{congress}pl_{session}.htm` against the OFR public law list at archives.gov. The delta is your "enacted law with no Code footprint" set, and it's a number you can put in the spec instead of arguing about it.
+
+The followup prompt:
+
+GovInfo only publishes the code every 2 years - I'm looking at published code. Is there more recent codification available via the API? That's why there's a HUGE time lag, not a short one like you cited. And the search is GovInfo search, not anything I invented this time.
+
+And the response:
+
+You're right and I was sloppy. Those are two different lags and I quoted the wrong one.
+
+## What I actually cited vs. what you're hitting
+
+"Current through Pub. L. 119-102 (July 12, 2026)" is **OLRC's** currency for uscode.house.gov, not GovInfo's USCODE collection. GovInfo's USCODE is a different artifact with a different cadence.
+
+GovInfo publishes **annual edition packages**, IDs shaped `USCODE-{year}-title{n}` (e.g. `USCODE-2008-title28`, `USCODE-2006-title2`). The help page describes them as virtual main editions from 1994 forward, and explains the underlying print model: main editions every six years since 1934, with annual cumulative supplements in between.
+
+I could confirm `USCODE-2023-*` and `USCODE-2024-*` packages exist; I did not confirm a 2025 or 2026 edition, so verify that yourself against `api.govinfo.gov`. Either way, your complaint holds: an annual edition is current only through the end of that session, *and* it ships months after that session closes. You're looking at something 18+ months behind on a good day.
+
+Also worth noting: the GovInfo USCODE help page documents only PDF and HTM granule URLs. No XML format is documented for that collection. That's a second problem for a search product independent of staleness.
+
+## The answer to your actual question: yes, but not through GovInfo
+
+The current codification is published by OLRC as **release points**, and it's not in the GovInfo API at all.
+
+From uscode.house.gov/download/download.shtml right now:
+
+> Current Release Point — **Public Law 119-102 (07/12/2026)**. Each update of the United States Code is a release point. All files are current through Public Law 119-102. Titles in **bold** have been changed since the last release point.
+
+All 54 titles plus appendices, each in XML / XHTML / PCC / PDF, per-title zips and an all-titles zip:
+
+```
+https://uscode.house.gov/download/releasepoints/us/pl/119/102/xml_uscAll@119-102.zip
+https://uscode.house.gov/download/releasepoints/us/pl/119/102/xml_usc26@119-102.zip
+```
+
+The XML is USLM, with the schema and User Guide linked from the same page. Prior release points go back to Pub. L. 113-21 (`priorreleasepoints.htm`), and older material is on the Annual Historical Archives page.
+
+That's the same database OLRC prints from and serves on its own site. It is roughly six weeks behind enactment, not eighteen months, and it's structured XML rather than PDF/HTM. For a full-text USC search tool this is the source, not GovInfo USCODE.
+
+## One gotcha before you build the ingester
+
+Per-title currency is not always uniform with the release point label. A cached copy of that same download page shows:
+
+> Public Law 119-73 (01/23/2026) **, except 119-60** ... Title 1 — General Provisions — `119-73not60`
+
+So the page carries both a global release-point label *and* a per-title "Current Through" value that can encode exclusions. Model currency **per title**, not as one global watermark, or you'll assert freshness you don't have. The bolding of changed titles also gives you a cheap incremental-fetch signal: poll for the release-point PL number, and when it bumps, pull only the bolded titles.
+
+## Revised source plan
+
+| Layer | Source | Why |
+|---|---|---|
+| Codified text (sections + notes) | OLRC release points, USLM XML | Current to ~6 weeks, structured, versioned by PL |
+| Gap since release point | GovInfo PLAW | Nothing else has it |
+| Where the gap lands in the Code | OLRC classification tables + per-section Pending Updates | Maps unintegrated PLs onto USC sections |
+| Historical USC versions | OLRC prior release points (113-21 forward) / GovInfo USCODE annual editions | Point-in-time "what did § X say in 2019" |
+| Statutes at Large | Nothing ingested; resolve citations on demand | Unchanged from before |
+
+GovInfo USCODE keeps a role, but it's the *historical* layer, not the current one. Its annual granularity is actually a feature there: `USCODE-2019-title42-...` is a clean point-in-time citation in a way a release-point snapshot isn't.
+
+## On using GovInfo search as the backend
+
+If the plan was to proxy `/search` with `collection:uscode`, that inherits the annual-edition staleness directly, and you can't fix it with query tuning. The GovInfo search index is only as current as the packages behind it.
+
+You already have the alternative built. The FTS5/BM25 index and operative/quoted/header segment model from the congressMCP bill-text work maps onto USLM release-point XML with less rework than starting over, and it's the piece that lets you rank notes alongside sections instead of dropping them. Keep GovInfo `/search` for PLAW and for STATUTE citation resolution, where its index is the right one and its currency isn't the problem.
+
+Me again:
+
+The difficulty with this approach is ingesting ALL of the USLM and building an index of it. The index already exists at GovInfo (of PLAW), so I'm not certain that I want to rebuild the thing that already exists of a later codifciation of the code where it's not available.
+
 Q2. Navigation: is a browse/table-of-contents tool (list a title's chapters/sections via the granules listing) wanted in v1, or is search-only discovery enough? The granules listing is paginated and Title 42-scale titles will need many pages; cost is real.
+
+I think that search only is probably OK for this iteration until a consumer stumbles over the fact that it's search only. The previous method that I was working binds - no need to build features that may not be needed, until it is proven that they are.
 
 Q3. Appendices: USCODE has appendix granule trees (e.g. `USCODE-2008-title28-app`, S3). Should `get_us_code_section` resolve "28 U.S.C. App." citations in v1, or report them as out of scope?
 
+All appendicies and particularly notes should be included. The particular law that started my interest in this whole project is codified only as a note (42 USC 2210 note)
+
 Q4. Repo hygiene, outside my write authority: `CONTRIBUTING.md` and `documentation/CLAUDE.md` carry congressMCP/bill-text content (fulltext/, KNOWN_FAILURES, "Contributing to CongressMCP") that doesn't describe this repo. Update or intentional?
 
+Yes, please modify it (both are documentation, but live outside the documentation/ directory)
+
 Q5. Private laws: `lawtype:private` exists (S4). In scope for `get_public_law`, or public-only?
+
+Private laws may be interesting, but let's do just public for the MVP.
 
 ## Preregistered experiments — not yet run
 
