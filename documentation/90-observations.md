@@ -29,3 +29,25 @@ O7b — preregistered: same citation query with `historical:true`, `pageSize:40`
 O8 — `GET /packages/PLAW-118publ31/summary` (FY2024 NDAA): download map includes `uslmLink` alongside `premisLink`/`txtLink`/`zipLink`/`modsLink`/`pdfLink`. `congress:"118"`, `dateIssued:"2023-12-22"`, `lastModified:"2026-01-02T18:50:45Z"`. Single package — no coverage claim beyond it.
 
 O9 — `GET .../granules/USCODE-2024-title17-chap1-sec107/summary`: `granuleClass:"LEAF"`, `leafRange:{from:"107",to:"107",type:"section"}`; granule download map has granule-level `txtLink`/`pdfLink`/`modsLink` and package-level `zipLink`/`premisLink`; no `uslmLink`; `usCodeCitation` field present but null on this granule.
+
+## Measurements — 2026-08-29, second batch (real key via .env; preregistrations in commit fce3f03)
+
+O10 — E1a CONFIRMED: `citation:"17 U.S.C. § 107"` → `count:1`, same granule as O4. The `§` symbol is tolerated.
+
+O11 — E1b CONFIRMED: `citation:"17 U.S.C. 107(b)"` → `count:0`. Subsection suffixes must be stripped before searching; this is now a requirement, not a convenience.
+
+O12 — E2 CONFIRMED: `collection:PLAW congress:118 docnumber:31` → `count:1`, exactly `PLAW-118publ31`. No `lawtype` needed for this case.
+
+O13 — E5 (partial): response headers on a real-key search: `x-ratelimit-limit: 36000`, `x-ratelimit-remaining: 35999`. The earlier 1,000/hr assumption in `20-govinfo-api.md` was wrong by 36×. `X-Api-Key` header auth remains untested.
+
+O14 — E7a CONFIRMED: `citation:"42 U.S.C. 2210"` → `count:1`, granule `USCODE-2024-title42-chap23-divsnA-subchapXIII-sec2210` ("Indemnification and limitation of liability"). Granule IDs can nest five levels deep — another reason IDs are data, never constructed.
+
+O15 — E7b CONFIRMED: that granule's `/htm` payload is 142,544 bytes; the source credit (`(Aug. 1, 1946, …`) begins at byte 56,259, so ~60% of the payload is source credit plus statutory notes. Note-style headings present: "References in Text" ×1, "Amendments" ×5, "Effective Date" ×2, "Short Title" ×3. `currentthrough:20250106`. Notes ride along in the section granule; no separate fetch exists or is needed.
+
+O16 — E7c CONFIRMED: `citation:"42 U.S.C. 2210 note"` → `count:0`. Note citations resolve by stripping the trailing "note" and fetching the parent section (whose payload contains the notes, O15).
+
+O17 — E4: `collection:PLAW uscodecitation:"42 U.S.C. 2210"` → `count:14` (full list captured: 119publ74, 118publ47, 117publ328, 117publ286, 117publ169, 115publ248, 112publ10, 110publ140, 109publ58, 108publ375, 108publ7, 107publ314, 105publ362, 104publ134). `PLAW-119publ21` is ABSENT from all 14 — checked by packageId identity against the full result set (denominator: the response's own count). `uscodecitation:"42 U.S.C. 2210 note"` → `count:0`. Ingestion lag is not the explanation: a 2026-01-23 law (119publ74) is present.
+
+O18 — `GET /packages/PLAW-119publ21/summary`: the package exists (`dateIssued:"2025-07-04"`) and its `references` array DOES list title 42 section `2210` (among 44 title-42 sections). Together with O17: the reverse-lookup recall gap is in the search index's `uscodecitation` field, not in GovInfo's package metadata. S5's claim that Pub. L. 119-21 touches 42 U.S.C. 2210 is thereby corroborated at the metadata level while the search field misses it.
+
+O19 — E8: full-text query `collection:USCODE "Federal Rules of Appellate Procedure" usctitlenum:28` → `count:79`, hits mixing regular section granules and appendix granules of the shape `USCODE-2024-title28-app-federalru-rule9`. Appendix material lives as granules inside the title package and is full-text indexed. No citation-field form for "28 U.S.C. App." was found (untested beyond this).
