@@ -50,7 +50,11 @@ Example Claude Code / Claude Desktop stdio config:
 - `get_public_law` — resolve "Pub. L. 118-31" (or congress + number) and return the law's text, or USLM XML where offered.
 - `search_public_laws` — as above, scoped to PLAW; documents the `uscodecitation` reverse-lookup recipe and its measured recall gap.
 
-All tools distinguish three outcomes — success (including explicit zero results), upstream failure (status + body surfaced), and rate-limited (429 with headers passed through) — and window large payloads with explicit truncation markers, never silently.
+All tools distinguish three outcomes — success (including explicit zero results), upstream failure (status + body surfaced), and rate-limited (429 with headers passed through) — and window large payloads with explicit truncation markers, never silently. The API key travels only in the `X-Api-Key` header, never in a URL.
+
+## Tracing (R8)
+
+Set `USCODE_MCP_TRACE_DIR` to a directory to record every handled MCP tool call as one JSONL line (verbatim request and response, including error outcomes) in a per-run `trace-*.jsonl` file. Absence of the variable is the off switch. An unusable directory fails the server at startup; a failed trace write fails that request loudly rather than leaving a silently incomplete trace.
 
 ## Development
 
