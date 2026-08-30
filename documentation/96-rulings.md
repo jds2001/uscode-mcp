@@ -164,3 +164,7 @@ The difficulty with this approach is ingesting ALL of the USLM and building an i
 ## R7 — 2026-08-29, key transport
 
 Maintainer-reported defect in the implementation: the API key was sent as the `api_key` query parameter, which leaks into URL logging (the maintainer has seen httpx do exactly this). Ruling: **the key travels only in the `X-Api-Key` header, never in a URL** — verified working with a 401 no-credential control (O22). This interacts with the error contracts, which require surfacing upstream URLs and bodies verbatim: a URL-borne key would make the spec's own transparency requirements into a leak. Header transport makes surfaced URLs key-free by construction; see the secret-hygiene contract in `40-tools.md`.
+
+## R8 — 2026-08-29, trace directory
+
+Maintainer requirement, ported from congressMCP where it earned its keep: the server emits a request trace controlled by an environment variable naming a directory — tracing enabled by the variable's presence, disabled by its absence — with **one JSONL line per request carrying the verbatim request and response**. Its consumer is an E2E test harness that verifies the implementation against a real consumer model (the harness itself is parked as Q7). Contract details in `40-tools.md` → "Trace emission". One reading was assumed rather than guessed silently: the trace records MCP-level tool calls, not upstream GovInfo HTTP exchanges — flagged for confirmation as Q7a.

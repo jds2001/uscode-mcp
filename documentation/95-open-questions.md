@@ -6,6 +6,8 @@ Q1–Q5 are answered — rulings in `96-rulings.md`. E1, E2, E7, E8 and most of 
 
 Q6. v2 candidates deferred by R1/R2, parked here so they aren't lost: (a) a `N Stat. M` citation resolver that returns a GovInfo STATUTE pointer without ingesting anything; (b) a higher-recall PLAW→USC join — the package-summary `references` array demonstrably beats the `uscodecitation` search field (25/33 sampled recall, O21), and OLRC classification tables sit above both; (c) OLRC release points for current-text fetch-by-citation without an index. None are v1. No maintainer action needed until v1 ships.
 
+Q7. E2E test harness: the maintainer floated building a harness that drives the server through a real consumer model and verifies behavior from the R8 traces (the congressMCP pattern). The trace facility it needs is now specced (`40-tools.md`); the harness itself is unscoped — awaits a maintainer go-ahead and a design conversation. Q7a, needs one-line confirmation: R8 assumes traces record MCP-level tool calls (request/response as the consumer model sees them), not upstream GovInfo HTTP exchanges — if congressMCP's traced the HTTP level instead, say so and R8 gets amended.
+
 ## Run — see observations
 
 E5's remainder ran 2026-08-29 (O22): `X-Api-Key` header auth confirmed with a 401 no-credential control — and promoted from alternative to the only permitted transport by R7.
