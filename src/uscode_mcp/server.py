@@ -65,7 +65,10 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         stripped (the whole section is the retrieval unit). Optional `year` selects a historical
         annual edition. Large sections are windowed via `max_chars`/`start_char` with explicit
         truncation markers. Every text response carries provenance including the `currentthrough`
-        staleness date. Appendix citations return a structured redirect to search_us_code.
+        staleness date. Appendix citations ("28 U.S.C. App.", "28 U.S.C. App. Rule 9") resolve
+        directly; when one matches multiple granules the standard disambiguation list is returned,
+        and only a zero-hit appendix citation (e.g. the eliminated title 50 Appendix) falls back to
+        a structured redirect to search_us_code.
         """
         return await tools.get_us_code_section(
             _client(),
@@ -108,9 +111,10 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         """Resolve a public law and return its text with provenance. Pass `congress` + `law_number`,
         or a `citation` string ("Pub. L. 118-31", "Public Law 118-31", "P.L. 118-31"). Public laws
         only: a private-law request is a distinct out-of-scope outcome, not a failed lookup.
-        `format="uslm"` returns USLM XML when the package offers it; when it doesn't, that is a
-        distinct not-available outcome. Retrieval is package-level and a law can run thousands of
-        pages, so use the `max_chars`/`start_char` window (truncation is always explicitly marked).
+        `format="uslm"` returns USLM XML when the package offers it — present for congresses 113
+        (2013) and later, absent for 104-112 — and absence is a distinct not-available outcome.
+        Retrieval is package-level and a law can run thousands of pages, so use the
+        `max_chars`/`start_char` window (truncation is always explicitly marked).
         """
         return await tools.get_public_law(
             _client(),

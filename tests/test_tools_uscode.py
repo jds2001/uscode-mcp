@@ -206,12 +206,51 @@ class TestGetSectionNonSuccessOutcomes:
 
 
 class TestGetSectionAppendix:
-    async def test_appendix_redirect_is_structured_not_an_error(self, make_client):
-        out = await tools.get_us_code_section(make_client(None), citation="28 U.S.C. App. Fed. R. Civ. P. 9")
+    """O24 upgraded the contract: appendix citations resolve directly through the
+    citation field; the redirect survives only as the zero-hit fallback."""
+
+    async def test_appendix_rule_resolves_directly(self, make_client):
+        seen = []
+        hit = fx.usc_hit(
+            package_id="USCODE-2024-title28",
+            granule_id="USCODE-2024-title28-app-federalru-rule9",
+        )
+        client = make_client(section_handler(fx.search_response([hit]), seen=seen))
+        out = await tools.get_us_code_section(client, citation="28 U.S.C. App. Rule 9")
+        assert out["outcome"] == "success"
+        assert fx.request_body(seen[0])["query"] == 'collection:USCODE citation:"28 U.S.C. App. Rule 9"'
+        assert out["provenance"]["granule_id"] == "USCODE-2024-title28-app-federalru-rule9"
+
+    async def test_appendix_multi_hit_uses_standard_disambiguation(self, make_client):
+        # The measured O24 case: "28 U.S.C. App. Rule 9" -> federalru-rule9 and federalru-dup1-rule9.
+        hits = [
+            fx.usc_hit(package_id="USCODE-2024-title28", granule_id="USCODE-2024-title28-app-federalru-rule9"),
+            fx.usc_hit(
+                package_id="USCODE-2024-title28", granule_id="USCODE-2024-title28-app-federalru-dup1-rule9"
+            ),
+        ]
+        client = make_client(section_handler(fx.search_response(hits, count=2)))
+        out = await tools.get_us_code_section(client, citation="28 U.S.C. App. Rule 9")
+        assert out["outcome"] == "ambiguous"
+        assert out["count"] == 2
+        assert {c["granule_id"] for c in out["candidates"]} == {
+            "USCODE-2024-title28-app-federalru-rule9",
+            "USCODE-2024-title28-app-federalru-dup1-rule9",
+        }
+
+    async def test_zero_hit_appendix_falls_back_to_structured_redirect(self, make_client):
+        # Real for eliminated appendices: citation:"50 U.S.C. App. 1" -> 0 in the current edition (O24).
+        client = make_client(section_handler(fx.search_response([], count=0)))
+        out = await tools.get_us_code_section(client, citation="50 U.S.C. App. 1")
         assert out["outcome"] == "appendix_redirect"
+        assert out["query"] == 'collection:USCODE citation:"50 U.S.C. App. 1"'
         assert out["suggested_tool"] == "search_us_code"
-        assert "usctitlenum:28" in out["suggested_query"]
-        assert "Fed. R. Civ. P. 9" in out["suggested_query"]
+        assert "usctitlenum:50" in out["suggested_query"]
+
+    async def test_zero_hit_non_appendix_is_still_not_found(self, make_client):
+        client = make_client(section_handler(fx.search_response([], count=0)))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 99999")
+        assert out["outcome"] == "not_found"
 
 
 class TestSearchUSCode:

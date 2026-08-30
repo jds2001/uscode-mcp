@@ -68,6 +68,7 @@ class TestGetPublicLaw:
         assert out["format"] == "uslm"
         assert "txtLink" in out["available_formats"]
         assert "uslmLink" not in out["available_formats"]
+        assert "104-112" in out["message"]  # measured boundary (O25), not "unmeasured"
 
     async def test_invalid_format_rejected(self, make_client):
         out = await tools.get_public_law(make_client(None), congress=118, law_number=31, format="docx")

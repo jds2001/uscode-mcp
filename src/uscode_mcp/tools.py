@@ -149,20 +149,6 @@ async def get_us_code_section(
     except CitationParseError as exc:
         return _invalid_argument(str(exc))
 
-    if parsed.appendix:
-        terms = f' "{parsed.appendix_text}"' if parsed.appendix_text else ""
-        return {
-            "outcome": "appendix_redirect",
-            "citation": parsed.normalized,
-            "message": (
-                "Appendix citations cannot be resolved through the citation metadata field (no known form "
-                "matches appendix granules). Appendix material is full-text indexed, so use search_us_code "
-                "with the suggested query instead."
-            ),
-            "suggested_tool": "search_us_code",
-            "suggested_query": f"collection:USCODE usctitlenum:{parsed.title}{terms}",
-        }
-
     normalization: dict[str, Any] = {
         "normalized_citation": parsed.normalized,
         "stripped_subsection": parsed.stripped_subsection,
@@ -198,6 +184,22 @@ async def get_us_code_section(
         results = [r for r in results if str(r.get("dateIssued", "")).startswith(str(year))]
 
     if not results:
+        if parsed.appendix:
+            terms = f' "{parsed.appendix_text}"' if parsed.appendix_text else ""
+            return {
+                "outcome": "appendix_redirect",
+                "citation": parsed.normalized,
+                "query": query,
+                "year": year,
+                "message": (
+                    "The appendix citation resolved to zero granules — real for appendix material that no "
+                    "longer exists in the current edition (e.g. the eliminated title 50 Appendix, O24). "
+                    "Appendix granules are full-text indexed, so retry with search_us_code and the "
+                    "suggested query."
+                ),
+                "suggested_tool": "search_us_code",
+                "suggested_query": f"collection:USCODE usctitlenum:{parsed.title}{terms}",
+            }
         return {
             "outcome": "not_found",
             "normalized_citation": parsed.normalized,
@@ -216,7 +218,11 @@ async def get_us_code_section(
             "normalized_citation": parsed.normalized,
             "query": query,
             "year": year,
-            "message": "Multiple granules matched; not guessing. Pick one and re-request by year or ids.",
+            "count": data.get("count"),
+            "message": (
+                "Multiple granules matched; not guessing. Pick one and re-request by year or ids. "
+                "The candidate list is capped at one search page; 'count' is the true total."
+            ),
             "candidates": [_result_pointer(r) for r in results],
         }
 
@@ -446,8 +452,9 @@ async def get_public_law(
                 "package_id": package_id,
                 "available_formats": sorted(download.keys()),
                 "message": (
-                    "This package offers no uslmLink. USLM coverage across the PLAW collection is unmeasured "
-                    "(E4a), so absence is an expected, reportable outcome — not an error. Retry with "
+                    "This package offers no uslmLink. USLM has a measured boundary in the PLAW collection "
+                    "(O25): absent for congresses 104-112, present from the 113th (2013) on — so absence is "
+                    "an expected, reportable outcome for early congresses, not an error. Retry with "
                     "format='text' or use one of the available formats' links."
                 ),
             }

@@ -84,6 +84,11 @@ class TestUSCAppendix:
         assert c.appendix
         assert "Fed. R. Civ. P. 9" in c.appendix_text
 
+    def test_appendix_normalizes_to_the_measured_query_form(self):
+        # O24: citation:"28 U.S.C. App. Rule 9" is the form the search field matches.
+        assert parse_usc(citation="28 USC App. Rule 9").normalized == "28 U.S.C. App. Rule 9"
+        assert parse_usc(citation="28 U.S.C. App.").normalized == "28 U.S.C. App."
+
 
 class TestUSCInvalid:
     @pytest.mark.parametrize("raw", ["", "banana", "U.S.C. 107", "17 U.S.C.", "17 U.S.C. (b)"])
