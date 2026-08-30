@@ -10,7 +10,7 @@ The composition this enables: resolve a section as codified (`get_us_code_sectio
 
 ## Formats
 
-Package IDs: `PLAW-{congress}publ{n}` / `PLAW-{congress}pvtl{n}` (S4, O8, O12). Downloads observed on PLAW-118publ31: PDF, text (`/htm`), MODS, PREMIS, ZIP, and USLM XML (O8). USLM availability across the collection's range is unmeasured (E4a) — the `get_public_law` `format:"uslm"` contract therefore treats absence as an expected, reportable outcome, not an error.
+Package IDs: `PLAW-{congress}publ{n}` / `PLAW-{congress}pvtl{n}` (S4, O8, O12). Downloads observed on PLAW-118publ31: PDF, text (`/htm`), MODS, PREMIS, ZIP, and USLM XML (O8). USLM availability has a measured boundary: absent for congresses 104–112, present from the 113th (2013) on, sampled one package per congress (O25) — so the `get_public_law` `format:"uslm"` contract treats absence as an expected, reportable outcome for the collection's first nine congresses, not an error.
 
 Public laws have no granules the way USCODE does — retrieval is package-level, which is why the no-silent-truncation contract in `40-tools.md` matters most here (an NDAA is a single multi-thousand-page package, O8).
 

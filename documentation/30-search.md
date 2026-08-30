@@ -11,7 +11,7 @@
 | `offsetMark` | pagination cursor; `*` to start, echo back the returned value | opaque string (O4) |
 | `sorts` | array of `{field, sortOrder}` | fields seen: `score`, `publishdate`; `title`, `lastModified` documented (S1) |
 | `historical` | include superseded editions | default false; behavior measured in O7b |
-| `resultLevel` | `package` vs default mixed granule/package | documented (S1); untested (E3) |
+| `resultLevel` | `package` vs default mixed granule/package | do not use with granule-level fields: silently zero-hits a matching citation query (O23) |
 
 Responses carry exactly three top-level fields — `count`, next `offsetMark`, and `results[]` (O20; result objects carry no `count` of their own) — with `title`, `packageId`, `granuleId`, `dateIssued`, `collectionCode`, `lastModified`, a `download` link map, and a `resultLink` to the granule/package summary (O4). The service self-describes as public preview (S1) — the implementation should treat response-shape drift as a live risk and fail loudly, not coerce.
 
@@ -39,6 +39,8 @@ What the matcher tolerates and what it doesn't — all measured:
 - Trailing "note" (`42 U.S.C. 2210 note`): zero hits (O16). The server MUST strip a trailing "note" and resolve the parent section — the notes are inside its payload (O15), so nothing further is required to serve note citations.
 
 Normalization therefore has two mandatory strips (subsection, "note") and otherwise canonicalizes to `{title} U.S.C. {section}` as hygiene, since the observed tolerance covers only the variants above.
+
+Appendix citations resolve directly through the same field: `citation:"{title} U.S.C. App."` matches the appendix granule set (251 for title 28) and `citation:"28 U.S.C. App. Rule 9"` pins individual rules, sometimes to multiple granules — a measured disambiguation case (O24). Historical appendix forms that no longer exist in the current edition (e.g. the eliminated title 50 Appendix) return zero (O24); that falls through to full-text search like any other zero-hit.
 
 Edition-year requests add `historical:true` and select the hit whose `dateIssued` falls in the requested year; all annual editions come back as distinct granules (31 editions of §107, 1994–2024, O7b — denominator: `count` field of that response).
 

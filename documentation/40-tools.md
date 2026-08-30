@@ -28,7 +28,7 @@ Arguments: `citation` (string — accepts "17 U.S.C. 107", "17 USC 107", "17 U.S
 
 Behavior: normalize per `30-search.md` — mandatory strips: parenthetical subsection (O11) and trailing "note" (O16); when either strip fires, the response says so and names the containing section it resolved instead. Search `collection:USCODE citation:"…"` with `historical` set iff `year` given; on multiple hits after year filtering, return the disambiguation list (ids + titles) rather than guessing; fetch the winning granule's `txtLink`; return text + provenance. A citation that resolves to zero granules reports the normalized citation and the raw query so the caller can retry with `search_us_code`.
 
-Appendix citations ("28 U.S.C. App. …"): no citation-field form is known to match appendix granules (O19 established full-text reachability only, E10 open). v1 contract: return a structured redirect — not an error, not zero-hits-silence — naming `search_us_code` and suggesting a query built from the appendix terms, since appendix granules are demonstrably full-text indexed (O19). If E10 later finds a direct form, this upgrades to resolution without an interface change.
+Appendix citations ("28 U.S.C. App. …"): resolved directly — E10 found the form (O24, falsifying the earlier no-direct-form assumption): normalize to `citation:"{title} U.S.C. App."` plus any rule/section qualifier and search as usual. Multi-hit responses (measured: "28 U.S.C. App. Rule 9" → two granules, O24) use the standard disambiguation-list behavior. A zero-hit appendix citation — real for eliminated appendices like title 50's (O24) — falls back to the structured redirect to `search_us_code` (appendix granules are full-text indexed, O19), so the redirect survives as the fallback rather than the primary path. As promised, no interface change.
 
 ## `search_us_code`
 
@@ -42,7 +42,7 @@ Returns: `count`, next `offset_mark`, and per hit: `title`, `packageId`, `granul
 
 Public laws only (R6): a private-law request is a distinct out-of-scope outcome, not a failed lookup.
 
-Arguments: `congress` + `law_number`, or a `citation` string ("Pub. L. 118-31", "Public Law 118-31", "P.L. 118-31" — all normalize to congress/number); optional `max_chars`/`start_char`, and `format` (`text` default; `uslm` returns the USLM XML when the package offers a `uslmLink`, O8, and is a distinct not-available outcome when it doesn't, coverage unmeasured, E4a).
+Arguments: `congress` + `law_number`, or a `citation` string ("Pub. L. 118-31", "Public Law 118-31", "P.L. 118-31" — all normalize to congress/number); optional `max_chars`/`start_char`, and `format` (`text` default; `uslm` returns the USLM XML when the package offers a `uslmLink` — present for congresses 113+ and absent for 104–112 on the E4a sample (O25) — and is a distinct not-available outcome when it doesn't).
 
 Behavior: resolve via `collection:PLAW congress:{n} docnumber:{m}` (measured exact for 118/31, O12), fetch package text, return with provenance (packageId, `dateIssued`, `lastModified`, PDF link).
 

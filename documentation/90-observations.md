@@ -74,3 +74,13 @@ O21 — E9 executed per the preregistered protocol (commit a455a66), 33 membersh
 Outcomes against preregistration: recall < 100% CONFIRMED — 25/33 (denominator: the 33 sampled membership tests, not the corpus). The 119publ21×42/2210 miss REPRODUCES. Concentration in the 119th Congress FALSIFIED: 7 of 8 misses are in congresses 115–118. The gap is per-(law, section), not per-section — 42 U.S.C. 2210 misses for 115publ232 and 119publ21 but hits for 117publ169. Instrument validity: 25 positives across all five congresses show the `uscodecitation`+`congress`+`docnumber` conjunction composes; no law needed the all-miss control. Side observation: `references` sections can be range strings ("192-194"), and the range form itself was a HIT as a quoted citation.
 
 O22 — E5 closed: `X-Api-Key` header auth works with no `api_key` query parameter — `POST /search` returned 200 with the full result and `x-ratelimit-limit: 36000`, and a granule-summary GET returned 200. Control: the same POST with no credentials at all → 401, so the header was doing the authenticating. Preregistered expectation held (falsifier was 403).
+
+## Measurements — 2026-08-30
+
+O23 — E3: `resultLevel:"package"` on `citation:"17 U.S.C. 107"` → `count:0`. The flag does not lift a granule-level match to its package; it silently yields nothing when the query's fields are granule-level metadata. A zero-hit hazard, not an edition-level convenience — no tool uses it.
+
+O24 — E10 FALSIFIED the "no direct form" assumption behind the appendix redirect: `citation:"28 U.S.C. App."` → `count:251` (appendix granules, e.g. `USCODE-2024-title28-app-federalru-rule9`); `citation:"28 U.S.C. App. Rule 9"` → `count:2` — `…federalru-rule9` and `…federalru-dup1-rule9`, a real multi-hit case that exercises the disambiguation contract. Not every historical form works: `citation:"50 U.S.C. App. 1"` → 0 in the current edition (the title 50 Appendix was editorially eliminated), and `citation:"FRAP Rule 9"` → 0.
+
+O25 — E4a: `uslmLink` presence sampled on `PLAW-{c}publ1` for every congress 104–119 (denominator: one package per congress, 16 packages): absent for 104–112, present for 113–119. Clean boundary at the 113th Congress (2013).
+
+O26 — E6: the govinfo bulkdata repository list (www.govinfo.gov/bulkdata/json) is CFR, FR, BILLSTATUS, CBD, PPP, SCD, BILLS, GOVMAN, BILLSUM, PAI, ECFR, HMAN, PLAW, STATUTE, COMPS. No USCODE repository — the API's format story for USCODE (PDF/text/MODS only, O2/O9) is the whole GovInfo story; USC-in-USLM exists only at OLRC, which is out of scope by R1. Side note: COMPS (Statute Compilations, USLM) exists as a possible v2 interest for laws-as-amended.

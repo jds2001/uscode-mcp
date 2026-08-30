@@ -24,7 +24,7 @@ A PLAW package summary carries a `references` array enumerating the US Code cita
 
 ## Formats, per collection — measured 2026-08-29
 
-USCODE: package-level downloads are PDF, text (`/htm`), MODS, PREMIS, ZIP (O2). Granule-level: PDF, text (`/htm`), MODS only — `zipLink`/`premisLink` on a granule point back at the package (O9). No USLM/XML link at either level (O2, O9). GovInfo bulkdata may carry USCODE USLM separately — unverified, out of v1 scope (E6).
+USCODE: package-level downloads are PDF, text (`/htm`), MODS, PREMIS, ZIP (O2). Granule-level: PDF, text (`/htm`), MODS only — `zipLink`/`premisLink` on a granule point back at the package (O9). No USLM/XML link at either level (O2, O9). GovInfo bulkdata carries no USCODE repository at all (repository list measured, O26) — within GovInfo, PDF/text/MODS is the complete USCODE format story; USLM for the Code exists only at OLRC, out of scope by R1.
 
 PLAW: package-level downloads include `uslmLink` in addition to PDF, text, MODS, PREMIS, ZIP — observed on PLAW-118publ31 (O8). Coverage across congresses unmeasured (E4a). This falsifies the working assumption that XML is unavailable for PLAW; it is USCODE that lacks an XML download link on the API.
 
