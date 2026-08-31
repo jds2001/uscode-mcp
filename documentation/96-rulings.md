@@ -174,3 +174,17 @@ Two implementation choices flagged in the first R8 implementation report, ruled 
 ## R9 — 2026-08-30, dependency ceilings
 
 Maintainer requirement, with the scar tissue attached: the implementation's `pyproject.toml` set only a floor on the `mcp` SDK. MCP 2.0 shipped breaking API changes — that breakage is what brought the maintainer to congressMCP in the first place — and 3.0 likely will too. Ruling: **runtime dependencies with breaking-change potential get a ceiling as well as a floor** (for the `mcp` SDK: cap below the next major, e.g. `>=2,<3`). An uncapped floor turns someone else's release day into this server's outage. Raising a ceiling is a deliberate, tested change committed on its own — never drift. This is a repo convention, so it lives in `CONTRIBUTING.md`; the maintainer's direction to establish it is the recorded authorization for the spec session to make that edit (R5 precedent). The immediate implementation action: cap `mcp` in `pyproject.toml`.
+
+## R10 — 2026-08-30, the E2E harness (Q7b–Q7f)
+
+Maintainer answers recorded verbatim in commit 198cd0c, including the congressMCP §17 prompt manifest as the format exemplar. The rulings:
+
+Assertions (Q7b): all proposed trace assertions, except live rate-limit exercise (untriggerable at 36,000/hr with one consumer; stays unit-test territory). The load-bearing property is **non-vacuity of the error envelope**: errors returned as errors, zero hits as zero hits, all error responses structured rather than prose, and server-side normalization (the citation strips) disclosed so the consumer can diagnose what happened. New assertion classes get added as real consumers trip over things. The congressMCP completeness pressure (index-or-die on 1,100-page bills) mostly doesn't apply here — no indexer exists yet.
+
+Run model (Q7c): live consumer model per run — no replay tier. Runs are expensive and deliberately minimal: high-risk changes and pre-release. The harness executes prompts verbatim and records results beside pinned criteria; **it never scores**. Scoring is done by a human and/or the spec session against criteria pinned before the run (preregistration-of-scoring).
+
+Driver (Q7d): Claude Code headless with web-fetch tools disabled, so every answer is attributable to priors or to the tools — nothing else. No memory, and no disclosure that a developer is watching or that the run is a test (a consumer that knows is a different consumer). Cross-vendor cells use Codex CLI, gated on E11: congressMCP experience suggests ChatGPT-authenticated Codex cannot disable web fetching; if E11 confirms that, the harness MUST refuse to run cross-vendor cells under anything but API-key auth.
+
+Ownership (Q7e — the maintainer's answer was cut off mid-sentence at "Harness code lives in implementation,"; the rest is assumed from Q7c/Q7f and flagged in `95-open-questions.md` for correction): harness code implementation-side; the verification contract and the prompt manifest are spec-side — the manifest is normative at `documentation/e2e-manifest.json` and the harness loads it verbatim, never a copy. Cadence is manual-only (follows from Q7c); no CI gate.
+
+Format (Q7f): the §17 manifest structure is adopted with adaptations for a live-API, no-corpus server, specified in `60-e2e-harness.md`. Its hardest-won rule is adopted whole: **groundings are written from the record, not from plausibility** — three congressMCP prompts (A3, B3, E3) were invalidated by exactly that, and every grounding here cites an O-observation or names its measurement with a date.
