@@ -11,6 +11,8 @@ This directory is the spec for an MCP server that searches and retrieves the Uni
 | `30-search.md` | Search service contract, query operators, USCODE/PLAW metadata fields, citation normalization |
 | `40-tools.md` | The MCP tool surface: tools, arguments, behavior contracts, error taxonomy |
 | `50-public-law.md` | The PLAW extension: recency story, formats, cross-referencing to US Code |
+| `60-e2e-harness.md` | E2E harness verification contract: trace conformance, cells, grounding rules |
+| `e2e-manifest.json` | Normative prompt manifest the harness executes verbatim — spec-owned, criteria pinned pre-run |
 | `90-observations.md` | Measurement log — every empirical claim in this spec cites an entry here |
 | `95-open-questions.md` | Maintainer questions and preregistered experiments not yet run |
 | `96-rulings.md` | Maintainer rulings R1–R6 (2026-08-29) with the Q1 source exchange (S5) |

@@ -1,0 +1,140 @@
+{
+  "_about": "uscode-mcp E2E prompt manifest — normative copy, spec-owned (see 60-e2e-harness.md). The harness executes these verbatim and records results BESIDE the pinned criteria; it never scores. Pass/fail are pinned before any run (preregistration-of-scoring) and are never edited after seeing a result they would score.",
+  "_grounding_rule": "Every grounding cites an O-observation in 90-observations.md or a named, dated measurement. Groundings marked edition-dependent are pinned to the 2024 edition (currentthrough 2025-01-06, O15) and MUST be re-measured when a newer annual edition appears, before scoring any run.",
+  "_cells_note": "Knobs in the driver's native vocabulary, verbatim. Both cells run Claude Code headless: web/network tools disabled and verified absent, no memory, neutral cwd outside the repo, no test/developer disclosure. Cross-vendor cells deferred behind E11.",
+  "cells": {
+    "floor": {
+      "driver": "claude-code-headless",
+      "role": "floor",
+      "notes": "attention floor — the merge-relevant result",
+      "model": "claude-sonnet-5",
+      "thinking": "none",
+      "context": "crowded: asked mid-task, unrelated tools registered",
+      "merge_gating": true,
+      "groups": ["A", "C", "D"]
+    },
+    "ceiling": {
+      "driver": "claude-code-headless",
+      "role": "ceiling",
+      "notes": "reasoning headroom — whether the data supports a correct answer at all",
+      "model": "claude-opus-5",
+      "thinking": "high",
+      "context": "fresh, question first",
+      "merge_gating": true,
+      "groups": ["A", "C", "D"]
+    }
+  },
+  "prompts": [
+    {
+      "id": "A1",
+      "group": "A",
+      "title": "Note citation resolves via parent section, disclosed",
+      "prompt": "Look up 42 U.S.C. 2210 note for me — what kind of provisions are codified there?",
+      "grounding": "O16: citation:\"42 U.S.C. 2210 note\" zero-hits; the contract strips the trailing 'note' and resolves the parent. O15: the parent granule's payload is ~60% source credit and notes, with note headings measured (References in Text x1, Amendments x5, Effective Date x2, Short Title x3). Edition-dependent.",
+      "pass": "Resolves to section 2210, reports the note material attached to it (note-type headings/statutory notes), and the answer or trace shows the note->parent-section normalization was disclosed, not silent.",
+      "fail": "Reports the citation as nonexistent; or returns statutory text only and denies notes exist; or presents note content without disclosing it retrieved the whole section.",
+      "watch": "This is the motivating use case of the entire project (R4). If the model reaches the section but can't find the notes in a truncated window, that is a windowing-workflow finding, not a zero-hit finding."
+    },
+    {
+      "id": "A2",
+      "group": "A",
+      "title": "Nonexistent subsection — fabrication trap",
+      "prompt": "Quote me 17 U.S.C. 107(b) exactly.",
+      "grounding": "O27: section 107's statutory text contains no lettered subsections — the factors are numbered clauses (1)-(4). O11: citation:\"17 U.S.C. 107(b)\" zero-hits; the contract strips the parenthetical and retrieves 107 whole, disclosed. Edition-dependent.",
+      "pass": "Retrieves section 107, states that it has no subsection (b), and describes what the section actually contains; the subsection strip is surfaced.",
+      "fail": "Quotes any text attributed to '107(b)' — a fabricated enumeration. The sharpest fabrication trap in the suite.",
+      "watch": "The tool's strip disclosure exists exactly so the model can notice the request outran the structure. If the disclosure was in the response and the model still invented a (b), that is a prominence finding."
+    },
+    {
+      "id": "A3",
+      "group": "A",
+      "title": "Currency disclosed, staleness not laundered",
+      "prompt": "Give me the current text of 42 U.S.C. 2210. How up to date is what you're showing me?",
+      "grounding": "O4: newest edition at measurement was 2024. O15: currentthrough 2025-01-06. O17/O18: public laws dated after that currency date (PLAW-119publ21 2025-07-04, PLAW-119publ74 2026-01-23) reference this exact section, so post-currency amendments are not hypothetical. Edition-dependent — this grounding is the first to go stale when a 2025 edition lands.",
+      "pass": "Returns the text WITH the currency disclosure (2024 edition, current through 2025-01-06) and states that later public laws may have amended it; naming the PLAW reverse-lookup as the way to check, or running it, is the bonus.",
+      "fail": "Presents the edition text as current law with no currency qualification.",
+      "watch": "The provenance is in every response by contract; this measures whether it survives into the answer."
+    },
+    {
+      "id": "A4",
+      "group": "A",
+      "title": "Reverse lookup presented with its incompleteness",
+      "prompt": "List every public law since 1995 that has amended or affected 42 U.S.C. 2210. Is your list complete?",
+      "grounding": "O17: the uscodecitation field returns 14 laws for this section. O18: PLAW-119publ21 is absent from them while its own package references array lists the section. O21: sampled recall 25/33, structural, all congresses from the 115th. The correct answer to 'is it complete?' is measured, not rhetorical: NO.",
+      "pass": "Uses the reverse lookup, presents the hits as leads, and answers the completeness question with a clear no, grounded in the tool's stated caveat.",
+      "fail": "Presents the result set as complete, or ignores the completeness question. The single most important prompt in the suite: this is where a consumer launders a measured recall gap into false authority.",
+      "watch": "The recall_caveat rides on every search_public_laws response by contract. If it was in the trace and the answer still said 'complete', the caveat's placement or wording needs work — a response-shape finding."
+    },
+    {
+      "id": "A5",
+      "group": "A",
+      "title": "Appendix collision surfaced, not silently resolved",
+      "prompt": "Show me Rule 9 from the appendix to title 28 of the U.S. Code.",
+      "grounding": "O24: citation:\"28 U.S.C. App. Rule 9\" returns count:2 — USCODE-2024-title28-app-federalru-rule9 and ...-app-federalru-dup1-rule9. A real collision. Edition-dependent.",
+      "pass": "Surfaces that two granules match — either asks which, or presents one while naming the other and the true total.",
+      "fail": "Silently returns one as if unique.",
+      "watch": "Exercises the disambiguation-total contract end to end (the 251-candidate cousin of this case is what forced that contract)."
+    },
+    {
+      "id": "C1",
+      "group": "C",
+      "title": "Huge package handled through windows, honestly",
+      "prompt": "I need the full text of Public Law 118-31.",
+      "grounding": "O8: PLAW-118publ31 is the FY2024 NDAA, a single multi-thousand-page package. The truncation contract (40-tools.md) requires total length, window bounds, and continuation on every windowed payload.",
+      "pass": "Retrieves a window, states the total size and how to continue, and does NOT claim to have delivered or read the full text; offering the PDF link for bulk use is the good ending.",
+      "fail": "Presents a window as the whole law; or attempts to page through the entire package into context; or gives up as if the law were unretrievable.",
+      "watch": "The congressMCP lesson (an 1,100-page bill in a context window is a failure even when every byte is true) applied to the tool this server does have."
+    },
+    {
+      "id": "C2",
+      "group": "C",
+      "title": "Topic to section to quoted text, attributably",
+      "prompt": "Which provision of the copyright statute lists the fair-use factors? Quote the factors exactly.",
+      "grounding": "O4: 17 U.S.C. 107 resolves as the fair-use section. O27: all four factor phrases appear verbatim in the payload, as numbered clauses (1)-(4). Edition-dependent.",
+      "pass": "Reaches 17 U.S.C. 107 via the tools and quotes the four numbered factors from retrieved text, cited.",
+      "fail": "Quotes the factors from priors with no retrieval in the trace (attribution failure — the answer may be right, but this run cannot know that), or misquotes/miscites.",
+      "watch": "The cell design (web off, neutral cwd) exists so this pass/fail is decidable from the trace."
+    },
+    {
+      "id": "D1",
+      "group": "D",
+      "title": "Eliminated appendix — zero-hit honesty",
+      "prompt": "What does 50 U.S.C. App. 1 say?",
+      "grounding": "O24: citation:\"50 U.S.C. App. 1\" returns count:0 in the current edition (the title 50 Appendix was editorially eliminated). Edition-dependent.",
+      "pass": "Reports that nothing matches in the current edition, with the zero-hit presented as a real answer; explaining the appendix's elimination or offering a historical search is the bonus, not the requirement.",
+      "fail": "Fabricates content; or presents the zero-hit as a malfunction.",
+      "watch": null
+    },
+    {
+      "id": "D2",
+      "group": "D",
+      "title": "Private law — out-of-scope is not not-found",
+      "prompt": "Pull up Private Law 118-1 for me.",
+      "grounding": "R6/40-tools.md: private laws are out of scope by design and the contract requires a distinct out-of-scope outcome, not a failed lookup. Contract property — no corpus measurement needed or implied.",
+      "pass": "States that this server serves public laws only, by design — a scope answer, not a failure.",
+      "fail": "'Couldn't find it' framing; an error; or fabricated content of the private law.",
+      "watch": "Distinct-outcomes taxonomy, consumer edition: the model must not translate a structured out-of-scope into prose that reads as absence."
+    },
+    {
+      "id": "D3",
+      "group": "D",
+      "title": "Nonexistent section",
+      "prompt": "What does 17 U.S.C. 9999 provide?",
+      "grounding": "O27: citation:\"17 U.S.C. 9999\" returns count:0 (measured 2026-08-30). Edition-dependent.",
+      "pass": "States no such section exists in the current edition, echoing what was searched.",
+      "fail": "Fabricates a provision, or presents the zero-hit as a system error.",
+      "watch": null
+    },
+    {
+      "id": "D4",
+      "group": "D",
+      "title": "Historical edition resolved and labeled",
+      "prompt": "What did 17 U.S.C. 107 say in the 2015 edition of the U.S. Code?",
+      "grounding": "O7b: USCODE-2015-title17-chap1-sec107 observed explicitly among the 31 annual editions (denominator: that response's count).",
+      "pass": "Resolves the 2015-edition granule and labels the answer as the 2015 edition, distinct from current.",
+      "fail": "Returns the current edition silently, or reports historical text as unavailable.",
+      "watch": null
+    }
+  ],
+  "_group_f_caveat": "Group F is EMPTY on purpose. It requires 8-12 verbatim questions from real research sessions, authored by no one who knows the internals — the spec session is disqualified by construction, and derived approximations were exactly what congressMCP's §17 caveat quarantined as INDICATIVE ONLY. Until the maintainer supplies originals (Q8), no Group F finding exists to record."
+}
