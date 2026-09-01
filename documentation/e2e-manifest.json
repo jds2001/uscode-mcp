@@ -2,7 +2,7 @@
   "suite": {"name": "uscode-mcp-e2e", "spec": "documentation/", "manifest_version": "1"},
   "server": {
     "name": "uscode_mcp",
-    "transport": {"type": "stdio", "command": "uv", "args": ["run", "uscode-mcp"],
+    "transport": {"type": "stdio", "command": "uv", "args": ["run", "--project", "/Users/jstanley/code/uscode-mcp", "uscode-mcp"],
                   "env": {"GOVINFO_API_KEY": {"$secret": "GOVINFO_API_KEY"}}},
     "secret_keys": ["GOVINFO_API_KEY"]
   },
