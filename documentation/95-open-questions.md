@@ -10,11 +10,13 @@ Q7 (E2E harness) is answered and ruled — R10 in `96-rulings.md`, maintainer an
 
 Q7e-completion — CLOSED by R11 (2026-08-31): the harness became the standalone mcp-e2e project, the suite (manifest, groundings, scored findings) is spec-owned here, cadence is manual. Nothing left to confirm.
 
-Q9. First run of the suite: after `mcp-e2e validate` passes, run the smoke cell for instrument validation (60-e2e-harness.md, "First-run instrument validation"), then the three gating cells. The spec session scores. Awaiting the maintainer running the harness (the spec session doesn't have mcp-e2e).
+Q9 — in progress. Floor cell ran and is scored (run 2026-09-01T021336Z, `70-run-findings.md`: 10/11 pass, F1 filed). Outstanding: the `ceiling` and `isolation` cells (attribution clauses in A2/C2/D3 remain unscored until isolation runs), and a re-run of C1 after the E12 banner lands. The watch:"none" workaround can revert to null once the harness null-fix ships.
 
 Q8. Group F needs 8–12 **verbatim** questions from real research sessions — congressMCP's sourcing rule, adopted whole: they must not be written by anyone who knows the internals, and the spec session is disqualified from authoring them by construction. The manifest ships with Group F empty and carries the caveat. Paste originals when available.
 
 ## Preregistered experiments — pending
+
+E12 (preregistered 2026-09-01, from finding F1). Change: the in-band truncation banner (`40-tools.md`). Expected: on the next run, C1-class behavior stops — the consumer states the true total and does not present a window or the host's saved tool-result file as the complete law. Falsifier: C1 fails again WITH the banner present at the head of `text.content` in the trace — then the banner is insufficient, the ruling gets revisited, and the finding escalates to a harder response-shape question (e.g. whether huge-payload success responses should default to a summary-plus-pointer shape instead of text).
 
 E11 (hand-over — needs Codex CLI with both auth modes, which the spec session does not have). Claim from congressMCP work: ChatGPT-authenticated Codex cannot have web fetching disabled; the maintainer suspects a way to do it was found only after switching to API auth. Measurement: attempt to fully disable web/network tools under (a) ChatGPT auth and (b) API-key auth, verifying with a prompt that can only be answered by fetching (expected: fetch succeeds or tool remains available under (a); disabled verifiably under (b)). Expected: the claim holds → the harness MUST refuse cross-vendor cells without API-key auth (R10). Falsifier: a ChatGPT-auth configuration that verifiably disables fetching → the mandate relaxes to requiring that configuration.
 
