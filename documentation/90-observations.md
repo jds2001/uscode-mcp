@@ -98,3 +98,13 @@ O28 — Response-envelope and trace-shape measurement, by black-box probe: the s
 - R8 trace record: `{timestamp, request:{tool, arguments}, response:{content, isError, structuredContent}}` — one line per call, six for six.
 - Secret hygiene: the key does not appear anywhere in the trace (checked by substring against the live key). The server's stderr HTTP log lines show upstream URLs without key material — R7's by-construction claim observed holding under the exact logging path the maintainer originally saw leak.
 - Fixture content hashes for staleness pinning: sec107 payload sha256[:16] `5e8ab99889bfbdbe`, sec2210 payload sha256[:16] `d5f914c193b5f734` (the O5/O15 saved bytes).
+
+## Measurements — 2026-09-01 (from run 2026-09-01T021336Z artifacts)
+
+O29 — First real harness run (floor cell, 11 prompts) as measurement source:
+
+- The `appendix_redirect` envelope, previously implementation-claimed, is now measured in a live trace (D1): `{outcome, citation, query, year, message, suggested_tool, suggested_query}` — the vocabulary and the checks may now bind it.
+- Harness trace record schema: `{index, tool, args, duration_ms, is_error, response, response_bytes, started_at}` with the structured payload at `/response/structuredContent` — the O28 pointer-root assumption held: 8 of 9 checks matched real records and passed; the ninth was vacuous for a reason visible in the trace (D2's consumer never sent the private citation to a tool).
+- `USCODE-2024-title28-app-federalru-dup1-rule9` is FRCP Rule 9 "Pleading Special Matters" (candidate title in A5's trace) — the O24 pair is FRAP vs FRCP, a genuine cross-rule-set collision.
+- A4 verification against the saved O15 payload (entity-encoded `&ndash;` forms): all eight public laws the consumer's amendment table cited from the source credit are present, including Pub. L. 109-295 — which is NOT among O17's 14 `uscodecitation` hits. A second measured instance of the recall gap, surfaced this time by a consumer reading the source credit. RECA ("Radiation Exposure Compensation Act") confirmed present in §2210's notes (A1's claim); Pub. L. 102-492 confirmed in §107's credits (D4's claim).
+- C1's consumer misstated the law's size as "about 102,600 characters total" against a trace showing `total_chars: 3,590,552`, `truncated: true` — the figure matches the returned window (~100k default) plus envelope, i.e. the size of the host-saved tool-result file, and the consumer described that file as "the full JSON (with text content)". The structured truncation fields were present and correct; they did not survive into the answer.
