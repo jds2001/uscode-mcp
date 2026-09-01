@@ -1,54 +1,33 @@
-# E2E harness — verification contract
+# E2E suite — uscode-mcp's half of the mcp-e2e contract
 
-The harness (implementation-owned code) drives this server through a real consumer model and records what happened; humans and the spec session score the results against criteria pinned in advance. Ruled in R10; the format ancestor is congressMCP's §17 manifest (verbatim in commit 198cd0c).
+The harness is a standalone project, `mcp-e2e` (R11). Its mechanics — manifest loading, cells, drivers, checks engine, run artifacts, the four check outcomes — are `SUITE-AUTHORING.md`'s to define (with the harness repo's own spec normative on conflict). This file holds only what is uscode-mcp-specific: the suite.
 
-## Division of labor — binding
+The suite is spec-session property: the manifest (`e2e-manifest.json`, loaded verbatim by the harness — no copies), the groundings behind it, and the scored findings from runs. Two runs are comparable only on matching manifest hashes or an explained delta.
 
-The harness **executes and records; it never scores.** Every prompt carries its `pass`/`fail` criteria pinned before the run — preregistration-of-scoring — and a criterion is never edited after seeing a result it would score. Criteria change only between runs, with the rationale committed here. Scoring is done by a human and/or the spec session, recorded beside (never instead of) the raw artifacts.
+## Binding suite rules
 
-The prompt manifest is normative at `documentation/e2e-manifest.json`. The harness loads that file verbatim — no implementation-side copy, no transcription. Manifest edits are spec-session commits.
+**Preregistration-of-scoring** (inherited, restated because it binds this directory): `pass`/`fail` are pinned before a run and never edited after seeing a result they would score; criteria change only between runs with rationale committed. `watch` fields pin attention, not scoring, and may be edited freely.
 
-## Layer 1 — mechanical trace conformance (harness-checked)
+**First-run instrument validation.** The Layer-1 checks were authored against the measured envelope (O28) plus one assumption — that the harness roots the tool response at `/response`, putting the structured payload at `/response/structuredContent/...`. Before any check outcome is scored: `mcp-e2e validate` must accept the manifest, and one smoke cell must show every check non-vacuous on a run that exercised its surface. A vacuous check is an instrument question, never a pass — if the pointer root is wrong, every check will be vacuous at once, which is the tripwire working.
 
-These are assertions a program can check against every R8 trace line, with no judgment involved. Each maps to a contract in `40-tools.md`:
+**Outcome vocabulary.** Measured members are pinned (O28): `success`, `not_found`, `ambiguous`, `out_of_scope_private_law`. Implementation-claimed members (the appendix redirect shape, upstream-failure, rate-limited, `format_not_available`) are not bound by any check until measured — a check written against a guessed name false-fails legitimate outcomes. When a run's trace exhibits a new outcome shape, measure it there (the trace is the measurement) and extend the checks in the same commit as the observation.
 
-- **Structured error envelope**: every non-success outcome in a response is a structured object with a machine-readable kind (zero-hit / upstream-failure / out-of-scope / disambiguation / redirect), never prose-only. Zero hits echo the upstream query; upstream failures carry status and body.
-- **Outcome distinctness**: no trace line shows an upstream failure or out-of-scope request presented in a zero-hit shape, or vice versa.
-- **Normalization disclosure**: whenever the server stripped a subsection or a trailing "note", or redirected an appendix citation, the response says so — the consumer must be able to diagnose what the server did with its input.
-- **Truncation markers**: any windowed text payload states total length, window bounds, and continuation; no window without markers.
-- **Disambiguation totals**: every candidate list carries the true `count`, with capping stated.
-- **Provenance completeness**: every text payload carries packageId/granuleId, edition year, `currentthrough` (or its explicit parse-failure disclosure), `lastModified`, PDF link.
-- **Secret hygiene**: no key material anywhere in any trace line.
+**Attribution discipline.** Fabrication and answered-from-priors clauses (in A2, C2, D3) are scorable only in the `isolation` cell, where trace scope equals tool surface — SUITE-AUTHORING's rule, applied to the three prompts that need it. In `floor`/`ceiling` those clauses are watch items, never scores.
 
-Rate-limit behavior is excluded (untriggerable live at 36,000/hr, O13) and stays unit-test territory.
+**Edition staleness.** Groundings marked edition-dependent are pinned to the 2024 edition (`currentthrough` 2025-01-06, O15). When GovInfo publishes a newer annual edition, those groundings are stale: re-measure before scoring any run. The harness's per-run upstream identifiers make staleness detectable after the fact; the fixture `content_hash_sha256_16` values (O28) make it checkable by re-fetch.
 
-## Layer 2 — consumer-behavior findings (human/spec-scored)
+## What Layer 1 asserts, and why
 
-What the pinned `pass`/`fail` criteria in the manifest govern: did the consumer, given honest tool responses, produce an honest answer — completeness caveats propagated, currency disclosed, absence reported as absence, no fabricated citations. A failure here is classified before it is filed: **consumer-behavior finding** (the tool told the truth and the model dropped it — a response-shape/prominence question), **tool defect** (the trace shows the server violating a `40-tools.md` contract), or **instrument defect** (the harness or cell configuration could not have captured the signal — fix the instrument before any disposition). A zero-trace run of a single-prompt cell reads as BROKEN, never as abstention.
+Each check in the manifest maps to a `40-tools.md` contract: outcome discriminator present (three-outcomes taxonomy); zero-hits echo the upstream query; normalization strips disclosed (the diagnosability the maintainer named in Q7b); provenance blocks complete, `currentthrough` included (staleness disclosure, load-bearing after R1); truncation markers on every window (measured live against the 3.59M-char NDAA, O28); disambiguation true totals; `recall_caveat` on every successful `search_public_laws` response (O21's gap must not be laundered); private-law scope outcome distinct from not-found (R6). Rate-limit behavior stays unit-test territory (untriggerable live, O13).
 
-## Run mechanics
+## Layer 2 and classification
 
-Live consumer per run; no replay tier (R10). Runs are minimal and manual: high-risk changes and pre-release.
+Layer 2 scoring is the human's and/or this session's, from artifacts, never summaries. Every failure is classified before filing — consumer-behavior finding vs tool defect vs instrument defect — and no finding of any class is recorded from a defective instrument; a zero-trace run is BROKEN, never abstention. Scored findings are committed here, each citing the run artifacts it was scored from.
 
-Driver: Claude Code headless. The cell's environment must make answers attributable to exactly two sources — the model's priors and this server's tools: web/network tools disabled and verified absent from the trace's available-tool surface; no memory; a **neutral working directory** outside this repo, so no CLAUDE.md, spec file, or repo context leaks into the consumer (a consumer that learns it is being tested, or what the internals look like, is a different consumer — R10's no-disclosure principle). Model knobs are recorded in the driver's native vocabulary, verbatim, never translated across vendors.
+## Cells and gating
 
-Each run records, per cell: manifest content hash, cell id and full knob set, the R8 trace directory contents, the consumer transcript, and a meta record (wall clock, tool-call count, editions/granuleIds actually hit). Runs land in `runs/` (gitignored — bytes are disposable, the scored findings are what gets committed, here).
+Three gating cells: `floor` (Sonnet, no thinking, crowded via the harness-owned `neutral-file-triage@2` procedure — collision review attested in the manifest: statutory-law retrieval is disjoint from office notes-triage), `ceiling` (Opus, high thinking, fresh), `isolation` (the four server tools exactly, fresh — the attribution cell). The grid grows only when a question needs a new cell. Cross-vendor cells remain deferred behind E11: if it confirms ChatGPT-auth Codex cannot disable web fetching, cross-vendor cells run under API-key auth or not at all.
 
-## Cells
+## Group F
 
-Two gating cells to start; the grid grows only when a question needs a new cell.
-
-| cell | driver | model | knobs | context | gating |
-|---|---|---|---|---|---|
-| floor | claude-code headless | claude-sonnet-5 | thinking: none | crowded: asked mid-task, other tools registered | yes |
-| ceiling | claude-code headless | claude-opus-5 | thinking: high | fresh, question first | yes |
-
-The floor is the merge-relevant result (what a distracted mid-task consumer does); the ceiling separates "the data can't support a correct answer" from "the floor model dropped it". Cross-vendor cells (Codex CLI) are deferred behind E11: if E11 confirms ChatGPT-auth Codex cannot disable web fetching, the harness refuses to run cross-vendor cells without API-key auth — attribution is the whole point of the cell.
-
-## Grounding rules for the manifest
-
-Adopted whole from congressMCP, where writing prompts from plausibility instead of the record invalidated three of them (A3, B3, E3 in the §17 manifest):
-
-- Every prompt asserting a document or API property cites its grounding: an O-observation in `90-observations.md`, or a named, dated, reproducible measurement.
-- **Live-API adaptation** (this server has no cached corpus, R1): groundings are pinned against a stated edition — currently the 2024 edition, `currentthrough` 2025-01-06 (O15). When GovInfo publishes a newer annual edition, every grounding that depends on current-edition behavior is stale: re-measure before scoring any run against it. The harness's per-cell meta records the editions actually hit so staleness is detectable after the fact, not assumed away.
-- Group F (real-user prompts) must be verbatim questions from real research sessions, authored by no one who knows the internals — the spec session is disqualified by construction. Until the maintainer supplies 8–12 originals (Q8), Group F is empty and nothing is scored as a Group F measurement.
+Empty until Q8 delivers 8–12 `verbatim-original` questions. Nothing scored as a Group F measurement before then; `derived` stand-ins are not authored at all, having been quarantined as indicative-only in the ancestor suite.

@@ -8,7 +8,9 @@ Q6. v2 candidates deferred by R1/R2, parked here so they aren't lost: (a) a `N S
 
 Q7 (E2E harness) is answered and ruled — R10 in `96-rulings.md`, maintainer answers verbatim in commit 198cd0c, contract in `60-e2e-harness.md`, manifest at `e2e-manifest.json`. Remaining threads:
 
-Q7e-completion. The Q7e answer ended mid-sentence ("Harness code lives in implementation,"). R10 assumed the rest: verification contract and manifest spec-side (normative at `documentation/e2e-manifest.json`), manual-only cadence, no CI gate. Confirm or correct.
+Q7e-completion — CLOSED by R11 (2026-08-31): the harness became the standalone mcp-e2e project, the suite (manifest, groundings, scored findings) is spec-owned here, cadence is manual. Nothing left to confirm.
+
+Q9. First run of the suite: after `mcp-e2e validate` passes, run the smoke cell for instrument validation (60-e2e-harness.md, "First-run instrument validation"), then the three gating cells. The spec session scores. Awaiting the maintainer running the harness (the spec session doesn't have mcp-e2e).
 
 Q8. Group F needs 8–12 **verbatim** questions from real research sessions — congressMCP's sourcing rule, adopted whole: they must not be written by anyone who knows the internals, and the spec session is disqualified from authoring them by construction. The manifest ships with Group F empty and carries the caveat. Paste originals when available.
 
