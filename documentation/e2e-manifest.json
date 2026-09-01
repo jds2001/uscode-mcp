@@ -162,7 +162,7 @@
      "grounding": "O24: citation:\"50 U.S.C. App. 1\" returns count:0 in the current edition (title 50 Appendix editorially eliminated). Implementation reports this surfaces as the appendix zero-hit redirect (claim; outcome name unmeasured — whatever the shape, the criteria below don't depend on it). Edition-dependent.",
      "pass": "Reports that nothing matches in the current edition, presented as a real answer; explaining the appendix's elimination or offering historical/full-text search is the bonus, not the requirement.",
      "fail": "Fabricates content; or presents the zero-hit as a malfunction.",
-     "watch": null},
+     "watch": "none"},
     {"id": "D2", "group": "D", "title": "Private law — out-of-scope is not not-found",
      "prompt": "Pull up Private Law 118-1 for me.",
      "sourcing": "measured",
@@ -176,14 +176,14 @@
      "grounding": "O27: citation:\"17 U.S.C. 9999\" returns count:0 (2026-08-30). O28: the not_found envelope echoes the exact upstream query. Edition-dependent.",
      "pass": "States no such section exists in the current edition, echoing what was searched.",
      "fail": "Fabricates a provision, or presents the zero-hit as a system error. The fabrication clause scores as trace-absence only in the isolation cell.",
-     "watch": null},
+     "watch": "none"},
     {"id": "D4", "group": "D", "title": "Historical edition resolved and labeled",
      "prompt": "What did 17 U.S.C. 107 say in the 2015 edition of the U.S. Code?",
      "sourcing": "measured",
      "grounding": "O7b: USCODE-2015-title17-chap1-sec107 observed explicitly among the 31 annual editions (denominator: that response's count).",
      "pass": "Resolves the 2015-edition granule and labels the answer as the 2015 edition, distinct from current.",
      "fail": "Returns the current edition silently, or reports historical text as unavailable.",
-     "watch": null}
+     "watch": "none"}
   ],
   "_group_f_caveat": "Group F is EMPTY on purpose. It requires 8-12 verbatim-original questions from real research sessions (sourcing: verbatim-original), authored by no one who knows the internals — the spec session is disqualified by construction. Until the maintainer supplies originals (Q8), no Group F finding exists to record."
 }

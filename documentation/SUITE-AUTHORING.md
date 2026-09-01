@@ -75,6 +75,8 @@ One JSON file. Top level: `suite`, `server` (required); `fixtures`, `rubrics`, `
 
 Notes on the parts that bite:
 
+- **Your server command runs from a neutral working directory — never your repo.** Attribution requires it, so cwd-dependent launchers die at spawn: `uv run <script>` resolves its project from cwd and fails with exit 2 from anywhere else. Use `uv run --project /abs/path/to/your-repo <script>`, an absolute path to an installed entry point, or `python -m your_server` against an absolute-path environment. The first real suite lost a run to exactly this.
+- **Optional fields may be explicit `null`** — null and absent are equivalent everywhere except `pass`/`fail`, where null means "scored by the named `rubric`" and `rubric` becomes required.
 - **Secrets**: values written as `{"$secret": "VAR"}` resolve from the harness environment at launch and never touch an artifact. Name your sensitive keys in `secret_keys` — a literal value under a named key is a load error. Trace/transcript/meta are scanned for resolved secret material; a hit halts the run.
 - **`tool_surface`**: `"full"` or an explicit tool-name list. Attribution-dependent conclusions ("that citation is absent from the trace, therefore fabricated") are valid **only** in list-surface cells, where trace scope equals tool surface — the harness enforces the list at the MCP proxy and verifies it on the model-API wire.
 - **Fresh by default**: every invocation gets a fresh neutral working directory and a fresh server process. State you want present must arrive explicitly, via `setup` (an ordered list of `{tool, args}` calls the harness makes directly against your server before the prompt — never via a model turn) or `env`. There is no warm-by-accident.
@@ -105,6 +107,8 @@ Score from the artifacts, not from summaries — demand the trace, the before/af
 ## Runs
 
 `mcp-e2e validate --manifest …` checks the manifest; `mcp-e2e run --manifest …` executes cells. Per cell/prompt the run directory holds: `trace.jsonl` (every tool call, verbatim), `answer.txt`, `meta.json` (knobs, manifest hash, timing, tool-call list, attribution record, api-surface digest, crowding hash), `available-tools.json` (advertised vs exposed), `api-surface.jsonl` (the actual tool arrays sent to the model), and the checks report.
+
+While a run is live, the runner reports progress to the terminal and artifacts land per cell as it goes — if anything looks wrong, read before killing: `proxy-meta.json` (did your server die? `server_exit` is the tell), `available-tools.json` (did its tools register?), and the cell's `meta.json` (`trace_records: 0` on a prompt that needs your server means the consumer answered from priors — instrument breach, not data).
 
 Gitignore the run directory — bytes are disposable. What you commit is the manifest, its grounding measurements, and your scored findings, each finding citing the run artifacts it was scored from. Commit each ruling as it is made; the git history is your decision record.
 
