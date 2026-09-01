@@ -14,6 +14,10 @@ Q9 — in progress. Floor cell ran and is scored (run 2026-09-01T021336Z, `70-ru
 
 Q8. Group F needs 8–12 **verbatim** questions from real research sessions — congressMCP's sourcing rule, adopted whole: they must not be written by anyone who knows the internals, and the spec session is disqualified from authoring them by construction. The manifest ships with Group F empty and carries the caveat. Paste originals when available.
 
+## Implementation queue (spec-ruled, awaiting pickup)
+
+The E12 in-band truncation banner (`40-tools.md`), and the keyless-startup fail-fast (`20-govinfo-api.md`, ruled from F31/O35): absent or blank GOVINFO_API_KEY exits at startup naming the variable, with a test asserting the failure is at startup, not first-request.
+
 ## Preregistered experiments — pending
 
 E12 (preregistered 2026-09-01, from finding F1; still open as of run 023317Z — that C1 re-run PASSED but its trace shows no banner, so the change under test was absent and the pass counts as evidence of floor variability, not of E12; see `70-run-findings.md`). Change: the in-band truncation banner (`40-tools.md`). Expected: on the next run, C1-class behavior stops — the consumer states the true total and does not present a window or the host's saved tool-result file as the complete law. Falsifier: C1 fails again WITH the banner present at the head of `text.content` in the trace — then the banner is insufficient, the ruling gets revisited, and the finding escalates to a harder response-shape question (e.g. whether huge-payload success responses should default to a summary-plus-pointer shape instead of text).
