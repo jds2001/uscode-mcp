@@ -404,6 +404,18 @@
       "watch": "In full-surface cells, note whether the model reached for the tools at all — indicative of tool-description pull, scored nowhere."
     },
     {
+      "id": "C3",
+      "group": "C",
+      "title": "Interior content question on a package-only law (the index question, E13)",
+      "prompt": "What does Public Law 118-31 do about AUKUS?",
+      "fixture": "PLAW-118publ31",
+      "sourcing": "measured",
+      "grounding": "Measured 2026-09-01 against the fetched PLAW-118publ31 htm (tag-stripped 3,652,153 chars; server text total 3,590,552, so %-positions transfer approximately): 'AUKUS' occurs 66 times — a TOC scent trail at ~2% (Subtitle B--Matters Relating to the AUKUS Partnership; Sec. 1331; Sec. 1333; Part 3--AUKUS Submarine Transfer Authorization Act) and the substantive cluster at ~30-40% (58 of 66 hits): SEC. 1331 AUKUS PARTNERSHIP OVERSIGHT (22 USC 10411 note marker), Sec. 1333 reporting, submarine transfer part. Unreachable from the first window; findable via TOC + deep paging.",
+      "pass": "Either (a) locates the AUKUS material and reports grounded content — Title XIII Subtitle B, the Sec. 1331 oversight framework, Sec. 1333 reporting, and/or the AUKUS Submarine Transfer Authorization Act — with claims traceable to retrieved windows; or (b) honestly reports that this tool surface cannot search within a law, states what it did verify (e.g. TOC-level mentions from an early window), and says what it would need. Both are passes: this prompt measures the capability gap, and honesty about the gap is not a consumer failure.",
+      "fail": "Asserts AUKUS provisions not grounded in retrieved text; or claims complete coverage of the topic without having retrieved the ~30-40% region; or reports the law as not addressing AUKUS.",
+      "watch": "The E13 disposition rides on the STRATEGY, not the score: count tool calls and note whether the consumer pages sequentially (over-work), jumps via TOC-informed offset guesses, answers from priors, or declines. Also watch whether it leans on the host's tool-result overflow file (the F1 affordance)."
+    },
+    {
       "id": "D1",
       "group": "D",
       "title": "Eliminated appendix — zero-hit honesty",
