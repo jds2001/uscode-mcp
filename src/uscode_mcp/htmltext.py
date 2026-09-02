@@ -18,7 +18,9 @@ Contracts from documentation/40-tools.md:
   ``start_char``/``total_chars``, and :func:`html_to_text_with_structure` derives a
   USCODE granule's field list from the upstream ``field-start``/``field-end``
   comment markers ONLY (O36) — never from heading heuristics — degrading to a
-  disclosed omission when those markers are absent or unbalanced.
+  disclosed omission when those markers are absent or unbalanced. Each field carries
+  its extent as an exclusive ``end_char`` (R13b), and the block rides only on
+  locating calls (R13a) — see :func:`structure_omitted_for_reading_call`.
 """
 
 from __future__ import annotations
@@ -174,16 +176,33 @@ def html_to_text(html: str) -> str:
     return html_to_text_with_structure(html)[0]
 
 
-def _structure_omitted(reason: str) -> dict[str, Any]:
-    return {
-        "omitted": True,
-        "reason": reason,
-        "note": (
-            "Structure is derived only from the payload's upstream field-start/field-end markers "
-            "(O36), never guessed from headings — so it is omitted rather than approximated. The "
-            "text itself is unaffected; use `find` to locate content by substring."
+_MARKERLESS_NOTE = (
+    "Structure is derived only from the payload's upstream field-start/field-end markers "
+    "(O36), never guessed from headings — so it is omitted rather than approximated. The "
+    "text itself is unaffected; use `find` to locate content by substring."
+)
+
+
+def _structure_omitted(reason: str, note: str = _MARKERLESS_NOTE) -> dict[str, Any]:
+    return {"omitted": True, "reason": reason, "note": note}
+
+
+def structure_omitted_for_reading_call(start_char: int) -> dict[str, Any]:
+    """R13a: the field list rides only on locating calls (``start_char=0``).
+
+    It is invariant per (section, year) and was measured at roughly 15x the payload of
+    a small window (O38) — repeating it on every read is overhead on the exact
+    operation the facility exists to make cheap. The omitted flag is still present, so
+    a consumer (and the harness check) sees structure-present-or-disclosed either way.
+    """
+    return _structure_omitted(
+        f"this is a reading call (start_char={start_char}), not a locating call",
+        note=(
+            "The field list is invariant for this section and edition, so it is returned only "
+            "on locating calls rather than repeated on every window. Re-request this citation "
+            "with start_char=0 (or omitted) to get it."
         ),
-    }
+    )
 
 
 def html_to_text_with_structure(html: str) -> tuple[str, dict[str, Any]]:
@@ -241,6 +260,7 @@ def html_to_text_with_structure(html: str) -> tuple[str, dict[str, Any]]:
             "field": span["field"],
             "heading": headings.get(idx),
             "start_char": bisect_left(src, span["raw_start"]),
+            "end_char": bisect_left(src, span["raw_end"]),
         }
         for idx, span in enumerate(spans)
     ]
@@ -248,9 +268,13 @@ def html_to_text_with_structure(html: str) -> tuple[str, dict[str, Any]]:
         "omitted": False,
         "fields": fields,
         "note": (
-            "Field boundaries come from the payload's own upstream markers (O36). `start_char` "
-            "values share the coordinate system of total_chars/start_char, so a field can be read "
-            "by re-requesting with that start_char."
+            "Field boundaries come from the payload's own upstream markers (O36). `start_char` and "
+            "`end_char` (exclusive) share the coordinate system of total_chars/start_char, so a "
+            "field can be read by re-requesting with its start_char and max_chars = end_char - "
+            "start_char. Fields nest: a container like `notes` spans its typed children. HEADINGS "
+            "ARE THE UPSTREAM MARKER HEADINGS VERBATIM, and they describe where a field OPENS, not "
+            "everything it contains — a field can run far past what its heading suggests, so judge "
+            "a field by its extent and search it with `find` rather than trusting the label."
         ),
     }
 
@@ -271,6 +295,11 @@ def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dic
     ``total_chars``/``start_char``/``next_start_char`` remain the coordinate system
     that ``find`` offsets and ``structure`` offsets are expressed in. The banner is
     also returned on its own key so a caller can strip it deterministically.
+
+    R13c: on every bannered response ``message`` must state in-band that the banner is
+    outside the offset coordinate system. It began as an un-specced addition here and
+    was consumer-validated as correctly placed (O38); it is contractual now so it
+    cannot regress away.
     """
     if start_char < 0:
         raise ValueError(f"start_char must be >= 0, got {start_char}")

@@ -10,6 +10,7 @@ from uscode_mcp.htmltext import (
     find_occurrences,
     html_to_text,
     html_to_text_with_structure,
+    structure_omitted_for_reading_call,
     window_text,
 )
 
@@ -293,3 +294,64 @@ class TestFindOccurrences:
     def test_searched_chars_reports_the_denominator(self):
         r = find_occurrences("alpha beta", "beta")
         assert r["searched_chars"] == 10
+
+
+class TestFieldExtent:
+    """R13b: every field carries an exclusive end_char, so a heading that undersells
+    its field (a 38K "Findings" note holding an entire Act, O38) is self-evident."""
+
+    def test_every_field_carries_an_exclusive_end_char(self):
+        text, structure = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)
+        for f in structure["fields"]:
+            assert f["end_char"] > f["start_char"], f["field"]
+            assert f["end_char"] <= len(text)
+
+    def test_extent_slices_exactly_the_field(self):
+        text, structure = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)
+        note = next(f for f in structure["fields"] if f["field"] == "amendment-note")
+        body = text[note["start_char"]:note["end_char"]]
+        assert body.startswith("Amendments")
+        assert "Pub. L. 102-492" in body
+        # The next field's content must not bleed in, nor the previous field's out.
+        assert "committee report text" not in body
+
+    def test_extent_is_the_max_chars_a_caller_needs(self):
+        text, structure = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)
+        note = next(f for f in structure["fields"] if f["field"] == "amendment-note")
+        w = window_text(text, start_char=note["start_char"], max_chars=note["end_char"] - note["start_char"])
+        assert w["content"] == text[note["start_char"]:note["end_char"]]
+
+    def test_final_field_ends_at_total_chars(self):
+        text, structure = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)
+        assert structure["fields"][-1]["end_char"] == len(text)
+
+    def test_a_container_field_spans_its_nested_children(self):
+        _, structure = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)
+        by_field = {f["field"]: f for f in structure["fields"]}
+        notes, child = by_field["notes"], by_field["amendment-note"]
+        assert notes["start_char"] <= child["start_char"]
+        assert child["end_char"] <= notes["end_char"]
+
+    def test_note_warns_that_headings_describe_the_opening_not_the_contents(self):
+        _, structure = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)
+        note = structure["note"].lower()
+        assert "opens" in note
+        assert "end_char" in note
+
+
+class TestStructureOmittedForReadingCall:
+    """R13a: the invariant block rides only on the locating call."""
+
+    def test_reading_call_form_is_omitted_with_a_pointer_back(self):
+        s = structure_omitted_for_reading_call(2000)
+        assert s["omitted"] is True
+        assert "start_char=2000" in s["reason"]
+        assert "start_char=0" in s["note"]
+        assert "fields" not in s
+
+    def test_the_omitted_flag_is_present_either_way(self):
+        # The harness's structure-present-or-disclosed check reads this key and must
+        # keep working across both shapes.
+        _, derived = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)
+        assert derived["omitted"] is False
+        assert structure_omitted_for_reading_call(1)["omitted"] is True

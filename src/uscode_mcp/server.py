@@ -72,11 +72,17 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         a structured redirect to search_us_code.
 
         DON'T GUESS OFFSETS in a big section — one call locates, one call reads:
-        - `structure` comes back on every success: the payload's fields in order
-          (`statute`, `sourcecredit`, and each typed note with its heading) each with a
-          `start_char`. To jump to the amendment notes, re-request with that field's
-          `start_char`. It is read from the payload's own upstream field markers, so when a
-          granule lacks them the block says `omitted` with a reason rather than guessing.
+        - `structure` comes back on the LOCATING call (`start_char` 0 or omitted): the payload's
+          fields in order (`statute`, `sourcecredit`, and each typed note with its heading), each
+          with a `start_char` and an exclusive `end_char`. To read one, re-request with that
+          field's `start_char` and `max_chars` = `end_char` - `start_char`. On a reading call
+          (nonzero `start_char`) the block says `omitted` and points back — it is invariant for
+          the section, not worth repeating. It is read from the payload's own upstream field
+          markers, so a granule lacking them also gets `omitted` with a reason, never a guess.
+        - HEADINGS DESCRIBE WHERE A FIELD OPENS, NOT WHAT IT CONTAINS. They are upstream labels
+          reported verbatim, and a field can run far past what its label suggests — one 38K
+          "Findings" note holds an entire Act. Judge a field by `end_char` - `start_char` and
+          search it with `find`; never conclude something is absent because no heading named it.
         - `find` takes a case-insensitive literal substring and reports the true number of
           occurrences in the FULL section with their offsets and context snippets — even when
           the match lies outside the returned window. Offsets share the `start_char` coordinate

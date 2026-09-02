@@ -243,3 +243,37 @@ class TestPublicLawTruncationBanner:
         assert out["text"]["truncated"] is False
         assert "banner" not in out["text"]
         assert "[WINDOW" not in out["text"]["content"]
+
+
+class TestBannerCoordinateDisclosure:
+    """R13c: the in-band statement that the banner sits outside the offset coordinate
+    system is contractual on every bannered response, so it cannot regress away."""
+
+    async def test_bannered_response_states_the_banner_is_not_the_payload(self, make_client):
+        out = await tools.get_public_law(
+            make_client(plaw_handler()), congress=118, law_number=31, max_chars=40
+        )
+        message = out["text"]["message"]
+        assert "banner" in message
+        assert "NOT part of the payload" in message
+        assert "start_char" in message
+
+    async def test_find_offset_round_trips_through_start_char_under_truncation(self, make_client):
+        # O38's own verification: locate in a payload never fully read, then open a
+        # window on the offset — the banner must not shift the coordinate system.
+        located = await tools.get_public_law(
+            make_client(plaw_handler()), congress=118, law_number=31, max_chars=30, find="NDAA fixture"
+        )
+        assert located["text"]["truncated"] is True
+        assert "NDAA fixture" not in located["text"]["content"]
+        offset = located["find"]["occurrences"][0]["start_char"]
+
+        read = await tools.get_public_law(
+            make_client(plaw_handler()), congress=118, law_number=31, start_char=offset, max_chars=12
+        )
+        payload = read["text"]["content"].split("\n", 1)[1] if "banner" in read["text"] else read["text"]["content"]
+        assert payload == "NDAA fixture"
+
+    async def test_no_message_claim_when_there_is_no_banner(self, make_client):
+        out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31)
+        assert "message" not in out["text"]

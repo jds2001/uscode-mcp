@@ -54,7 +54,9 @@ All tools distinguish three outcomes — success (including explicit zero result
 
 ### Locating content in large payloads (R12)
 
-Both text tools take an optional `find` — a case-insensitive literal substring searched across the *whole* payload, not just the returned window — and report the true occurrence count with offsets and context snippets. Offsets share the `start_char`/`total_chars` coordinate system, so one call locates and the next reads. `get_us_code_section` successes additionally carry a `structure` block: the payload's fields in order (`statute`, `sourcecredit`, each typed note with its heading) with a `start_char` apiece, read from the granule's own upstream field markers — and explicitly `omitted` with a reason when a granule lacks them or they don't balance, never guessed from headings.
+Both text tools take an optional `find` — a case-insensitive literal substring searched across the *whole* payload, not just the returned window — and report the true occurrence count with offsets and context snippets. Offsets share the `start_char`/`total_chars` coordinate system, so one call locates and the next reads. `get_us_code_section` carries a `structure` block on the locating call (`start_char` 0 or omitted): the payload's fields in order (`statute`, `sourcecredit`, each typed note with its heading) with a `start_char` and an exclusive `end_char` apiece, read from the granule's own upstream field markers — so `end_char - start_char` is both the field's extent and the `max_chars` needed to read it. A reading call gets the `omitted` form pointing back, since the block is invariant for the section. It is also `omitted`, with a reason, when a granule's markers are absent or don't balance — never guessed from headings.
+
+Headings are upstream labels reported verbatim, and they describe where a field *opens*, not everything it contains: one 38,154-character "Findings" note holds an entire Act. Judge a field by its extent and search it with `find`; absence of a heading naming something is not evidence it isn't there.
 
 ## Tracing (R8)
 

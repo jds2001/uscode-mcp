@@ -429,3 +429,78 @@ class TestSectionFind:
         out = await tools.get_us_code_section(make_client(handler), citation="17 U.S.C. 107", find="anything")
         assert out["outcome"] == "not_found"
         assert "find" not in out
+
+
+class TestStructureRidesOnTheLocatingCall:
+    """R13a: structure on start_char=0, disclosed omission on a reading call."""
+
+    def _client(self, make_client):
+        return make_client(
+            section_handler(fx.search_response([fx.usc_hit()]), htm_text=fx.SECTION_HTML_WITH_FIELDS)
+        )
+
+    async def test_locating_call_carries_the_field_list(self, make_client):
+        out = await tools.get_us_code_section(self._client(make_client), citation="17 U.S.C. 107")
+        assert out["structure"]["omitted"] is False
+        assert out["structure"]["fields"]
+
+    async def test_explicit_zero_start_char_is_still_a_locating_call(self, make_client):
+        out = await tools.get_us_code_section(
+            self._client(make_client), citation="17 U.S.C. 107", start_char=0
+        )
+        assert out["structure"]["omitted"] is False
+
+    async def test_reading_call_omits_it_and_points_back(self, make_client):
+        out = await tools.get_us_code_section(
+            self._client(make_client), citation="17 U.S.C. 107", start_char=50
+        )
+        assert out["outcome"] == "success"
+        structure = out["structure"]
+        assert structure["omitted"] is True
+        assert "start_char=50" in structure["reason"]
+        assert "start_char=0" in structure["note"]
+        assert "fields" not in structure
+
+    async def test_reading_call_still_returns_the_text(self, make_client):
+        out = await tools.get_us_code_section(
+            self._client(make_client), citation="17 U.S.C. 107", start_char=50, max_chars=40
+        )
+        assert out["text"]["returned_chars"] == 40
+        assert out["text"]["start_char"] == 50
+
+    async def test_the_omitted_key_is_present_on_every_success(self, make_client):
+        # The harness check reads structure.omitted; it must never be missing.
+        for start in (0, 10):
+            out = await tools.get_us_code_section(
+                self._client(make_client), citation="17 U.S.C. 107", start_char=start
+            )
+            assert "omitted" in out["structure"]
+
+    async def test_a_reading_call_is_much_smaller_than_a_locating_one(self, make_client):
+        # The symptom R13a fixes: the invariant block dwarfing a small read (O38).
+        import json
+
+        located = await tools.get_us_code_section(
+            self._client(make_client), citation="17 U.S.C. 107", max_chars=40
+        )
+        read = await tools.get_us_code_section(
+            self._client(make_client), citation="17 U.S.C. 107", start_char=50, max_chars=40
+        )
+        assert len(json.dumps(read["structure"])) < len(json.dumps(located["structure"]))
+
+
+class TestSectionFieldExtent:
+    async def test_fields_carry_usable_end_char(self, make_client):
+        client = make_client(
+            section_handler(fx.search_response([fx.usc_hit()]), htm_text=fx.SECTION_HTML_WITH_FIELDS)
+        )
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        note = next(f for f in out["structure"]["fields"] if f["field"] == "amendment-note")
+        read = await tools.get_us_code_section(
+            make_client(section_handler(fx.search_response([fx.usc_hit()]), htm_text=fx.SECTION_HTML_WITH_FIELDS)),
+            citation="17 U.S.C. 107",
+            start_char=note["start_char"],
+            max_chars=note["end_char"] - note["start_char"],
+        )
+        assert read["text"]["truncated"] is False
+        assert read["text"]["content"].startswith("Amendments")

@@ -14,8 +14,9 @@ Cross-cutting contracts implemented here:
   currentthrough is stated, never silently omitted.
 - No silent truncation: max_chars/start_char windows with explicit markers, and the
   same disclosure in-band at the head of the returned text (E12).
-- Locating content in large payloads (R12): an optional `find` on both text tools,
-  and a marker-derived `structure` block on get_us_code_section successes.
+- Locating content in large payloads (R12/R13): an optional `find` on both text tools,
+  and a marker-derived `structure` block on get_us_code_section successes — carried on
+  locating calls (start_char=0) and disclosed as omitted on reading calls.
 - Links are data: download URLs come from search results and summaries verbatim.
 - Response-shape drift fails loudly (the search service is a public preview), never
   coerced into a guess.
@@ -33,6 +34,7 @@ from .htmltext import (
     extract_currentthrough,
     find_occurrences,
     html_to_text_with_structure,
+    structure_omitted_for_reading_call,
     window_text,
 )
 
@@ -299,6 +301,10 @@ async def get_us_code_section(
         )
 
     text, structure = html_to_text_with_structure(html)
+    if start_char:
+        # R13a: the block is invariant per (section, year); a reading call has no use
+        # for it and paid ~15x a small window to carry it (O38).
+        structure = structure_omitted_for_reading_call(start_char)
     try:
         window = window_text(text, start_char=start_char, max_chars=max_chars)
     except ValueError as exc:
