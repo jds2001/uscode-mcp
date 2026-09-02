@@ -332,7 +332,7 @@
       "assert": {
         "matches": {
           "pointer": "/response/structuredContent/text/content",
-          "pattern": "^\\[WINDOW chars "
+          "regex": "^\\[WINDOW chars "
         }
       }
     },
@@ -351,6 +351,27 @@
       "assert": {
         "present": [
           "/response/structuredContent/structure/omitted"
+        ]
+      }
+    },
+    {
+      "id": "find-reports-true-totals",
+      "description": "every find result carries the full accounting envelope, zero-match included (R12a; O37)",
+      "applies_to": {
+        "tool": "*",
+        "when": [
+          {
+            "pointer": "/response/structuredContent/find/needle",
+            "exists": true
+          }
+        ]
+      },
+      "assert": {
+        "present": [
+          "/response/structuredContent/find/total_occurrences",
+          "/response/structuredContent/find/occurrences_shown",
+          "/response/structuredContent/find/capped",
+          "/response/structuredContent/find/occurrences"
         ]
       }
     }
