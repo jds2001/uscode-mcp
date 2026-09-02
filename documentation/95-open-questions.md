@@ -14,9 +14,9 @@ Q9 — in progress. Floor cell ran and is scored (run 2026-09-01T021336Z, `70-ru
 
 Q8. Group F needs 8–12 **verbatim** questions from real research sessions — congressMCP's sourcing rule, adopted whole: they must not be written by anyone who knows the internals, and the spec session is disqualified from authoring them by construction. The manifest ships with Group F empty and carries the caveat. Paste originals when available.
 
-## Implementation queue (spec-ruled, awaiting pickup)
+## Implementation queue
 
-The R12 find parameter and structure block (`40-tools.md`, rulings in `96-rulings.md`), the E12 in-band truncation banner (`40-tools.md`), and the keyless-startup fail-fast (`20-govinfo-api.md`, ruled from F31/O35): absent or blank GOVINFO_API_KEY exits at startup naming the variable, with a test asserting the failure is at startup, not first-request.
+Empty. R12a/b, the E12 banner, and the keyless fail-fast are built and black-box verified (O37). E12 and E14 remain OPEN as consumer-behavior experiments — the facilities now exist in traces, which is the precondition, not the closure: E12 closes on a C1-class run whose trace shows the banner and whose answer states the true total; E14 closes on a C4 run (instrument now in the manifest) plus a C3 re-run as the non-note control.
 
 ## Preregistered experiments — pending
 

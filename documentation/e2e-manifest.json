@@ -316,6 +316,43 @@
           "/response/structuredContent/message"
         ]
       }
+    },
+    {
+      "id": "banner-leads-truncated-content",
+      "description": "the E12 banner opens text.content whenever truncated (40-tools.md; O37 character-exact)",
+      "applies_to": {
+        "tool": "*",
+        "when": [
+          {
+            "pointer": "/response/structuredContent/text/truncated",
+            "equals": true
+          }
+        ]
+      },
+      "assert": {
+        "matches": {
+          "pointer": "/response/structuredContent/text/content",
+          "pattern": "^\\[WINDOW chars "
+        }
+      }
+    },
+    {
+      "id": "structure-present-or-disclosed",
+      "description": "uscode successes carry the structure block with its omitted flag (R12b; O37)",
+      "applies_to": {
+        "tool": "get_us_code_section",
+        "when": [
+          {
+            "pointer": "/response/structuredContent/outcome",
+            "equals": "success"
+          }
+        ]
+      },
+      "assert": {
+        "present": [
+          "/response/structuredContent/structure/omitted"
+        ]
+      }
     }
   ],
   "prompts": [
@@ -458,6 +495,18 @@
       "pass": "Resolves the 2015-edition granule and labels the answer as the 2015 edition, distinct from current.",
       "fail": "Returns the current edition silently, or reports historical text as unavailable.",
       "watch": "none"
+    },
+    {
+      "id": "C4",
+      "group": "C",
+      "title": "Note content located, not guessed (the E14 instrument)",
+      "prompt": "In the notes to 42 U.S.C. 2210, Congress made a formal apology. Who was it to, and what for? Quote the operative language.",
+      "fixture": "USCODE-2024-title42-chap23-divsnA-subchapXIII-sec2210",
+      "sourcing": "measured",
+      "grounding": "O36: the apology is in RECA (Pub. L. 101-426), set out in the section's notes; 'apolog' verified present in the payload. O37: the locating facilities exist and are measured — find('Radiation Exposure Compensation') returns 12 occurrences, first at 77,209 of 116,126 chars; structure lists the 'Findings' note at 77,101. Edition-dependent.",
+      "pass": "Resolves via the disclosed note strip, locates the apology region with find and/or structure (the trace shows a locating call, not blind offset guessing), and quotes apology content grounded in a retrieved window.",
+      "fail": "Fabricated or unretrieved quote; claiming no apology exists; or locating only by blind offset guessing with find/structure available — that last is E14's preregistered falsifier and routes to a facility-discoverability finding (tool-description wording), not consumer blame.",
+      "watch": "Per S8's caution this must not become note-specific machinery validation: C3's next run (flat PLAW payload, no structure block) doubles as the non-note instrument — compare its call count against the 9-call pre-find baseline."
     }
   ],
   "_group_f_caveat": "Group F is EMPTY on purpose. It requires 8-12 verbatim-original questions from real research sessions (sourcing: verbatim-original), authored by no one who knows the internals — the spec session is disqualified by construction. Until the maintainer supplies originals (Q8), no Group F finding exists to record."
