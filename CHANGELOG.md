@@ -14,6 +14,7 @@
 
 ### Changed
 
+- E12 in-band truncation banner: a truncated text response now leads `content` with a single bracketed line stating the window bounds, the true total, and the continuation `start_char` — ruled from finding F1, where a consumer handed complete and correct structured truncation fields still presented the window as the whole law. The structured fields are unchanged, so `find` and `structure` offsets keep their coordinate system; the banner is also returned on its own `banner` key so a caller can strip it deterministically.
 - Runtime dependencies now carry ceilings as well as floors (R9): `mcp>=2,<3`, `httpx>=0.27,<1`, `python-dotenv>=1.0,<2`. Raising a ceiling is a deliberate, tested change committed on its own.
 - Disambiguation (`ambiguous`) outcomes state capping explicitly: `count` (true total), `candidates_shown`, `capped`, and a "showing N of M" message when the candidate list is page-capped — and no capping claim when it isn't.
 - Appendix citations now resolve directly (`citation:"28 U.S.C. App. Rule 9"`, O24/E10); multi-hit appendix citations use the standard disambiguation list (which now also reports the true total `count`), and the redirect to `search_us_code` survives only as the zero-hit fallback (real for eliminated appendices like title 50's).

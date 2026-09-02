@@ -68,11 +68,12 @@ class TestWindowText:
 
     def test_truncation_is_explicitly_marked(self):
         w = window_text("abcdefghij", start_char=0, max_chars=4)
-        assert w["content"] == "abcd"
         assert w["truncated"] is True
         assert w["next_start_char"] == 4
         assert w["total_chars"] == 10
         assert "start_char=4" in w["message"]
+        # E12: the same disclosure leads the text, and the payload window follows it intact.
+        assert w["content"] == f"{w['banner']}\nabcd"
 
     def test_continuation_window(self):
         w = window_text("abcdefghij", start_char=4, max_chars=100)
@@ -90,6 +91,48 @@ class TestWindowText:
             window_text("abc", start_char=-1)
         with pytest.raises(ValueError):
             window_text("abc", max_chars=0)
+
+
+class TestTruncationBanner:
+    """E12 (40-tools.md, from finding F1): when truncated, the structured markers are
+    repeated in-band at the head of `content`, because a consumer given only correct
+    structured fields still presented the window as the whole law."""
+
+    def test_banner_states_bounds_true_total_and_continuation(self):
+        w = window_text("x" * 3_590_552, start_char=0, max_chars=100_000)
+        assert w["content"].startswith("[WINDOW chars 0–99,999 of 3,590,552 — truncated;")
+        assert w["content"].splitlines()[0].endswith("continue with start_char=100000]")
+
+    def test_banner_is_a_single_leading_line_and_payload_follows_intact(self):
+        w = window_text("abcdefghij", start_char=0, max_chars=4)
+        first, rest = w["content"].split("\n", 1)
+        assert first == w["banner"]
+        assert rest == "abcd"
+        assert "[WINDOW" not in rest
+
+    def test_no_banner_when_the_whole_payload_fits(self):
+        w = window_text("abcdef", start_char=0, max_chars=100)
+        assert "banner" not in w
+        assert w["content"] == "abcdef"
+        assert "[WINDOW" not in w["content"]
+
+    def test_last_window_of_a_paged_read_carries_no_banner(self):
+        w = window_text("abcdefghij", start_char=8, max_chars=4)
+        assert w["truncated"] is False
+        assert w["content"] == "ij"
+
+    def test_continuation_window_banner_reports_its_own_bounds(self):
+        w = window_text("x" * 250, start_char=100, max_chars=100)
+        assert w["banner"] == "[WINDOW chars 100–199 of 250 — truncated; continue with start_char=200]"
+
+    def test_structured_fields_describe_the_payload_not_the_banner(self):
+        # The coordinate system `find` and `structure` offsets live in must not shift
+        # because a banner was prepended.
+        w = window_text("abcdefghij", start_char=0, max_chars=4)
+        assert w["returned_chars"] == 4
+        assert w["total_chars"] == 10
+        assert w["next_start_char"] == 4
+        assert len(w["content"]) == len(w["banner"]) + 1 + 4
 
 
 class TestStructure:

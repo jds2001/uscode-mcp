@@ -222,3 +222,24 @@ class TestPublicLawFind:
         )
         assert out["outcome"] == "out_of_scope_private_law"
         assert "find" not in out
+
+
+class TestPublicLawTruncationBanner:
+    """E12: a windowed law leads its text with the in-band disclosure (finding F1)."""
+
+    async def test_truncated_response_leads_with_the_banner(self, make_client):
+        out = await tools.get_public_law(
+            make_client(plaw_handler()), congress=118, law_number=31, max_chars=40
+        )
+        text = out["text"]
+        assert text["truncated"] is True
+        first_line = text["content"].split("\n", 1)[0]
+        assert first_line == text["banner"]
+        assert str(text["total_chars"]) in first_line.replace(",", "")
+        assert f"start_char={text['next_start_char']}" in first_line
+
+    async def test_untruncated_response_carries_no_banner(self, make_client):
+        out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31)
+        assert out["text"]["truncated"] is False
+        assert "banner" not in out["text"]
+        assert "[WINDOW" not in out["text"]["content"]

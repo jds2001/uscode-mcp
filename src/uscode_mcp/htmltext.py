@@ -9,7 +9,10 @@ Contracts from documentation/40-tools.md:
 - ``currentthrough`` is parsed from the payload's embedded comment (O5, O15) and is
   the non-optional staleness disclosure; callers must state when it cannot be parsed.
 - No silent truncation: windowing always reports total length, the window returned,
-  and the start_char to continue from.
+  and the start_char to continue from — and when the payload is truncated the same
+  markers lead ``content`` as a bracketed banner line (E12, from finding F1: a
+  consumer given correct structured fields still presented the window as the whole
+  law, so the disclosure has to sit in the stream the model actually reads).
 - Locating content in large payloads (R12): :func:`find_occurrences` reports the
   true occurrence count with offsets in the same coordinate system as
   ``start_char``/``total_chars``, and :func:`html_to_text_with_structure` derives a
@@ -252,11 +255,22 @@ def html_to_text_with_structure(html: str) -> tuple[str, dict[str, Any]]:
     }
 
 
+def truncation_banner(start_char: int, end: int, total: int) -> str:
+    """The E12 in-band banner line: window bounds, true total, continuation offset."""
+    return (
+        f"[WINDOW chars {start_char:,}–{end - 1:,} of {total:,} "
+        f"— truncated; continue with start_char={end}]"
+    )
+
+
 def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dict[str, Any]:
     """Return a window of text with explicit truncation markers (never silent).
 
-    ``total_chars``/``start_char``/``next_start_char`` are the coordinate system that
-    ``find`` offsets and ``structure`` offsets are expressed in.
+    When the window is truncated, ``content`` leads with the banner line (E12); the
+    structured fields describe the payload window and are unchanged by it, so
+    ``total_chars``/``start_char``/``next_start_char`` remain the coordinate system
+    that ``find`` offsets and ``structure`` offsets are expressed in. The banner is
+    also returned on its own key so a caller can strip it deterministically.
     """
     if start_char < 0:
         raise ValueError(f"start_char must be >= 0, got {start_char}")
@@ -275,9 +289,13 @@ def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dic
         "content": content,
     }
     if truncated:
+        banner = truncation_banner(start_char, end, total)
+        result["banner"] = banner
+        result["content"] = f"{banner}\n{content}"
         result["message"] = (
             f"Payload is {total} chars; returned chars {start_char}-{end}. "
-            f"Continue with start_char={end}."
+            f"Continue with start_char={end}. The same disclosure leads `content` as a banner "
+            f"line, which is NOT part of the payload: content offsets start at start_char after it."
         )
     return result
 

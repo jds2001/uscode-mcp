@@ -128,8 +128,10 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         `format="uslm"` returns USLM XML when the package offers it — present for congresses 113
         (2013) and later, absent for 104-112 — and absence is a distinct not-available outcome.
 
-        Retrieval is package-level and a law can run thousands of pages, so use the
-        `max_chars`/`start_char` window (truncation is always explicitly marked).
+        Retrieval is package-level and a law can run to millions of characters, so a single call
+        almost never returns the whole thing: `max_chars`/`start_char` window it, `truncated` and
+        `total_chars` say so, and a truncated response repeats that as a banner line at the head of
+        the text. A window is NEVER the complete law — do not describe it as one.
 
         DON'T PAGE BLINDLY looking for a provision. `find` takes a case-insensitive literal
         substring, searches the FULL law (not just the returned window), and reports the true

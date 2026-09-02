@@ -12,7 +12,8 @@ Cross-cutting contracts implemented here:
 - Provenance on every text payload: packageId, granuleId (when granule-level),
   edition year, currentthrough, lastModified, canonical PDF link. An unparseable
   currentthrough is stated, never silently omitted.
-- No silent truncation: max_chars/start_char windows with explicit markers.
+- No silent truncation: max_chars/start_char windows with explicit markers, and the
+  same disclosure in-band at the head of the returned text (E12).
 - Locating content in large payloads (R12): an optional `find` on both text tools,
   and a marker-derived `structure` block on get_us_code_section successes.
 - Links are data: download URLs come from search results and summaries verbatim.
