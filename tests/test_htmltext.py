@@ -7,7 +7,9 @@ import pytest
 from uscode_mcp.htmltext import (
     edition_year_from_package_id,
     extract_currentthrough,
+    find_occurrences,
     html_to_text,
+    html_to_text_with_structure,
     window_text,
 )
 
@@ -88,3 +90,163 @@ class TestWindowText:
             window_text("abc", start_char=-1)
         with pytest.raises(ValueError):
             window_text("abc", max_chars=0)
+
+
+class TestStructure:
+    """R12b: the field list comes from the payload's own field-start/field-end markers
+    (O36) and degrades to a disclosed omission — never a retrieval failure."""
+
+    def test_fields_are_ordered_with_headings_for_notes(self):
+        _, structure = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)
+        assert structure["omitted"] is False
+        assert [f["field"] for f in structure["fields"]] == [
+            "head",
+            "statute",
+            "sourcecredit",
+            "notes",
+            "historicalandrevision-note",
+            "amendment-note",
+        ]
+        by_field = {f["field"]: f for f in structure["fields"]}
+        assert by_field["historicalandrevision-note"]["heading"] == "Historical and Revision Notes"
+        assert by_field["amendment-note"]["heading"] == "Amendments"
+        assert by_field["statute"]["heading"] is None
+
+    def test_start_char_offsets_land_on_the_field_in_the_returned_text(self):
+        text, structure = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)
+        for field, expected_prefix in [
+            ("head", "§107. Limitations"),
+            ("statute", "Notwithstanding the provisions"),
+            ("sourcecredit", "(Pub. L. 94-553"),
+            ("amendment-note", "Amendments"),
+        ]:
+            offset = next(f["start_char"] for f in structure["fields"] if f["field"] == field)
+            assert text[offset:].startswith(expected_prefix), field
+
+    def test_offsets_survive_whitespace_normalization(self):
+        # The fixture carries trailing spaces and blank-line runs that html_to_text
+        # collapses; an offset computed in raw-HTML coordinates would drift past them.
+        text, structure = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)
+        assert "   \n" not in text and "\n\n\n" not in text
+        note = next(f for f in structure["fields"] if f["field"] == "amendment-note")
+        assert text.index("Amendments") == note["start_char"]
+
+    def test_a_nested_container_does_not_steal_its_child_heading(self):
+        _, structure = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)
+        notes = next(f for f in structure["fields"] if f["field"] == "notes")
+        assert notes["heading"] is None
+
+    def test_markerless_payload_is_a_disclosed_omission_not_a_failure(self):
+        text, structure = html_to_text_with_structure(fx.SECTION_HTML)
+        assert structure["omitted"] is True
+        assert "no field-start/field-end markers" in structure["reason"]
+        assert "fields" not in structure
+        assert "Effective date note text" in text  # the text itself is unaffected
+
+    def test_flat_plaw_payload_gets_no_structure(self):
+        _, structure = html_to_text_with_structure(fx.PLAW_HTML)
+        assert structure["omitted"] is True
+
+    def test_unbalanced_markers_are_a_disclosed_omission(self):
+        text, structure = html_to_text_with_structure(fx.SECTION_HTML_UNBALANCED_FIELDS)
+        assert structure["omitted"] is True
+        assert "field-end:statute" in structure["reason"]
+        assert "Amendments" in text
+
+    def test_unclosed_marker_is_a_disclosed_omission(self):
+        text, structure = html_to_text_with_structure(fx.SECTION_HTML_UNCLOSED_FIELD)
+        assert structure["omitted"] is True
+        assert "unclosed" in structure["reason"]
+        assert "notes" in structure["reason"]
+        assert "Amendments" in text
+
+    def test_crossed_markers_are_a_disclosed_omission(self):
+        crossed = "<!-- field-start:a --><p>x</p><!-- field-start:b --><p>y</p><!-- field-end:a -->"
+        _, structure = html_to_text_with_structure(crossed)
+        assert structure["omitted"] is True
+        assert "innermost" in structure["reason"]
+
+    def test_marker_whitespace_variants_are_tolerated(self):
+        html = "<!--field-start:statute--><p>text</p><!--  field-end : statute  -->"
+        _, structure = html_to_text_with_structure(html)
+        assert structure["omitted"] is False
+        assert [f["field"] for f in structure["fields"]] == ["statute"]
+
+    def test_html_to_text_output_is_unchanged_by_the_structure_pass(self):
+        text, _ = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)
+        assert html_to_text(fx.SECTION_HTML_WITH_FIELDS) == text
+        # Markers are comments and must not leak into the text.
+        assert "field-start" not in text and "field-end" not in text
+
+
+class TestFindOccurrences:
+    """R12a: true occurrence count, offsets in the windowing coordinate system,
+    capped list stating the true total, zero matches reported explicitly."""
+
+    def test_offsets_index_the_full_text(self):
+        text = "alpha beta gamma beta delta"
+        r = find_occurrences(text, "beta")
+        assert r["total_occurrences"] == 2
+        assert [o["start_char"] for o in r["occurrences"]] == [6, 17]
+        for o in r["occurrences"]:
+            assert text[o["start_char"]:].startswith("beta")
+
+    def test_match_is_case_insensitive_but_offsets_stay_exact(self):
+        text = "The BETA and the beta"
+        r = find_occurrences(text, "beta")
+        assert r["total_occurrences"] == 2
+        assert [o["start_char"] for o in r["occurrences"]] == [4, 17]
+        assert r["case_sensitive"] is False
+
+    def test_finds_matches_beyond_the_returned_window(self):
+        text = "x" * 100_000 + "NEEDLE" + "y" * 100
+        window = window_text(text, start_char=0, max_chars=100)
+        r = find_occurrences(text, "needle")
+        assert window["truncated"] is True
+        assert "NEEDLE" not in window["content"]
+        assert r["occurrences"][0]["start_char"] == 100_000
+        # The offset feeds straight back in as a start_char.
+        second = window_text(text, start_char=100_000, max_chars=1_000)
+        assert second["truncated"] is False
+        assert second["content"].startswith("NEEDLE")
+
+    def test_zero_matches_is_explicit_and_not_an_error(self):
+        r = find_occurrences("alpha beta", "gamma")
+        assert r["total_occurrences"] == 0
+        assert r["occurrences"] == []
+        assert r["capped"] is False
+        assert "Zero occurrences" in r["message"]
+
+    def test_capped_list_states_the_true_total(self):
+        r = find_occurrences("ab" * 100, "a", max_occurrences=5)
+        assert r["total_occurrences"] == 100
+        assert r["occurrences_shown"] == 5
+        assert r["capped"] is True
+        assert "5 of 100" in r["message"]
+
+    def test_uncapped_list_says_so(self):
+        r = find_occurrences("ab" * 3, "a", max_occurrences=5)
+        assert r["capped"] is False
+        assert r["occurrences_shown"] == r["total_occurrences"] == 3
+
+    def test_regex_metacharacters_are_matched_literally(self):
+        r = find_occurrences("a.c and abc", "a.c")
+        assert r["total_occurrences"] == 1
+        assert r["occurrences"][0]["start_char"] == 0
+
+    def test_overlapping_matches_are_counted_non_overlappingly(self):
+        r = find_occurrences("aaaa", "aa")
+        assert r["total_occurrences"] == 2
+        assert r["match_kind"] == "literal substring, non-overlapping"
+
+    def test_snippet_carries_context_on_one_line(self):
+        text = "lead in words\nbefore the NEEDLE and after it\ntrailing words"
+        r = find_occurrences(text, "needle", context=10)
+        snippet = r["occurrences"][0]["snippet"]
+        assert "NEEDLE" in snippet
+        assert "\n" not in snippet
+        assert snippet.startswith("…") and snippet.endswith("…")
+
+    def test_searched_chars_reports_the_denominator(self):
+        r = find_occurrences("alpha beta", "beta")
+        assert r["searched_chars"] == 10

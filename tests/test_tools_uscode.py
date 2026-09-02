@@ -334,3 +334,98 @@ class TestSearchUSCode:
         out = await tools.search_us_code(make_client(lambda request: httpx.Response(500, text="err")), "x")
         assert out["outcome"] == "upstream_error"
         assert out["http_status"] == 500
+
+
+class TestSectionStructure:
+    """R12b: every get_us_code_section success carries a structure block, derived from
+    the payload's own field markers or explicitly omitted with a reason."""
+
+    async def test_success_carries_the_field_list(self, make_client):
+        client = make_client(
+            section_handler(fx.search_response([fx.usc_hit()]), htm_text=fx.SECTION_HTML_WITH_FIELDS)
+        )
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        structure = out["structure"]
+        assert structure["omitted"] is False
+        assert [f["field"] for f in structure["fields"]][:3] == ["head", "statute", "sourcecredit"]
+        assert any(f["heading"] == "Amendments" for f in structure["fields"])
+
+    async def test_structure_offsets_are_usable_as_start_char(self, make_client):
+        client = make_client(
+            section_handler(fx.search_response([fx.usc_hit()]), htm_text=fx.SECTION_HTML_WITH_FIELDS)
+        )
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        note = next(f for f in out["structure"]["fields"] if f["field"] == "amendment-note")
+        jumped = await tools.get_us_code_section(
+            make_client(section_handler(fx.search_response([fx.usc_hit()]), htm_text=fx.SECTION_HTML_WITH_FIELDS)),
+            citation="17 U.S.C. 107",
+            start_char=note["start_char"],
+        )
+        assert jumped["text"]["content"].startswith("Amendments")
+
+    async def test_markerless_granule_still_succeeds_with_a_disclosure(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        assert out["outcome"] == "success"
+        assert out["structure"]["omitted"] is True
+        assert out["structure"]["reason"]
+        assert "Effective date note text" in out["text"]["content"]
+
+    async def test_unbalanced_markers_still_succeed_with_a_disclosure(self, make_client):
+        client = make_client(
+            section_handler(fx.search_response([fx.usc_hit()]), htm_text=fx.SECTION_HTML_UNBALANCED_FIELDS)
+        )
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        assert out["outcome"] == "success"
+        assert out["structure"]["omitted"] is True
+        assert "field-end:statute" in out["structure"]["reason"]
+
+
+class TestSectionFind:
+    """R12a on get_us_code_section: locate in the full payload, in window coordinates."""
+
+    async def test_find_reports_offsets_in_the_full_payload(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", find="Effective date")
+        found = out["find"]
+        assert found["total_occurrences"] == 1
+        offset = found["occurrences"][0]["start_char"]
+        assert out["text"]["content"][offset:].startswith("Effective date")
+
+    async def test_find_locates_content_outside_the_returned_window(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(
+            client, citation="17 U.S.C. 107", max_chars=20, find="Effective date"
+        )
+        assert out["text"]["truncated"] is True
+        assert "Effective date" not in out["text"]["content"]
+        assert out["find"]["total_occurrences"] == 1
+        assert out["find"]["searched_chars"] == out["text"]["total_chars"]
+
+    async def test_zero_matches_is_a_success_with_an_explicit_report(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", find="antidisestablishment")
+        assert out["outcome"] == "success"
+        assert out["find"]["total_occurrences"] == 0
+        assert "Zero occurrences" in out["find"]["message"]
+
+    async def test_find_is_absent_when_not_requested(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        assert "find" not in out
+
+    async def test_blank_find_is_rejected_before_any_upstream_call(self, make_client):
+        seen = []
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()]), seen=seen))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", find="   ")
+        assert out["outcome"] == "invalid_argument"
+        assert "find" in out["detail"]
+        assert seen == []
+
+    async def test_find_is_not_attached_to_a_failure_outcome(self, make_client):
+        def handler(request):
+            return fx.json_response(fx.search_response([]))
+
+        out = await tools.get_us_code_section(make_client(handler), citation="17 U.S.C. 107", find="anything")
+        assert out["outcome"] == "not_found"
+        assert "find" not in out

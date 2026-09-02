@@ -107,3 +107,50 @@ def json_response(payload: Any, status: int = 200, headers: dict[str, str] | Non
 
 def request_body(request: httpx.Request) -> dict[str, Any]:
     return json.loads(request.content.decode("utf-8"))
+
+
+# A USCODE granule carrying the upstream field-start/field-end comment markers and
+# note-head headings measured in O36. Marker syntax is verbatim from a live payload
+# (USCODE-2024-title17-...-sec107); the surrounding prose is fixture filler. Blank
+# lines and trailing whitespace are deliberate: they exercise the offset mapping
+# through html_to_text's whitespace normalization.
+SECTION_HTML_WITH_FIELDS = """\
+<!-- documentid:USCODE-2024-title17-chap1-sec107 currentthrough:20250106 -->
+<html><body>
+<!-- field-start:head -->
+<h3>&sect;107. Limitations on exclusive rights: Fair use</h3>
+<!-- field-end:head -->
+<!-- field-start:statute -->
+
+<p>Notwithstanding the provisions of sections 106 and 106A, the fair use of a   </p>
+
+
+<p>copyrighted work is not an infringement of copyright.</p>
+<!-- field-end:statute -->
+<!-- field-start:sourcecredit -->
+<p>(Pub. L. 94-553, title I, &sect;101, Oct. 19, 1976, 90 Stat. 2546.)</p>
+<!-- field-end:sourcecredit -->
+<!-- field-start:notes -->
+<!-- field-start:historicalandrevision-note -->
+<h4 class="note-head">Historical and Revision Notes</h4>
+<h4 class="note-head">house report no. 94-1476</h4>
+<p>The committee report text lives here.</p>
+<!-- field-end:historicalandrevision-note -->
+<!-- field-start:amendment-note -->
+<h4 class="note-head">Amendments</h4>
+<p>1992-Pub. L. 102-492 inserted a sentence at the end.</p>
+<!-- field-end:amendment-note -->
+<!-- field-end:notes -->
+</body></html>
+"""
+
+# Same payload with a stray field-end that closes nothing: markers present but
+# unbalanced, which must degrade to a disclosed omission, never a retrieval failure.
+SECTION_HTML_UNBALANCED_FIELDS = SECTION_HTML_WITH_FIELDS.replace(
+    "<!-- field-end:notes -->", "<!-- field-end:notes -->\n<!-- field-end:statute -->"
+)
+
+# Same payload with a field-start that is never closed.
+SECTION_HTML_UNCLOSED_FIELD = SECTION_HTML_WITH_FIELDS.replace(
+    "<!-- field-end:notes -->\n", ""
+)

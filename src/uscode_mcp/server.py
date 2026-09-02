@@ -55,6 +55,7 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         year: int | None = None,
         max_chars: int = tools.DEFAULT_MAX_CHARS,
         start_char: int = 0,
+        find: str | None = None,
     ) -> dict[str, Any]:
         """Resolve a US Code citation and return the section's full text — statutory text, source
         credits, and statutory notes included (note citations like "42 U.S.C. 2210 note" resolve to
@@ -69,6 +70,17 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         directly; when one matches multiple granules the standard disambiguation list is returned,
         and only a zero-hit appendix citation (e.g. the eliminated title 50 Appendix) falls back to
         a structured redirect to search_us_code.
+
+        DON'T GUESS OFFSETS in a big section — one call locates, one call reads:
+        - `structure` comes back on every success: the payload's fields in order
+          (`statute`, `sourcecredit`, and each typed note with its heading) each with a
+          `start_char`. To jump to the amendment notes, re-request with that field's
+          `start_char`. It is read from the payload's own upstream field markers, so when a
+          granule lacks them the block says `omitted` with a reason rather than guessing.
+        - `find` takes a case-insensitive literal substring and reports the true number of
+          occurrences in the FULL section with their offsets and context snippets — even when
+          the match lies outside the returned window. Offsets share the `start_char` coordinate
+          system, so feed one straight back as `start_char`. Zero matches is reported explicitly.
         """
         return await tools.get_us_code_section(
             _client(),
@@ -78,6 +90,7 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
             year=year,
             max_chars=max_chars,
             start_char=start_char,
+            find=find,
         )
 
     @mcp.tool()
@@ -107,14 +120,21 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         format: str = "text",
         max_chars: int = tools.DEFAULT_MAX_CHARS,
         start_char: int = 0,
+        find: str | None = None,
     ) -> dict[str, Any]:
         """Resolve a public law and return its text with provenance. Pass `congress` + `law_number`,
         or a `citation` string ("Pub. L. 118-31", "Public Law 118-31", "P.L. 118-31"). Public laws
         only: a private-law request is a distinct out-of-scope outcome, not a failed lookup.
         `format="uslm"` returns USLM XML when the package offers it — present for congresses 113
         (2013) and later, absent for 104-112 — and absence is a distinct not-available outcome.
+
         Retrieval is package-level and a law can run thousands of pages, so use the
         `max_chars`/`start_char` window (truncation is always explicitly marked).
+
+        DON'T PAGE BLINDLY looking for a provision. `find` takes a case-insensitive literal
+        substring, searches the FULL law (not just the returned window), and reports the true
+        occurrence count with offsets and context snippets. Offsets share the `start_char`
+        coordinate system: one call locates, one call reads. Zero matches is reported explicitly.
         """
         return await tools.get_public_law(
             _client(),
@@ -124,6 +144,7 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
             format=format,
             max_chars=max_chars,
             start_char=start_char,
+            find=find,
         )
 
     @mcp.tool()

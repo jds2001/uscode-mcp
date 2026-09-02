@@ -13,6 +13,8 @@ Cross-cutting contracts implemented here:
   edition year, currentthrough, lastModified, canonical PDF link. An unparseable
   currentthrough is stated, never silently omitted.
 - No silent truncation: max_chars/start_char windows with explicit markers.
+- Locating content in large payloads (R12): an optional `find` on both text tools,
+  and a marker-derived `structure` block on get_us_code_section successes.
 - Links are data: download URLs come from search results and summaries verbatim.
 - Response-shape drift fails loudly (the search service is a public preview), never
   coerced into a guess.
@@ -25,7 +27,13 @@ from typing import Any
 
 from .citations import CitationParseError, parse_public_law, parse_usc
 from .govinfo import GovInfoClient, GovInfoTransportError, UpstreamResponse
-from .htmltext import edition_year_from_package_id, extract_currentthrough, html_to_text, window_text
+from .htmltext import (
+    edition_year_from_package_id,
+    extract_currentthrough,
+    find_occurrences,
+    html_to_text_with_structure,
+    window_text,
+)
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
@@ -129,6 +137,17 @@ def _invalid_argument(detail: str) -> dict[str, Any]:
     return {"outcome": "invalid_argument", "detail": detail}
 
 
+def _reject_blank_find(find: str | None) -> dict[str, Any] | None:
+    """R12a takes a literal substring; an empty or whitespace-only one is a caller
+    error, not a search that matches everywhere. Rejected before any upstream call."""
+    if find is not None and not find.strip():
+        return _invalid_argument(
+            "find must be a non-empty literal substring (whitespace-only would match "
+            "throughout the payload and locate nothing); omit it to skip locating."
+        )
+    return None
+
+
 def _disambiguation_fields(count: Any, results: list[dict[str, Any]]) -> dict[str, Any]:
     """Shared fields for an ambiguous outcome: the true total from the response's
     `count`, the shown candidates, and — stated, never implied — whether the list is
@@ -160,8 +179,12 @@ async def get_us_code_section(
     year: int | None = None,
     max_chars: int = DEFAULT_MAX_CHARS,
     start_char: int = 0,
+    find: str | None = None,
 ) -> dict[str, Any]:
     """Resolve a US Code citation and return the section's text, notes included."""
+    bad_find = _reject_blank_find(find)
+    if bad_find is not None:
+        return bad_find
     try:
         parsed = parse_usc(citation=citation, title=title, section=section)
     except CitationParseError as exc:
@@ -274,18 +297,23 @@ async def get_us_code_section(
             "currentthrough could not be parsed from the payload; staleness relative to enactment is unknown."
         )
 
+    text, structure = html_to_text_with_structure(html)
     try:
-        window = window_text(html_to_text(html), start_char=start_char, max_chars=max_chars)
+        window = window_text(text, start_char=start_char, max_chars=max_chars)
     except ValueError as exc:
         return _invalid_argument(str(exc))
 
-    return {
+    out: dict[str, Any] = {
         "outcome": "success",
         "citation": parsed.normalized,
         "normalization": normalization,
         "provenance": provenance,
+        "structure": structure,
         "text": window,
     }
+    if find is not None:
+        out["find"] = find_occurrences(text, find)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -381,10 +409,14 @@ async def get_public_law(
     format: str = "text",
     max_chars: int = DEFAULT_MAX_CHARS,
     start_char: int = 0,
+    find: str | None = None,
 ) -> dict[str, Any]:
     """Resolve a public law and return its text (or USLM XML) with provenance."""
     if format not in ("text", "uslm"):
         return _invalid_argument(f"format must be 'text' or 'uslm', got {format!r}")
+    bad_find = _reject_blank_find(find)
+    if bad_find is not None:
+        return bad_find
 
     if citation is not None and citation.strip():
         if congress is not None or law_number is not None:
@@ -490,14 +522,16 @@ async def get_public_law(
     if failure is not None:
         return failure
     assert resp is not None
-    content = html_to_text(resp.text) if content_is_html else resp.text
+    # PLAW payloads are flat — no field markers upstream (O36) — so there is no
+    # structure block here; `find` is the structure-free locator that R12a specifies.
+    content = html_to_text_with_structure(resp.text)[0] if content_is_html else resp.text
 
     try:
         window = window_text(content, start_char=start_char, max_chars=max_chars)
     except ValueError as exc:
         return _invalid_argument(str(exc))
 
-    return {
+    out: dict[str, Any] = {
         "outcome": "success",
         "congress": congress,
         "law_number": law_number,
@@ -510,3 +544,6 @@ async def get_public_law(
         },
         "text": window,
     }
+    if find is not None:
+        out["find"] = find_occurrences(content, find)
+    return out

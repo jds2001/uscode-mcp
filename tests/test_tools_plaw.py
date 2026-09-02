@@ -159,3 +159,66 @@ class TestSearchPublicLaws:
         assert out["outcome"] == "success"
         assert out["count"] == 0
         assert "Zero results" in out["message"]
+
+
+class TestPublicLawFind:
+    """R12a on get_public_law: the structure-free locator. PLAW payloads carry no
+    field markers upstream (O36), so `find` is the whole location story here."""
+
+    async def test_find_reports_offsets_in_the_full_payload(self, make_client):
+        out = await tools.get_public_law(
+            make_client(plaw_handler()), congress=118, law_number=31, find="NDAA fixture"
+        )
+        found = out["find"]
+        assert found["total_occurrences"] == 1
+        offset = found["occurrences"][0]["start_char"]
+        assert out["text"]["content"][offset:].startswith("NDAA fixture")
+
+    async def test_find_locates_content_outside_the_returned_window(self, make_client):
+        out = await tools.get_public_law(
+            make_client(plaw_handler()), congress=118, law_number=31, max_chars=30, find="NDAA fixture"
+        )
+        assert out["text"]["truncated"] is True
+        assert "NDAA fixture" not in out["text"]["content"]
+        assert out["find"]["total_occurrences"] == 1
+        assert out["find"]["occurrences"][0]["start_char"] > out["text"]["returned_chars"]
+
+    async def test_no_structure_block_on_a_flat_plaw_payload(self, make_client):
+        out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31)
+        assert out["outcome"] == "success"
+        assert "structure" not in out
+
+    async def test_find_works_on_the_uslm_format(self, make_client):
+        out = await tools.get_public_law(
+            make_client(plaw_handler()), congress=118, law_number=31, format="uslm", find="Sec. 1."
+        )
+        assert out["format"] == "uslm"
+        assert out["find"]["total_occurrences"] == 1
+
+    async def test_zero_matches_is_a_success_with_an_explicit_report(self, make_client):
+        out = await tools.get_public_law(
+            make_client(plaw_handler()), congress=118, law_number=31, find="no such provision"
+        )
+        assert out["outcome"] == "success"
+        assert out["find"]["total_occurrences"] == 0
+        assert "Zero occurrences" in out["find"]["message"]
+
+    async def test_blank_find_is_rejected_before_any_upstream_call(self, make_client):
+        seen = []
+        out = await tools.get_public_law(
+            make_client(plaw_handler(seen=seen)), congress=118, law_number=31, find=""
+        )
+        assert out["outcome"] == "invalid_argument"
+        assert "find" in out["detail"]
+        assert seen == []
+
+    async def test_find_is_absent_when_not_requested(self, make_client):
+        out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31)
+        assert "find" not in out
+
+    async def test_find_is_not_attached_to_a_scope_boundary_outcome(self, make_client):
+        out = await tools.get_public_law(
+            make_client(plaw_handler()), citation="Private Law 118-3", find="anything"
+        )
+        assert out["outcome"] == "out_of_scope_private_law"
+        assert "find" not in out

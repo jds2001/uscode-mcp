@@ -52,6 +52,10 @@ Example Claude Code / Claude Desktop stdio config:
 
 All tools distinguish three outcomes — success (including explicit zero results), upstream failure (status + body surfaced), and rate-limited (429 with headers passed through) — and window large payloads with explicit truncation markers, never silently. The API key travels only in the `X-Api-Key` header, never in a URL.
 
+### Locating content in large payloads (R12)
+
+Both text tools take an optional `find` — a case-insensitive literal substring searched across the *whole* payload, not just the returned window — and report the true occurrence count with offsets and context snippets. Offsets share the `start_char`/`total_chars` coordinate system, so one call locates and the next reads. `get_us_code_section` successes additionally carry a `structure` block: the payload's fields in order (`statute`, `sourcecredit`, each typed note with its heading) with a `start_char` apiece, read from the granule's own upstream field markers — and explicitly `omitted` with a reason when a granule lacks them or they don't balance, never guessed from headings.
+
 ## Tracing (R8)
 
 Set `USCODE_MCP_TRACE_DIR` to a directory to record every handled MCP tool call as one JSONL line (verbatim request and response, including error outcomes) in a per-run `trace-*.jsonl` file. Only an unset variable disables tracing — set-but-blank fails the server at startup like any other unusable directory, so a typo cannot silently turn the instrument off. An unusable directory fails the server at startup; a failed trace write fails that request loudly rather than leaving a silently incomplete trace.

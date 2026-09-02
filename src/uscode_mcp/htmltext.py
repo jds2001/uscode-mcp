@@ -1,4 +1,4 @@
-"""Text derivation from GovInfo /htm payloads, and windowed truncation.
+"""Text derivation from GovInfo /htm payloads, windowed truncation, and location.
 
 Contracts from documentation/40-tools.md:
 
@@ -10,16 +10,29 @@ Contracts from documentation/40-tools.md:
   the non-optional staleness disclosure; callers must state when it cannot be parsed.
 - No silent truncation: windowing always reports total length, the window returned,
   and the start_char to continue from.
+- Locating content in large payloads (R12): :func:`find_occurrences` reports the
+  true occurrence count with offsets in the same coordinate system as
+  ``start_char``/``total_chars``, and :func:`html_to_text_with_structure` derives a
+  USCODE granule's field list from the upstream ``field-start``/``field-end``
+  comment markers ONLY (O36) — never from heading heuristics — degrading to a
+  disclosed omission when those markers are absent or unbalanced.
 """
 
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
 from html.parser import HTMLParser
 from typing import Any
 
 _CURRENTTHROUGH_RE = re.compile(r"currentthrough\D{0,3}(\d{8})", re.IGNORECASE)
 _EDITION_YEAR_RE = re.compile(r"^USCODE-(\d{4})-", re.IGNORECASE)
+# Upstream field delimiters, measured in USCODE granule payloads (O36). Tolerant of
+# whitespace variation inside the comment; the field name itself is taken verbatim.
+_FIELD_MARKER_RE = re.compile(r"^\s*field-(start|end)\s*:\s*(\S+?)\s*$", re.IGNORECASE)
+
+FIND_MAX_OCCURRENCES = 50
+FIND_SNIPPET_CONTEXT = 80
 
 # Tags that imply a line break when converting to plain text.
 _BLOCK_TAGS = {
@@ -47,47 +60,204 @@ def edition_year_from_package_id(package_id: str | None) -> int | None:
 
 
 class _TextExtractor(HTMLParser):
+    """Strip HTML to text while recording, in pre-normalization text coordinates,
+    where each upstream field marker and each ``<h4 class="note-head">`` fell."""
+
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self._parts: list[str] = []
+        self._len = 0
         self._skip_depth = 0
+        self.markers: list[tuple[str, str, int]] = []  # (kind, field, raw offset)
+        self.note_heads: list[tuple[int, str]] = []  # (raw offset, heading text)
+        self._head_buf: list[str] | None = None
+        self._head_offset = 0
+
+    def _emit(self, text: str) -> None:
+        self._parts.append(text)
+        self._len += len(text)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag in _SKIP_TAGS:
             self._skip_depth += 1
-        elif tag in _BLOCK_TAGS:
-            self._parts.append("\n")
+            return
+        if tag in _BLOCK_TAGS:
+            self._emit("\n")
+        if tag == "h4" and self._skip_depth == 0:
+            classes = ""
+            for name, value in attrs:
+                if name.lower() == "class" and value:
+                    classes = value
+            if "note-head" in classes.split():
+                self._head_buf = []
+                self._head_offset = self._len
 
     def handle_endtag(self, tag: str) -> None:
-        if tag in _SKIP_TAGS and self._skip_depth > 0:
-            self._skip_depth -= 1
-        elif tag in _BLOCK_TAGS:
-            self._parts.append("\n")
+        if tag in _SKIP_TAGS:
+            if self._skip_depth > 0:
+                self._skip_depth -= 1
+            return
+        if tag == "h4" and self._head_buf is not None:
+            heading = re.sub(r"\s+", " ", "".join(self._head_buf)).strip()
+            if heading:
+                self.note_heads.append((self._head_offset, heading))
+            self._head_buf = None
+        if tag in _BLOCK_TAGS:
+            self._emit("\n")
 
     def handle_data(self, data: str) -> None:
-        if self._skip_depth == 0:
-            self._parts.append(data)
+        if self._skip_depth:
+            return
+        if self._head_buf is not None:
+            self._head_buf.append(data)
+        self._emit(data)
 
-    def text(self) -> str:
+    def handle_comment(self, data: str) -> None:
+        m = _FIELD_MARKER_RE.match(data)
+        if m:
+            self.markers.append((m.group(1).lower(), m.group(2), self._len))
+
+    def raw_text(self) -> str:
         return "".join(self._parts)
+
+
+def _normalize_indexed(raw: str) -> tuple[str, list[int]]:
+    """Normalize whitespace and return (text, src) where ``src[i]`` is the index in
+    ``raw`` of normalized character ``i``.
+
+    Every step drops characters and never inserts or rewrites any, so the normalized
+    text is a subsequence of ``raw`` and the mapping is exact. The three steps are
+    the ones :func:`html_to_text` has always applied: trim trailing spaces/tabs per
+    line, collapse runs of 3+ newlines to 2, strip the ends.
+    """
+    # Trailing [ \t]+ at end of each line (and at end of the string).
+    kept: list[int] = []
+    at_line_end = True
+    for i in range(len(raw) - 1, -1, -1):
+        ch = raw[i]
+        if ch == "\n":
+            at_line_end = True
+        elif ch in " \t" and at_line_end:
+            continue
+        else:
+            at_line_end = False
+        kept.append(i)
+    kept.reverse()
+
+    # Runs of 3+ newlines collapse to 2.
+    collapsed: list[int] = []
+    run = 0
+    for i in kept:
+        if raw[i] == "\n":
+            run += 1
+            if run > 2:
+                continue
+        else:
+            run = 0
+        collapsed.append(i)
+
+    # Strip both ends.
+    lo, hi = 0, len(collapsed)
+    while lo < hi and raw[collapsed[lo]].isspace():
+        lo += 1
+    while hi > lo and raw[collapsed[hi - 1]].isspace():
+        hi -= 1
+    src = collapsed[lo:hi]
+    return "".join([raw[i] for i in src]), src
 
 
 def html_to_text(html: str) -> str:
     """Strip HTML to readable plain text, preserving all text content."""
+    return html_to_text_with_structure(html)[0]
+
+
+def _structure_omitted(reason: str) -> dict[str, Any]:
+    return {
+        "omitted": True,
+        "reason": reason,
+        "note": (
+            "Structure is derived only from the payload's upstream field-start/field-end markers "
+            "(O36), never guessed from headings — so it is omitted rather than approximated. The "
+            "text itself is unaffected; use `find` to locate content by substring."
+        ),
+    }
+
+
+def html_to_text_with_structure(html: str) -> tuple[str, dict[str, Any]]:
+    """Return (plain text, structure block).
+
+    The structure block is R12b: the payload's fields in document order as
+    ``{field, heading, start_char}``, with ``start_char`` in the same coordinate
+    system as the windowing arguments. Marker absence or imbalance degrades to a
+    disclosed omission (``{"omitted": true, "reason": ...}``), never a failure —
+    two granules measured is not a corpus guarantee (O36).
+    """
     extractor = _TextExtractor()
     extractor.feed(html)
     extractor.close()
-    text = extractor.text()
-    # Normalize whitespace without dropping content: trim trailing space per line,
-    # collapse runs of blank lines to a single blank line.
-    lines = [re.sub(r"[ \t]+$", "", line) for line in text.split("\n")]
-    text = "\n".join(lines)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text.strip()
+    text, src = _normalize_indexed(extractor.raw_text())
+
+    if not extractor.markers:
+        return text, _structure_omitted("this payload carries no field-start/field-end markers")
+
+    # Balance the markers. Proper nesting is required: an end must close the
+    # innermost open field, and nothing may be left open.
+    stack: list[dict[str, Any]] = []
+    spans: list[dict[str, Any]] = []
+    for kind, name, offset in extractor.markers:
+        if kind == "start":
+            span = {"field": name, "raw_start": offset, "raw_end": None}
+            spans.append(span)
+            stack.append(span)
+            continue
+        if not stack:
+            return text, _structure_omitted(f"field-end:{name} with no open field")
+        if stack[-1]["field"] != name:
+            return text, _structure_omitted(
+                f"field-end:{name} does not close the innermost open field-start:{stack[-1]['field']}"
+            )
+        stack.pop()["raw_end"] = offset
+    if stack:
+        unclosed = ", ".join(sorted({s["field"] for s in stack}))
+        return text, _structure_omitted(f"unclosed field-start marker(s): {unclosed}")
+
+    # Each note-head belongs to the innermost field span containing it; a field's
+    # heading is the first such head. Spans are properly nested and in document
+    # order, so the innermost container is the last one that opened before the head.
+    headings: dict[int, str] = {}
+    for head_offset, heading in extractor.note_heads:
+        innermost = None
+        for idx, span in enumerate(spans):
+            if span["raw_start"] <= head_offset < span["raw_end"]:
+                innermost = idx
+        if innermost is not None and innermost not in headings:
+            headings[innermost] = heading
+
+    fields = [
+        {
+            "field": span["field"],
+            "heading": headings.get(idx),
+            "start_char": bisect_left(src, span["raw_start"]),
+        }
+        for idx, span in enumerate(spans)
+    ]
+    return text, {
+        "omitted": False,
+        "fields": fields,
+        "note": (
+            "Field boundaries come from the payload's own upstream markers (O36). `start_char` "
+            "values share the coordinate system of total_chars/start_char, so a field can be read "
+            "by re-requesting with that start_char."
+        ),
+    }
 
 
 def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dict[str, Any]:
-    """Return a window of text with explicit truncation markers (never silent)."""
+    """Return a window of text with explicit truncation markers (never silent).
+
+    ``total_chars``/``start_char``/``next_start_char`` are the coordinate system that
+    ``find`` offsets and ``structure`` offsets are expressed in.
+    """
     if start_char < 0:
         raise ValueError(f"start_char must be >= 0, got {start_char}")
     if max_chars <= 0:
@@ -110,3 +280,57 @@ def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dic
             f"Continue with start_char={end}."
         )
     return result
+
+
+def find_occurrences(
+    text: str,
+    needle: str,
+    max_occurrences: int = FIND_MAX_OCCURRENCES,
+    context: int = FIND_SNIPPET_CONTEXT,
+) -> dict[str, Any]:
+    """Locate a case-insensitive literal substring in the full payload (R12a).
+
+    Offsets are in the same coordinate system as ``start_char``/``total_chars``, so a
+    hit feeds straight back into the window. The list is capped but the count is the
+    true total, stated with the cap — the disambiguation-totals rule. Zero matches is
+    an explicit success outcome, never silence.
+    """
+    matches = [m.start() for m in re.finditer(re.escape(needle), text, re.IGNORECASE)]
+    shown = matches[:max_occurrences]
+    occurrences = []
+    for offset in shown:
+        lo = max(0, offset - context)
+        hi = min(len(text), offset + len(needle) + context)
+        snippet = re.sub(r"\s+", " ", text[lo:hi]).strip()
+        occurrences.append(
+            {
+                "start_char": offset,
+                "snippet": ("…" if lo > 0 else "") + snippet + ("…" if hi < len(text) else ""),
+            }
+        )
+    capped = len(shown) < len(matches)
+    if not matches:
+        message = (
+            f"Zero occurrences of {needle!r} in the full {len(text)}-char payload. The search "
+            "succeeded — this is 'found nothing', not a failure. Note the payload is the plain "
+            "text of this document only; try a shorter or differently spelled substring."
+        )
+    else:
+        message = (
+            f"{len(matches)} occurrence(s) of {needle!r} in the full {len(text)}-char payload. "
+            "Offsets share the coordinate system of total_chars/start_char — re-request with "
+            "start_char set to one of them to read around it."
+        )
+        if capped:
+            message += f" The occurrence list is capped: showing {len(shown)} of {len(matches)}."
+    return {
+        "needle": needle,
+        "case_sensitive": False,
+        "match_kind": "literal substring, non-overlapping",
+        "searched_chars": len(text),
+        "total_occurrences": len(matches),
+        "occurrences_shown": len(shown),
+        "capped": capped,
+        "occurrences": occurrences,
+        "message": message,
+    }
