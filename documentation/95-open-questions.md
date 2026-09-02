@@ -16,7 +16,7 @@ Q8. Group F needs 8–12 **verbatim** questions from real research sessions — 
 
 ## Implementation queue
 
-Empty. R12a/b, the E12 banner, and the keyless fail-fast are built and black-box verified (O37). E12 and E14 remain OPEN as consumer-behavior experiments — the facilities now exist in traces, which is the precondition, not the closure: E12 closes on a C1-class run whose trace shows the banner and whose answer states the true total; E14 closes on a C4 run (instrument now in the manifest) plus a C3 re-run as the non-note control.
+Empty. R12a/b, the E12 banner, and the keyless fail-fast are built, black-box verified (O37), and consumer-validated: E12 and E14 both CLOSED as confirmed by run 2026-09-02T035906Z (`70-run-findings.md`) — banner in every truncated trace with honest totals in all three cells, find used everywhere with zero blind guessing, verbatim-verified quotes, and the C3 non-note control at 4 floor calls against the 9-call baseline. The deferred notes-only mode is dead (E14 was its reopening condition). Remaining open board: A/D prompt groups have never run in the isolation cell (attribution clauses of A2/C2/D3 unscored), and Q8's verbatim Group F questions.
 
 ## Preregistered experiments — pending
 
