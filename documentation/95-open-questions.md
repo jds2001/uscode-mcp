@@ -16,7 +16,9 @@ Q8. Group F needs 8–12 **verbatim** questions from real research sessions — 
 
 ## Implementation queue
 
-Empty. R12a/b, the E12 banner, and the keyless fail-fast are built, black-box verified (O37), and consumer-validated: E12 and E14 both CLOSED as confirmed by run 2026-09-02T035906Z (`70-run-findings.md`) — banner in every truncated trace with honest totals in all three cells, find used everywhere with zero blind guessing, verbatim-verified quotes, and the C3 non-note control at 4 floor calls against the 9-call baseline. The deferred notes-only mode is dead (E14 was its reopening condition). Remaining open board: A/D prompt groups have never run in the isolation cell (attribution clauses of A2/C2/D3 unscored), and Q8's verbatim Group F questions.
+R13a/b/c (`40-tools.md`, ruled in `96-rulings.md` from the second field report): structure gated to zero-offset responses with the omitted form elsewhere, per-field `end_char` with the headings-describe-openings note, and the in-band banner-coordinate disclosure made contractual. Verification path: black-box probe on the implementation report, per the O37 pattern.
+
+Previously: R12a/b, the E12 banner, and the keyless fail-fast are built, black-box verified (O37), and consumer-validated: E12 and E14 both CLOSED as confirmed by run 2026-09-02T035906Z (`70-run-findings.md`) — banner in every truncated trace with honest totals in all three cells, find used everywhere with zero blind guessing, verbatim-verified quotes, and the C3 non-note control at 4 floor calls against the 9-call baseline. The deferred notes-only mode is dead (E14 was its reopening condition). Remaining open board: A/D prompt groups have never run in the isolation cell (attribution clauses of A2/C2/D3 unscored), and Q8's verbatim Group F questions.
 
 ## Preregistered experiments — pending
 

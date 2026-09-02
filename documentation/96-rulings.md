@@ -222,3 +222,13 @@ R12a — **`find` parameter on both text tools** (`get_us_code_section`, `get_pu
 R12b — **`structure` block on `get_us_code_section` successes**: an ordered list of the payload's fields — `{field, heading (for notes), start_char}` — derived ONLY from the upstream `field-start`/`field-end` markers, never from heading heuristics (the parser-ownership trap S8 warned about). Marker absence or imbalance in any granule degrades to "structure omitted, with a disclosure", never a retrieval failure — two granules measured is not a corpus guarantee. This makes "jump to the notes" one glance, serving the motivating note use case (R4) directly.
 
 Deferred, recorded: a notes-only retrieval mode for `"… note"` citations — redundant once R12a+b exist (locate via structure, read via window); revisit only if E14 shows consumers still failing. Preregistration E14 in `95-open-questions.md`.
+
+## R13 — 2026-09-02, structure refinements from the second field report
+
+From S9/O38, all three additive to R12b's contract in `40-tools.md`:
+
+R13a — **`structure` rides only on `start_char: 0` responses.** The locating call gets it; reading calls (nonzero `start_char`) carry `{omitted: true, reason: …}` pointing back to a zero-offset request. Rationale: the block is invariant per (section, year) and was measured at ~15× a small window's payload; "one call locates, one call reads" implies the reading call has no use for it. The `structure-present-or-disclosed` check is untouched — the omitted flag is present either way.
+
+R13b — **每 field carries `end_char` (exclusive; the final field ends at `total_chars`), and `structure.note` states that headings come from upstream markers and describe a field's opening, not its contents.** The measured hazard: a 38K field labeled "Findings" containing the whole Radiation Exposure Compensation Act — the exact case `structure` exists to solve, with the label pointing away from the answer. Extent makes the mismatch self-evident (`end_char - start_char` is also precisely the `max_chars` a caller needs) and the note closes the residual trap. Upstream headings are reported faithfully, never editorialized — the extent is the mitigation, not relabeling.
+
+R13c — **the in-band coordinate disclosure is contractual.** The implementation's `text.message` stating the banner is not part of the payload and offsets start after it exists and is consumer-validated as correctly placed (O38); it is now required on every bannered response so it cannot regress away.
