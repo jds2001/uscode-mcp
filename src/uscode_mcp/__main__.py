@@ -32,9 +32,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     load_dotenv(find_dotenv(usecwd=True))
-    if not os.environ.get(API_KEY_ENV_VAR):
+    # Keyless startup fails fast (96-rulings.md, R10 third amendment, from F31): a
+    # server that can serve nothing must be unmistakably down, not up and wearing a
+    # misleading per-request error. Blank counts as absent — a whitespace-only value
+    # is a broken config, not a key.
+    if not os.environ.get(API_KEY_ENV_VAR, "").strip():
         print(
-            f"error: {API_KEY_ENV_VAR} is not set. Put it in the repo-root .env (gitignored) or the environment.",
+            f"error: {API_KEY_ENV_VAR} is not set (or is blank). Every GovInfo request needs it, so "
+            f"the server exits now rather than starting and failing every call. Put it in the "
+            f"repo-root .env (gitignored) or the environment.",
             file=sys.stderr,
         )
         return 2

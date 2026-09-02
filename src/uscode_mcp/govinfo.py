@@ -107,10 +107,16 @@ class GovInfoClient:
 
 
 def client_from_env() -> GovInfoClient:
-    """Build a client from the GOVINFO_API_KEY environment variable, failing loudly."""
-    api_key = os.environ.get(API_KEY_ENV_VAR, "")
+    """Build a client from the GOVINFO_API_KEY environment variable, failing loudly.
+
+    The primary guard against a keyless server is at startup in ``__main__`` — the
+    server exits before serving anything (R10 third amendment, from F31). This is the
+    backstop for embedders that build a client directly. Blank counts as absent.
+    """
+    api_key = os.environ.get(API_KEY_ENV_VAR, "").strip()
     if not api_key:
         raise RuntimeError(
-            f"{API_KEY_ENV_VAR} is not set. Put it in the repo-root .env (gitignored) or the environment."
+            f"{API_KEY_ENV_VAR} is not set (or is blank). "
+            "Put it in the repo-root .env (gitignored) or the environment."
         )
     return GovInfoClient(api_key=api_key)

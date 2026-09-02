@@ -8,13 +8,14 @@
 - R8 trace emission: setting `USCODE_MCP_TRACE_DIR` appends one JSONL line per handled MCP tool call (verbatim request and response, including error outcomes); an unusable directory fails the server at startup and a per-request write failure fails that request loudly.
 - Initial MCP server scaffolding (implementation session): `uscode-mcp` Python package (`uv`-managed, `mcp` SDK 2.x) serving the four tools specified in `documentation/40-tools.md` — `get_us_code_section`, `search_us_code`, `get_public_law`, `search_public_laws` — over stdio (default) and streamable HTTP (`--transport http`).
 - GovInfo API client with the three-outcome contract (success / upstream failure / rate-limited, never collapsed), citation normalization with the two mandatory strips (subsection, trailing "note"), HTML-to-text derivation with `currentthrough` provenance, and explicit (never silent) truncation windows.
-- Unit test suite (114 tests) covering failure surfacing alongside the happy paths.
+- Unit test suite (200 tests) covering failure surfacing alongside the happy paths.
 - `CONTRIBUTING.md` as the canonical source for code style, commit conventions, and the `documentation/` two-session model — resolves the conflicting commit-trailer guidance between `.claude/CLAUDE.md` and the workspace-level `CLAUDE.md` (#46, #78).
 - `tests/test_conventions_sync.py` guards `AGENTS.md` and `.claude/CLAUDE.md` against drifting apart.
 
 ### Changed
 
 - E12 in-band truncation banner: a truncated text response now leads `content` with a single bracketed line stating the window bounds, the true total, and the continuation `start_char` — ruled from finding F1, where a consumer handed complete and correct structured truncation fields still presented the window as the whole law. The structured fields are unchanged, so `find` and `structure` offsets keep their coordinate system; the banner is also returned on its own `banner` key so a caller can strip it deterministically.
+- An absent **or blank** `GOVINFO_API_KEY` now fails the server at startup with a message naming the variable (stderr, exit 2), before any server object exists — a server that can serve nothing must be unmistakably down rather than up and wearing a misleading per-request error (R10 third amendment, from congressMCP's F31).
 - Runtime dependencies now carry ceilings as well as floors (R9): `mcp>=2,<3`, `httpx>=0.27,<1`, `python-dotenv>=1.0,<2`. Raising a ceiling is a deliberate, tested change committed on its own.
 - Disambiguation (`ambiguous`) outcomes state capping explicitly: `count` (true total), `candidates_shown`, `capped`, and a "showing N of M" message when the candidate list is page-capped — and no capping claim when it isn't.
 - Appendix citations now resolve directly (`citation:"28 U.S.C. App. Rule 9"`, O24/E10); multi-hit appendix citations use the standard disambiguation list (which now also reports the true total `count`), and the redirect to `search_us_code` survives only as the zero-hit fallback (real for eliminated appendices like title 50's).

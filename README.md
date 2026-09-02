@@ -50,7 +50,7 @@ Example Claude Code / Claude Desktop stdio config:
 - `get_public_law` — resolve "Pub. L. 118-31" (or congress + number) and return the law's text, or USLM XML where offered.
 - `search_public_laws` — as above, scoped to PLAW; documents the `uscodecitation` reverse-lookup recipe and its measured recall gap.
 
-All tools distinguish three outcomes — success (including explicit zero results), upstream failure (status + body surfaced), and rate-limited (429 with headers passed through) — and window large payloads with explicit truncation markers, never silently: a truncated response repeats those markers as a banner line at the head of the returned text, because structured fields alone were measured insufficient (F1/E12). The API key travels only in the `X-Api-Key` header, never in a URL.
+All tools distinguish three outcomes — success (including explicit zero results), upstream failure (status + body surfaced), and rate-limited (429 with headers passed through) — and window large payloads with explicit truncation markers, never silently: a truncated response repeats those markers as a banner line at the head of the returned text, because structured fields alone were measured insufficient (F1/E12). The API key travels only in the `X-Api-Key` header, never in a URL; absent or blank, the server exits at startup rather than coming up unable to serve anything.
 
 ### Locating content in large payloads (R12)
 
