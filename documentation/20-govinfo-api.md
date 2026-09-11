@@ -20,7 +20,7 @@ Rate limit, measured on a registered key: `x-ratelimit-limit: 36000` per hour (O
 
 The `/collections`, `/published`, and `/related` endpoints exist but no v1 tool depends on them; `/collections` was used only as an instrument (O1).
 
-A PLAW package summary carries a `references` array enumerating the US Code citations the law touches, by title and section (O18). No v1 tool reads it, but it is the measured higher-recall alternative to the `uscodecitation` search field (O17 vs O18) and the designated v2 bridge source (Q6, E9).
+A PLAW package summary carries a `references` array enumerating the US Code citations the law touches, by title and section (O18); its entries carry only the labels `Stat.` and `U.S.C` and bare section strings — nothing marks a citation as a note (O43a), and 39 of the 119th Congress's first 102 public laws carry no U.S.C. entry at all (O43a, corroborating R2). No v1 tool reads it, but it is the measured higher-recall alternative to the `uscodecitation` search field (O17 vs O18) and the designated v2 bridge source (Q6, E9).
 
 ## Formats, per collection — measured 2026-08-29
 

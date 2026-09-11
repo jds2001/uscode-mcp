@@ -7,7 +7,7 @@
 | Field | Meaning | Notes |
 |---|---|---|
 | `query` | govinfo query syntax (operators below) | required |
-| `pageSize` | results per page | documented max 1000 (S1); server default 20, cap 100 |
+| `pageSize` | results per page | documented max 1000 (S1), measured honored at 1000 (O43g); the uscode-mcp tools default to 20 and cap at 100 |
 | `offsetMark` | pagination cursor; `*` to start, echo back the returned value | opaque string (O4) |
 | `sorts` | array of `{field, sortOrder}` | fields seen: `score`, `publishdate`; `title`, `lastModified` documented (S1) |
 | `historical` | include superseded editions | default false; behavior measured in O7b |
@@ -25,7 +25,7 @@ USCODE (S3 — govinfo.gov/help/uscode): `citation`, `usctitlenum`, `uscchnum`, 
 
 PLAW (S4 — govinfo.gov/help/plaw): `congress`, `docnumber`, `lawtype`, `approveddate`, `publishdate`, `billscitation`, `uscodecitation`, `statutecitation`, `title`, `committee`.
 
-Exercised against the live service so far: `citation` (O4, O7a, O10, O11, O16), `congress`+`docnumber` (O12), `uscodecitation` (O17 — including its recall gap), `usctitlenum` (O19). The rest are documented intent until measured; a tool contract may cite them, but a defect against them needs a measurement first.
+Exercised against the live service so far: `citation` (O4, O7a, O10, O11, O16), `congress`+`docnumber` (O12), `uscodecitation` (O17 — including its recall gap), `usctitlenum` (O19), `publishdate` ranges including the open-ended `range(date,)` form, composed with `uscodecitation` (O43f), `lawtype:public` (O43f), and `approveddate` — which works as a single-day value but returns HTTP 500 for every range form tried (O43f), so no contract may use an `approveddate` range. The rest are documented intent until measured; a tool contract may cite them, but a defect against them needs a measurement first.
 
 ## Citation resolution — the core recipe
 
