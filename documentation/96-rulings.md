@@ -232,3 +232,23 @@ R13a — **`structure` rides only on `start_char: 0` responses.** The locating c
 R13b — **Every field carries `end_char` (exclusive; the final field ends at `total_chars`), and `structure.note` states that headings come from upstream markers and describe a field's opening, not its contents.** The measured hazard: a 38K field labeled "Findings" containing the whole Radiation Exposure Compensation Act — the exact case `structure` exists to solve, with the label pointing away from the answer. Extent makes the mismatch self-evident (`end_char - start_char` is also precisely the `max_chars` a caller needs) and the note closes the residual trap. Upstream headings are reported faithfully, never editorialized — the extent is the mitigation, not relabeling. Amended after the implementation's flagged judgment, ratified on verification (O39): `end_char` derives from each field's own `field-end` marker, not next-field subtraction — so **fields nest** (a container like `notes` spans its typed children), the final field's extent is data rather than decree, and trailing content past the last marker reports honestly. The ruling's original 'final field ends at total_chars' is thereby a measured consequence, not a rule.
 
 R13c — **the in-band coordinate disclosure is contractual.** The implementation's `text.message` stating the banner is not part of the payload and offsets start after it exists and is consumer-validated as correctly placed (O38); it is now required on every bannered response so it cannot regress away.
+
+## R14 — 2026-09-11, the `possibly_superseded` flag (Q10)
+
+Maintainer answers, verbatim from `95-open-questions.md` (written against Q10's three questions):
+
+> 1) This is DEFINITELY WARNING only, not positive only even - something matched CANNOT assert that the modified section is not current. This is the effective date trap, and we have no way to know it without retrieval and parsing of hte enacted law. I don't think that's worth it, so it MUST be disclaimed as an indicator, not certifyiung that the section is not current.
+>
+> 2) I think it should fire on every lookup. Perhaps we should run an experiment on the roundtrip cost of the search, but if it's under say 100ms (which I suspect it's significantly under) we should do it every time. It's cheap and a correctness win.
+>
+> 3) Run E16 now, using the key in ../.env
+
+R14a — **Indicator in both directions, never a certification.** When the flag fires it says only that a later public law is indexed against this section; it does not say the text returned is out of date (the effective-date trap — a matched law may amend a different subsection, may not yet be effective, or may only reference the section). When the flag is silent it does not say the text is current, because the instrument misses ~a quarter of real (law, section) pairs (O21, O42d). Three states, never two: laws found; checked and none found, with the recall caveat in the same object; could not check, with the upstream failure surfaced. Retrieving and parsing the enacting law to resolve effective dates is explicitly declined as not worth it.
+
+R14b — **Fires on every `get_us_code_section` success, gated on measured cost.** The maintainer's threshold: if the detector's search round trip measures under roughly 100 ms it runs unconditionally; E16 gains a latency arm to measure it. If the measurement comes in materially above that, the question returns to the maintainer with the number rather than the spec defaulting to on-request.
+
+R14c — **E16 runs now, as a spec-session measurement of the public API,** with the key in `../.env`. Protocol amendments pinned before the run in `95-open-questions.md`.
+
+## R15 — 2026-09-11, `fields=["statute"]` deferred (Q12)
+
+Maintainer: "Agreed" to the deferral recommendation, and relayed the consumer session's own concurrence (S12 in `90-observations.md`, verbatim). Ruling: **no `fields` request parameter.** The decisive argument is S12's — the field vocabulary is GovInfo's marker taxonomy reported verbatim in `structure`, and turning it into a request parameter would promise a vocabulary the server does not control, cannot version, and that some granules lack entirely (the `omitted` case has no correct answer for `fields=["statute"]`). Reopening trigger, narrowed per S12: a consumer that hits a section whose operative text alone exceeds a reasonable window, so that the whole payload cannot be fetched and `find` cannot help because the consumer does not yet know what to search for. If that ever shows in real traffic, the pre-committed direction is statute-first ordering with notes windowed behind it — no new request vocabulary — not `fields`.

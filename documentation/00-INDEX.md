@@ -17,7 +17,7 @@ This directory is the spec for an MCP server that searches and retrieves the Uni
 | `70-run-findings.md` | Scored findings from harness runs — one section per run, citing artifacts |
 | `90-observations.md` | Measurement log — every empirical claim in this spec cites an entry here |
 | `95-open-questions.md` | Maintainer questions and preregistered experiments not yet run |
-| `96-rulings.md` | Maintainer rulings R1–R6 (2026-08-29) with the Q1 source exchange (S5) |
+| `96-rulings.md` | Maintainer rulings R1–R15 (2026-08-29 → 2026-09-11) with the Q1 source exchange (S5) |
 
 ## Conventions — these bind
 
