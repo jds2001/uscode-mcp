@@ -15,6 +15,7 @@ This directory is the spec for an MCP server that searches and retrieves the Uni
 | `60-e2e-harness.md` | The uscode-mcp E2E suite spec: binding suite rules, check rationale, cells, staleness |
 | `e2e-manifest.json` | The suite manifest mcp-e2e loads verbatim — spec-owned, criteria pinned pre-run |
 | `70-run-findings.md` | Scored findings from harness runs — one section per run, citing artifacts |
+| `80-work-orders.md` | Self-contained build orders for the implementation session, with the verification artifacts each one must return |
 | `90-observations.md` | Measurement log — every empirical claim in this spec cites an entry here |
 | `95-open-questions.md` | Maintainer questions and preregistered experiments not yet run |
 | `96-rulings.md` | Maintainer rulings R1–R15 (2026-08-29 → 2026-09-11) with the Q1 source exchange (S5) |
