@@ -79,12 +79,14 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         `laws_indexed` (GovInfo indexes at least one public law published after this edition's
         `currentthrough` against this section — the true `count` plus a capped `laws` list),
         `none_indexed` (checked, nothing indexed), or `not_checked` (the check failed; the upstream
-        failure is surfaced). It is an INDICATOR IN BOTH DIRECTIONS, NEVER A CERTIFICATION: a listed
-        law may amend a different part of the section, only cite it, or not yet be effective, and
-        the index misses about one in seven real (law, section) pairs, so `none_indexed` is NOT
-        evidence the text is current. Never say a section is "current" or "up to date" on the
-        strength of this object; never say it is "outdated" without reading the listed law. The
-        object echoes the exact `query` and `since` bound it used.
+        failure is surfaced). It is an INDICATOR IN BOTH DIRECTIONS, NEVER A CERTIFICATION. A listing
+        means the law MENTIONS the section — it may amend it, amend something else and merely cite
+        it, or not yet be in effect — and only reading the listed law (get_public_law with its
+        package_id, then `find` this section) says whether the text changed. The index misses about
+        one in seven real (law, section) pairs, so `none_indexed` is NOT evidence the text is current.
+        Never say a section is "current" or "up to date" on the strength of this object; never say
+        it is "outdated" or "amended" without reading the listed law. Public laws only
+        (`lawtype:public`). The object echoes the exact `query` and `since` bound it used.
 
         Appendix citations ("28 U.S.C. App.", "28 U.S.C. App. Rule 9") resolve
         directly; when one matches multiple granules the standard disambiguation list is returned,

@@ -17,7 +17,7 @@ import pytest
 
 from uscode_mcp import superseded, tools
 
-DETECTOR_QUERY_107 = 'collection:PLAW publishdate:range(2025-01-07,) uscodecitation:"17 U.S.C. 107"'
+DETECTOR_QUERY_107 = 'collection:PLAW lawtype:public publishdate:range(2025-01-07,) uscodecitation:"17 U.S.C. 107"'
 
 
 def plaw_hit(n: int, package_id: str | None = None) -> dict:
@@ -100,10 +100,38 @@ class TestHelpers:
             superseded.since_from_currentthrough("2025-13-45")
 
     def test_query_is_the_pinned_publishdate_form(self):
-        q = superseded.build_query("42", "2210", "2025-01-07")
-        assert q == 'collection:PLAW publishdate:range(2025-01-07,) uscodecitation:"42 U.S.C. 2210"'
+        q = superseded.build_query("42 U.S.C. 2210", "2025-01-07")
+        assert q == 'collection:PLAW lawtype:public publishdate:range(2025-01-07,) uscodecitation:"42 U.S.C. 2210"'
         assert "approveddate" not in q
         assert "congress:" not in q
+
+    @pytest.mark.parametrize("citation", ["42 U.S.C. 2210", "18 U.S.C. App. 1201", "17 U.S.C. 107"])
+    def test_every_query_carries_lawtype_public(self, citation):
+        # O44e: private laws are indexed against sections they waive, never amend, and
+        # get_public_law refuses their packages under R6 — the filter is in the query.
+        q = superseded.build_query(citation, "2025-01-07")
+        assert q.startswith("collection:PLAW lawtype:public publishdate:range(2025-01-07,) ")
+        assert q.endswith(f'uscodecitation:"{citation}"')
+
+    def test_appendix_section_query_uses_the_measured_app_form(self):
+        q = superseded.build_query("18 U.S.C. App. 1201", "2025-01-07")
+        assert q == (
+            'collection:PLAW lawtype:public publishdate:range(2025-01-07,) uscodecitation:"18 U.S.C. App. 1201"'
+        )
+
+    def test_laws_indexed_caveat_is_the_pinned_wording(self):
+        # Literal comparison against the text pinned in 40-tools.md (R14a addendum,
+        # O44f/O44g): any drift in either direction fails loudly.
+        assert superseded.CAVEAT_LAWS_INDEXED == (
+            "INDICATOR ONLY — NOT A FINDING THAT THE TEXT CHANGED. A listed law MENTIONS this section; "
+            "that is all the index records. It may amend the section, amend something else and merely "
+            "cite this one, waive it for a named party, or not yet be in effect. The verification set's "
+            "own example: Public Law 119-74 is listed against 42 U.S.C. 2210 because one appropriations "
+            "rider cites it in a parenthetical, and it amends nothing in the section. This server does "
+            "not read enacting laws. YOU MUST READ THE LISTED LAW TO FIND OUT — get_public_law with its "
+            "package_id, then search its text for this section. The list may also be incomplete: the "
+            "index misses about one in seven listed (law, section) pairs."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -136,8 +164,11 @@ class TestLawsIndexed:
         out = await tools.get_us_code_section(make_client(make_handler(resp)), citation="17 U.S.C. 107")
         ps = out["possibly_superseded"]
         assert ps["caveat"] == superseded.CAVEAT_LAWS_INDEXED
-        assert "NOT A FINDING THAT THE TEXT IS STALE" in ps["caveat"]
+        assert "NOT A FINDING THAT THE TEXT CHANGED" in ps["caveat"]
+        assert "YOU MUST READ THE LISTED LAW" in ps["caveat"]
+        assert "get_public_law" in ps["caveat"]
         assert "one in seven" in ps["caveat"]
+        assert "mentions the section" in ps["message"]
 
     async def test_capping_is_stated_with_the_true_total(self, make_client):
         page = [plaw_hit(i) for i in range(superseded.LAWS_CAP)]
@@ -307,17 +338,36 @@ class TestNotChecked:
         assert "2025-13-45" in ps["detail"]
         assert detector_requests(seen) == []
 
-    async def test_appendix_citation_is_not_checked_without_a_query(self, make_client):
+    @pytest.mark.parametrize("citation", ["28 U.S.C. App. Rule 9", "28 U.S.C. App."])
+    async def test_appendix_rule_or_bare_appendix_is_not_checked_without_a_query(self, make_client, citation):
+        # O44d: no uscodecitation form is measured for rules or bare appendix citations.
         seen = []
         hit = fx.usc_hit(package_id="USCODE-2024-title28", granule_id="USCODE-2024-title28-app-federalru-rule9")
         client = make_client(make_handler(usc_hits=[hit], seen=seen))
-        out = await tools.get_us_code_section(client, citation="28 U.S.C. App. Rule 9")
+        out = await tools.get_us_code_section(client, citation=citation)
         assert out["outcome"] == "success"
         ps = out["possibly_superseded"]
         assert ps["status"] == "not_checked"
         assert ps["reason"] == "no_measured_citation_form"
         assert ps["query"] is None
+        assert ps["checked_citation"] is None
         assert detector_requests(seen) == []
+
+    async def test_numbered_appendix_section_runs_the_detector_on_the_app_form(self, make_client):
+        # O44d: numbered appendix sections have the measured "{t} U.S.C. App. {s}" form.
+        seen = []
+        hit = fx.usc_hit(package_id="USCODE-2024-title18", granule_id="USCODE-2024-title18-app-sec1201")
+        resp = fx.json_response(fx.search_response([plaw_hit(75)], count=1))
+        client = make_client(make_handler(resp, usc_hits=[hit], seen=seen))
+        out = await tools.get_us_code_section(client, citation="18 U.S.C. App. 1201")
+        assert out["outcome"] == "success"
+        ps = out["possibly_superseded"]
+        assert ps["status"] == "laws_indexed"
+        assert ps["checked_citation"] == "18 U.S.C. App. 1201"
+        assert ps["query"] == (
+            'collection:PLAW lawtype:public publishdate:range(2025-01-07,) uscodecitation:"18 U.S.C. App. 1201"'
+        )
+        assert fx.request_body(detector_requests(seen)[0])["query"] == ps["query"]
 
     async def test_not_checked_is_never_collapsed_into_none_indexed(self, make_client):
         for resp in (httpx.Response(500, text="x"), httpx.Response(429, text="x"), httpx.ConnectError("x")):
@@ -397,7 +447,10 @@ class TestBoundAndCitation:
         out = await tools.get_us_code_section(client, citation="42 U.S.C. 2210 note")
         assert out["normalization"]["stripped_note"] is True
         ps = out["possibly_superseded"]
-        assert ps["query"] == 'collection:PLAW publishdate:range(2025-01-07,) uscodecitation:"42 U.S.C. 2210"'
+        assert ps["query"] == (
+            'collection:PLAW lawtype:public publishdate:range(2025-01-07,) '
+            'uscodecitation:"42 U.S.C. 2210"'
+        )
         assert ps["checked_citation"] == "42 U.S.C. 2210"
         assert "parent section 42 U.S.C. 2210" in ps["note_statement"]
         assert "neither citation" in ps["note_statement"]
@@ -427,7 +480,10 @@ class TestBoundAndCitation:
         assert out["provenance"]["currentthrough"] == "2024-01-05"
         ps = out["possibly_superseded"]
         assert ps["since"] == "2024-01-06"
-        assert ps["query"] == 'collection:PLAW publishdate:range(2024-01-06,) uscodecitation:"17 U.S.C. 107"'
+        assert ps["query"] == (
+            'collection:PLAW lawtype:public publishdate:range(2024-01-06,) '
+            'uscodecitation:"17 U.S.C. 107"'
+        )
         assert fx.request_body(detector_requests(seen)[0])["query"] == ps["query"]
 
     async def test_two_editions_of_one_section_get_different_bounds(self, make_client):
@@ -484,7 +540,10 @@ class TestConcurrency:
         ps = out["possibly_superseded"]
         assert ps["issued"] == "before_search"
         assert ps["since"] == "2025-01-07"
-        assert ps["query"] == 'collection:PLAW publishdate:range(2025-01-07,) uscodecitation:"42 U.S.C. 2210"'
+        assert ps["query"] == (
+            'collection:PLAW lawtype:public publishdate:range(2025-01-07,) '
+            'uscodecitation:"42 U.S.C. 2210"'
+        )
         assert "prediction_note" not in ps
         assert len(detector_requests(seen)) == 1
 
@@ -498,7 +557,10 @@ class TestConcurrency:
         )
         ps = out["possibly_superseded"]
         assert ps["since"] == "2025-03-02"
-        assert ps["query"] == 'collection:PLAW publishdate:range(2025-03-02,) uscodecitation:"17 U.S.C. 107"'
+        assert ps["query"] == (
+            'collection:PLAW lawtype:public publishdate:range(2025-03-02,) '
+            'uscodecitation:"17 U.S.C. 107"'
+        )
         assert ps["issued"] == "after_fetch"
         assert "2025-01-06" in ps["prediction_note"] and "2025-03-01" in ps["prediction_note"]
         sent = [fx.request_body(r)["query"] for r in detector_requests(seen)]

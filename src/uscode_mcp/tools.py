@@ -54,6 +54,10 @@ DEFAULT_MAX_CHARS = 100_000
 CURRENTTHROUGH_MEMORY = superseded.CurrentthroughMemory()
 
 _COLLECTION_TERM_RE = re.compile(r"\bcollection:", re.IGNORECASE)
+# A numbered appendix section ("18 U.S.C. App. 1201"), as opposed to a rule
+# ("28 U.S.C. App. Rule 9") or a bare appendix citation — only the former has a
+# measured uscodecitation form (O44d).
+_NUMBERED_APPENDIX_RE = re.compile(r"^\d")
 
 
 # ---------------------------------------------------------------------------
@@ -213,10 +217,16 @@ class _Detector:
     @property
     def _citation(self) -> str | None:
         """The citation the check runs on: the resolved section after the mandatory
-        strips. Appendix citations have no measured uscodecitation form (O19/E10)."""
-        if self._parsed.appendix or self._parsed.section is None:
+        strips, or the measured App. form for a numbered appendix section (O44d).
+        Appendix rules and bare appendix citations have no measured form: None."""
+        parsed = self._parsed
+        if parsed.appendix:
+            if parsed.appendix_text and _NUMBERED_APPENDIX_RE.match(parsed.appendix_text):
+                return f"{parsed.title} U.S.C. App. {parsed.appendix_text}"
             return None
-        return f"{self._parsed.title} U.S.C. {self._parsed.section}"
+        if parsed.section is None:
+            return None
+        return f"{parsed.title} U.S.C. {parsed.section}"
 
     def _launch(self, currentthrough: str) -> None:
         try:
@@ -227,7 +237,8 @@ class _Detector:
             self._bound_error = f"currentthrough {currentthrough!r} is not a valid date ({exc})"
             self.since = None
             return
-        self.query = superseded.build_query(self._parsed.title, self._parsed.section or "", self.since)
+        assert self._citation is not None
+        self.query = superseded.build_query(self._citation, self.since)
         self._task = asyncio.create_task(superseded.run_detector(self._client, self.query))
 
     async def _discard(self) -> None:
@@ -278,8 +289,9 @@ class _Detector:
         if citation is None:
             out = superseded.not_checked(
                 "no_measured_citation_form",
-                "appendix citations have no measured uscodecitation form (O19/E10); the detector is defined "
-                "on '{title} U.S.C. {section}' and was not run.",
+                "appendix rules and bare appendix citations have no measured uscodecitation form (O44d: "
+                "0 hits for '28 U.S.C. App.' and '28 U.S.C. App. Rule 9'); only numbered appendix sections "
+                "have one, so the detector was not run.",
                 **common,
             )
         elif self.currentthrough is None or self._bound_error is not None:

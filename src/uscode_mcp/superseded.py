@@ -3,12 +3,19 @@
 Contract (documentation/40-tools.md, "Staleness indicator"; 80-work-orders.md, WO-1):
 
 - One detector query against the PLAW collection, bounded by the returned
-  edition's own ``currentthrough`` plus one day::
+  edition's own ``currentthrough`` plus one day (WO-2 shape)::
 
-      collection:PLAW publishdate:range({since},) uscodecitation:"{title} U.S.C. {section}"
+      collection:PLAW lawtype:public publishdate:range({since},) uscodecitation:"{title} U.S.C. {section}"
 
   ``publishdate``, never ``approveddate`` — ``approveddate`` ranges return HTTP 500
   upstream in every form tried (O43f). No hard-coded congress or date.
+  ``lawtype:public`` because a live section was measured firing on a private law
+  (O44e) whose package get_public_law refuses under R6, and because a private
+  law's citation is by construction a named-party waiver, never an amendment
+  (O44f). The filter is in the query, never applied client-side, so ``count``
+  stays upstream's count for the query actually sent. Numbered appendix sections
+  use the measured ``"{title} U.S.C. App. {section}"`` form (O44d); appendix rules
+  have no measured form and are ``not_checked``.
 - Three states on a ``status`` discriminator, never two: ``laws_indexed``,
   ``none_indexed``, ``not_checked``. A detector failure of any kind is
   ``not_checked`` with the failure surfaced verbatim; it is never collapsed into
@@ -55,13 +62,17 @@ STATUS_LAWS_INDEXED = "laws_indexed"
 STATUS_NONE_INDEXED = "none_indexed"
 STATUS_NOT_CHECKED = "not_checked"
 
+# Pinned verbatim in documentation/40-tools.md (R14a addendum, O44f/O44g); the
+# unit test compares it literally so any drift fails loudly.
 CAVEAT_LAWS_INDEXED = (
-    "INDICATOR OF POSSIBLE CHANGE, NOT A FINDING THAT THE TEXT IS STALE. At least one public law "
-    "published after this edition's currentthrough date is indexed against this section in GovInfo's "
-    "uscodecitation field. A listed law may amend a different part of the section, may only cite it, "
-    "or may not yet be effective; this server does not retrieve or parse enacting laws to find out "
-    "(R14a). The list may also be incomplete: the index misses about one in seven listed "
-    "(law, section) pairs (O43b)."
+    "INDICATOR ONLY — NOT A FINDING THAT THE TEXT CHANGED. A listed law MENTIONS this section; that is "
+    "all the index records. It may amend the section, amend something else and merely cite this one, "
+    "waive it for a named party, or not yet be in effect. The verification set's own example: Public "
+    "Law 119-74 is listed against 42 U.S.C. 2210 because one appropriations rider cites it in a "
+    "parenthetical, and it amends nothing in the section. This server does not read enacting laws. "
+    "YOU MUST READ THE LISTED LAW TO FIND OUT — get_public_law with its package_id, then search its "
+    "text for this section. The list may also be incomplete: the index misses about one in seven "
+    "listed (law, section) pairs."
 )
 
 CAVEAT_NONE_INDEXED = (
@@ -84,9 +95,11 @@ def since_from_currentthrough(currentthrough: str) -> str:
     return (date.fromisoformat(currentthrough) + timedelta(days=1)).isoformat()
 
 
-def build_query(title: str, section: str, since: str) -> str:
-    """The exact detector query pinned by WO-1 — the measured O43c/O43d/O43f form."""
-    return f'collection:PLAW publishdate:range({since},) uscodecitation:"{title} U.S.C. {section}"'
+def build_query(checked_citation: str, since: str) -> str:
+    """The exact detector query pinned by WO-2: the measured O43c/O43d/O43f form plus
+    ``lawtype:public`` (O44e). ``checked_citation`` is ``"{title} U.S.C. {section}"``
+    or, for a numbered appendix section, ``"{title} U.S.C. App. {section}"`` (O44d)."""
+    return f'collection:PLAW lawtype:public publishdate:range({since},) uscodecitation:"{checked_citation}"'
 
 
 def _law_pointer(hit: dict[str, Any]) -> dict[str, Any]:
@@ -271,7 +284,8 @@ def render(
     out["caveat"] = CAVEAT_LAWS_INDEXED
     message = (
         f"{count} public law(s) published on or after {since} are indexed against {checked_citation}. "
-        "See caveat — this indicates possible change, not that the returned text is stale."
+        "See caveat — a listing means the law mentions the section; only reading the law says whether "
+        "the text changed."
     )
     if capped:
         message += f" The list is capped at one page of {LAWS_CAP}: showing {shown} of {count}."
