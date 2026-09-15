@@ -50,7 +50,7 @@ The spec session will then black-box the same five inputs against the running se
 
 ## WO-2 — detector follow-ups from O44: `lawtype:public`, and numbered appendix sections (contract in `40-tools.md`, "Staleness indicator"; measured basis O44d/O44e)
 
-**Status:** OPEN, issued 2026-09-15. Nothing in this order waits on the maintainer; both changes are IR/technical judgments recorded with their measurements.
+**Status:** CLOSED 2026-09-15 — built at implementation commit faa9974, verified O45 (artifact review and black-box probe; the pinned caveat compares equal character for character). Two deviations from the artifact list accepted, one of them the order's own error: the tool has no by-id input, so "disambiguated by ids" was impossible — filed as Q14. The order text below is kept as issued, for the record.
 
 **Change 1 — add `lawtype:public` to the pinned detector query.** New shape, exactly:
 

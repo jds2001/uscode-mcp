@@ -32,9 +32,11 @@ Let's fire it every time in parallel as written - the wall clock is nearly zero.
 
 Q12 — DEFERRED 2026-09-11, ruled R15. Maintainer agreed; the consumer session concurred with a stronger argument (S12 in `90-observations.md`, verbatim) that is adopted as the ruling's rationale, and its narrower reopening trigger is pinned there.
 
+Q14 — **`get_us_code_section` has no id input, but its disambiguation message says "re-request by ids or year" (O45c).** Two granules can share a citation and an edition — the two `28 U.S.C. App. Rule 9`s (Appellate vs Civil rules, O24) — and nothing the tool accepts separates them, so the text of one of them is unreachable by this tool. Consumers have coped by asking the user which (A5, run 021336Z), which does not actually get them the text. Recommendation (IR judgment, but it adds a tool argument, so it is yours): accept an optional `granule_id` on `get_us_code_section` that bypasses the citation search and fetches that granule's `txtLink` directly — identity over string-matching is already the convention (`00-INDEX.md`), the ids are already in the disambiguation list, and no new upstream surface is needed. If declined, the message wording must drop "by ids". Either answer is a one-line ruling; the wording fix alone would be a trivial order.
+
 ## Implementation queue
 
-**WO-2 — detector follow-ups (`lawtype:public` in the pinned query; run on the measured App. form for numbered appendix sections), issued 2026-09-15 in `80-work-orders.md` on the O44 measurements.** Previously: WO-1 (R14, the `possibly_superseded` indicator) CLOSED 2026-09-15 — built at 1d42c52, artifact-reviewed, black-box probed, and its two ratification questions measured (O44). The spec's own concurrency premise was falsified by the implementation and corrected (O44c).
+**Server queue is empty.** WO-2 CLOSED 2026-09-15 (faa9974, O45); WO-1 CLOSED 2026-09-15 (1d42c52, O44). Candidate next order: Q14 (an id path for `get_us_code_section`), if the maintainer wants it.
 
 Harness-side (mcp-e2e, not the server): E15's api-surface extension — per-request body size and the `count_tokens` result alongside the existing keys. Blocks the O40b duplication reading and F3's default-`max_chars` disposition; both wait on it.
 
