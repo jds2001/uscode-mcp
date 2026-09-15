@@ -216,6 +216,30 @@ class TestByIdFailures:
         assert "Not Found" in out["body"]
         assert "not an upstream failure" in out["message"]
 
+    async def test_summary_400_invalid_granule_id_is_not_found(self, make_client):
+        # The measured shape for a nonexistent granule under an existing package.
+        out = await tools.get_us_code_section(
+            make_client(lambda request: httpx.Response(400, text='{"message":"invalid granuleId"}')), granule_id=GID
+        )
+        assert out["outcome"] == "not_found"
+        assert out["not_found_kind"] == "granule"
+        assert out["http_status"] == 400
+        assert "invalid granuleId" in out["body"]
+        assert out["granule_id"] == GID
+
+    async def test_summary_404_is_package_not_found(self, make_client):
+        out = await tools.get_us_code_section(
+            make_client(lambda request: httpx.Response(404, text="gone")), granule_id=GID
+        )
+        assert out["not_found_kind"] == "package"
+
+    async def test_other_400_stays_an_upstream_error(self, make_client):
+        out = await tools.get_us_code_section(
+            make_client(lambda request: httpx.Response(400, text='{"message":"bad request"}')), granule_id=GID
+        )
+        assert out["outcome"] == "upstream_error"
+        assert out["http_status"] == 400
+
     async def test_summary_500_is_upstream_error_not_not_found(self, make_client):
         out = await tools.get_us_code_section(
             make_client(lambda request: httpx.Response(500, text="boom")), granule_id=GID

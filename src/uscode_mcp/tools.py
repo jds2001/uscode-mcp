@@ -598,17 +598,33 @@ async def _get_section_by_id(
     except GovInfoTransportError as exc:
         await detector.abandon()
         return _transport_failure(exc)
+    # Measured not-found shapes (WO-3 verification run, 2026-09-15): a nonexistent
+    # package answers 404; a nonexistent granule under an existing package — or a
+    # granule id that belongs to a different package — answers 400 with the body
+    # {"message":"invalid granuleId"}. Both are 'not found', never upstream failure;
+    # any other 400 is left as the upstream failure it is.
+    not_found_kind = None
     if summary_resp.status == 404:
+        not_found_kind = "package"
+    elif summary_resp.status == 400 and "invalid granuleid" in summary_resp.text.lower():
+        not_found_kind = "granule"
+    if not_found_kind is not None:
         await detector.abandon()
+        what = (
+            f"no package {package_id!r} (HTTP 404)"
+            if not_found_kind == "package"
+            else f"package {package_id!r} exists but has no granule {granule_id!r} (HTTP 400 'invalid granuleId', "
+            "the measured shape for a nonexistent granule or an id from a different package)"
+        )
         return {
             "outcome": "not_found",
             **head,
-            "http_status": 404,
+            "not_found_kind": not_found_kind,
+            "http_status": summary_resp.status,
             "url": summary_resp.url,
             "body": summary_resp.text[:2000],
             "message": (
-                f"GovInfo has no granule summary for granule_id {granule_id!r} in package {package_id!r} "
-                "(HTTP 404). This is 'not found', not an upstream failure. Check the id against a "
+                f"GovInfo has {what}. This is 'not found', not an upstream failure. Check the id against a "
                 "disambiguation list or search_us_code result; if package_id was derived, pass it explicitly."
             ),
         }
