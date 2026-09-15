@@ -45,12 +45,16 @@ Example Claude Code / Claude Desktop stdio config:
 
 ## Tools
 
-- `get_us_code_section` — resolve a citation ("17 U.S.C. 107", "42 U.S.C. 2210 note", …) and return the section's text, statutory notes included, with provenance (`currentthrough` staleness date, edition year, PDF link).
+- `get_us_code_section` — resolve a citation ("17 U.S.C. 107", "42 U.S.C. 2210 note", …) and return the section's text, statutory notes included, with provenance (`currentthrough` staleness date, edition year, PDF link). Every success also carries `possibly_superseded`, a three-state staleness indicator (see below).
 - `search_us_code` — full-text and fielded search over the USCODE collection; returns pointers, not text.
 - `get_public_law` — resolve "Pub. L. 118-31" (or congress + number) and return the law's text, or USLM XML where offered.
 - `search_public_laws` — as above, scoped to PLAW; documents the `uscodecitation` reverse-lookup recipe and its measured recall gap.
 
 All tools distinguish three outcomes — success (including explicit zero results), upstream failure (status + body surfaced), and rate-limited (429 with headers passed through) — and window large payloads with explicit truncation markers, never silently: a truncated response repeats those markers as a banner line at the head of the returned text, because structured fields alone were measured insufficient (F1/E12). The API key travels only in the `X-Api-Key` header, never in a URL; absent or blank, the server exits at startup rather than coming up unable to serve anything.
+
+### Staleness indicator (R14)
+
+Annual editions lag enactment, so every `get_us_code_section` success carries a `possibly_superseded` object answering one narrow question: does GovInfo's public-law index list any law published after this edition's `currentthrough` against this section? The query it runs is echoed verbatim, bounded by the returned edition's own `currentthrough` plus one day (so a `year`-selected edition gets its own bound). Three states, never two: `laws_indexed` (the true upstream `count` plus a capped `laws` list, capping stated), `none_indexed`, and `not_checked` (the upstream failure, rate limit, timeout, or malformed body surfaced verbatim — never folded into "none"). It is an indicator in both directions and never a certification: a listed law may amend a different part of the section, only cite it, or not yet be effective, and the index misses about one in seven real (law, section) pairs, so `none_indexed` is not evidence the text is current. When a "note" citation was stripped, the object says the check ran against the parent section. A detector failure never fails the lookup, and the lookup never waits more than a bounded budget for it once the text is ready.
 
 ### Locating content in large payloads (R12)
 

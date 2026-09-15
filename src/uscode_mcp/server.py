@@ -21,9 +21,16 @@ The US Code tools serve the codified law by annual edition (annual editions lag 
 every text response carries a `currentthrough` date as the staleness disclosure. For law enacted after that
 date — or law that never enters the Code at all — use the public-law tools.
 
+Every get_us_code_section success also carries `possibly_superseded`: a three-state indicator
+(`laws_indexed` / `none_indexed` / `not_checked`) of whether GovInfo indexes any public law published
+after that edition's `currentthrough` against the section. It is an indicator, never a certification —
+a fire does not mean the text is stale, silence does not mean it is current, and `not_checked` means the
+check failed and says nothing either way. Read its `caveat`.
+
 Composition recipe: resolve a section with get_us_code_section, note its `currentthrough` date, then
 search_public_laws with `uscodecitation:"{title} U.S.C. {section}"` for later laws touching it — noting that
-recipe's documented recall gap (absence from results is not evidence of absence).
+recipe's documented recall gap (absence from results is not evidence of absence). The `possibly_superseded`
+object echoes the exact `query` it ran, so that same search can be repeated or widened by hand.
 """
 
 
@@ -66,7 +73,20 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         stripped (the whole section is the retrieval unit). Optional `year` selects a historical
         annual edition. Large sections are windowed via `max_chars`/`start_char` with explicit
         truncation markers. Every text response carries provenance including the `currentthrough`
-        staleness date. Appendix citations ("28 U.S.C. App.", "28 U.S.C. App. Rule 9") resolve
+        staleness date.
+
+        STALENESS INDICATOR: every success carries `possibly_superseded`, with `status` one of
+        `laws_indexed` (GovInfo indexes at least one public law published after this edition's
+        `currentthrough` against this section — the true `count` plus a capped `laws` list),
+        `none_indexed` (checked, nothing indexed), or `not_checked` (the check failed; the upstream
+        failure is surfaced). It is an INDICATOR IN BOTH DIRECTIONS, NEVER A CERTIFICATION: a listed
+        law may amend a different part of the section, only cite it, or not yet be effective, and
+        the index misses about one in seven real (law, section) pairs, so `none_indexed` is NOT
+        evidence the text is current. Never say a section is "current" or "up to date" on the
+        strength of this object; never say it is "outdated" without reading the listed law. The
+        object echoes the exact `query` and `since` bound it used.
+
+        Appendix citations ("28 U.S.C. App.", "28 U.S.C. App. Rule 9") resolve
         directly; when one matches multiple granules the standard disambiguation list is returned,
         and only a zero-hit appendix citation (e.g. the eliminated title 50 Appendix) falls back to
         a structured redirect to search_us_code.

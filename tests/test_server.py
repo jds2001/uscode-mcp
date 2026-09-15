@@ -49,6 +49,25 @@ async def test_get_us_code_section_description_promises_notes():
     assert "currentthrough" in tool.description
 
 
+async def test_get_us_code_section_description_states_the_indicator_contract():
+    """R14a: the description names all three states and says the indicator certifies nothing."""
+    server = create_server()
+    tool = {t.name: t for t in await server.list_tools()}["get_us_code_section"]
+    for token in ("possibly_superseded", "laws_indexed", "none_indexed", "not_checked"):
+        assert token in tool.description
+    assert "NEVER A CERTIFICATION" in tool.description
+    assert "NOT" in tool.description and "evidence the text is current" in tool.description
+    assert "one in seven" in tool.description
+
+
+async def test_server_instructions_describe_the_indicator():
+    from uscode_mcp.server import SERVER_INSTRUCTIONS
+
+    assert "possibly_superseded" in SERVER_INSTRUCTIONS
+    assert "not_checked" in SERVER_INSTRUCTIONS
+    assert "never a certification" in SERVER_INSTRUCTIONS
+
+
 async def test_call_tool_routes_to_injected_client(make_client):
     client = make_client(lambda request: fx.json_response(fx.search_response([fx.usc_hit()])))
     server = create_server(client=client)

@@ -17,6 +17,10 @@ Cross-cutting contracts implemented here:
 - Locating content in large payloads (R12/R13): an optional `find` on both text tools,
   and a marker-derived `structure` block on get_us_code_section successes — carried on
   locating calls (start_char=0) and disclosed as omitted on reading calls.
+- Staleness indicator (R14, WO-1): every get_us_code_section success carries a
+  three-state `possibly_superseded` object from superseded.py — laws_indexed /
+  none_indexed / not_checked — bounded by the returned edition's own currentthrough;
+  a detector failure never fails the lookup.
 - Links are data: download URLs come from search results and summaries verbatim.
 - Response-shape drift fails loudly (the search service is a public preview), never
   coerced into a guess.
@@ -24,10 +28,12 @@ Cross-cutting contracts implemented here:
 
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import Any
 
-from .citations import CitationParseError, parse_public_law, parse_usc
+from . import superseded
+from .citations import CitationParseError, USCCitation, parse_public_law, parse_usc
 from .govinfo import GovInfoClient, GovInfoTransportError, UpstreamResponse
 from .htmltext import (
     edition_year_from_package_id,
@@ -41,6 +47,11 @@ from .htmltext import (
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
 DEFAULT_MAX_CHARS = 100_000
+
+# Per-process memory of each edition's observed currentthrough, so a repeat lookup
+# of an edition can issue the staleness detector concurrently with the text fetch
+# (superseded.py explains the verified-prediction scheme).
+CURRENTTHROUGH_MEMORY = superseded.CurrentthroughMemory()
 
 _COLLECTION_TERM_RE = re.compile(r"\bcollection:", re.IGNORECASE)
 
@@ -170,8 +181,234 @@ def _disambiguation_fields(count: Any, results: list[dict[str, Any]]) -> dict[st
 
 
 # ---------------------------------------------------------------------------
+# possibly_superseded orchestration (R14, WO-1; contract and states in superseded.py)
+# ---------------------------------------------------------------------------
+
+
+class _Detector:
+    """Drives one lookup's staleness detector around the text fetch.
+
+    Life cycle: ``start_early`` may launch the query on a predicted bound (a
+    remembered currentthrough for the requested edition) before the citation
+    search, so it overlaps both upstream round trips; ``after_fetch`` verifies that
+    prediction against the payload's own currentthrough — discarding and re-issuing
+    on a mismatch, or issuing for the first time on a cold lookup; ``finish`` waits
+    a bounded budget once the text is ready and renders the three-state object.
+    Every path ends in a `possibly_superseded` object; none can fail the lookup.
+    """
+
+    def __init__(self, client: GovInfoClient, parsed: USCCitation, year: int | None) -> None:
+        self._client = client
+        self._parsed = parsed
+        self._year = year
+        self._task: asyncio.Task[superseded.DetectorOutcome] | None = None
+        self._predicted: str | None = None
+        self._issued: str | None = None
+        self._discarded_prediction: str | None = None
+        self._bound_error: str | None = None
+        self.query: str | None = None
+        self.since: str | None = None
+        self.currentthrough: str | None = None
+
+    @property
+    def _citation(self) -> str | None:
+        """The citation the check runs on: the resolved section after the mandatory
+        strips. Appendix citations have no measured uscodecitation form (O19/E10)."""
+        if self._parsed.appendix or self._parsed.section is None:
+            return None
+        return f"{self._parsed.title} U.S.C. {self._parsed.section}"
+
+    def _launch(self, currentthrough: str) -> None:
+        try:
+            self.since = superseded.since_from_currentthrough(currentthrough)
+        except ValueError as exc:
+            # A currentthrough that parsed as eight digits but is not a real date:
+            # no bound, so no query — reported, never raised out of the lookup.
+            self._bound_error = f"currentthrough {currentthrough!r} is not a valid date ({exc})"
+            self.since = None
+            return
+        self.query = superseded.build_query(self._parsed.title, self._parsed.section or "", self.since)
+        self._task = asyncio.create_task(superseded.run_detector(self._client, self.query))
+
+    async def _discard(self) -> None:
+        if self._task is None:
+            return
+        task, self._task = self._task, None
+        task.cancel()
+        # gather(return_exceptions=True) absorbs the inner cancellation without
+        # masking a cancellation of the lookup itself.
+        await asyncio.gather(task, return_exceptions=True)
+
+    def start_early(self) -> None:
+        """Issue before the citation search when the requested edition's currentthrough
+        has been observed before in this process (the prediction is verified later)."""
+        if self._citation is None:
+            return
+        self._predicted = CURRENTTHROUGH_MEMORY.predict(self._year)
+        if self._predicted is not None:
+            self._issued = "before_search"
+            self._launch(self._predicted)
+
+    async def abandon(self) -> None:
+        """The lookup is failing before any success object exists; drop the query."""
+        await self._discard()
+
+    async def after_fetch(self, edition_year: int | None, currentthrough: str | None) -> None:
+        """Bind the check to the fetched payload's own currentthrough."""
+        self.currentthrough = currentthrough
+        CURRENTTHROUGH_MEMORY.observe(edition_year, currentthrough)
+        if self._citation is None:
+            return
+        if self._task is not None and currentthrough != self._predicted:
+            # The speculative bound was wrong for this payload: never use its result.
+            self._discarded_prediction = self._predicted
+            await self._discard()
+            self._issued = None
+        if self._task is None and currentthrough is not None:
+            self._issued = "after_fetch"
+            self._launch(currentthrough)
+
+    async def finish(self, stripped_note: bool, budget: float | None = None) -> dict[str, Any]:
+        """Called once the text is ready. Waits at most ``budget`` seconds (default
+        ``superseded.DETECTOR_BUDGET_SECONDS``, read at call time)."""
+        if budget is None:
+            budget = superseded.DETECTOR_BUDGET_SECONDS
+        citation = self._citation
+        common = dict(query=self.query, since=self.since, currentthrough=self.currentthrough, checked_citation=citation)
+        if citation is None:
+            out = superseded.not_checked(
+                "no_measured_citation_form",
+                "appendix citations have no measured uscodecitation form (O19/E10); the detector is defined "
+                "on '{title} U.S.C. {section}' and was not run.",
+                **common,
+            )
+        elif self.currentthrough is None or self._bound_error is not None:
+            out = superseded.not_checked(
+                "no_bound",
+                (
+                    self._bound_error
+                    or "currentthrough could not be parsed from the payload"
+                )
+                + ", so the detector's publishdate bound could not be derived and the query was not sent.",
+                **common,
+            )
+        else:
+            assert self._task is not None and self.query is not None and self.since is not None
+            outcome = await superseded.await_with_budget(self._task, budget)
+            self._task = None
+            if outcome is None:
+                out = superseded.not_checked(
+                    "timeout",
+                    f"the detector query had not returned within the {budget:g} s budget after the section "
+                    "text was ready; the text is not held for it.",
+                    **common,
+                )
+            else:
+                out = superseded.render(
+                    outcome,
+                    query=self.query,
+                    since=self.since,
+                    currentthrough=self.currentthrough,
+                    checked_citation=citation,
+                )
+                if outcome.elapsed_ms is not None:
+                    out["detector_ms"] = round(outcome.elapsed_ms)
+            out["issued"] = self._issued
+            if self._discarded_prediction is not None:
+                out["prediction_note"] = (
+                    f"a speculative query bounded by a remembered currentthrough of {self._discarded_prediction} "
+                    f"was issued before the citation search, then discarded because this payload's currentthrough "
+                    f"is {self.currentthrough}; the result above is from the re-issued, correctly bounded query."
+                )
+        if stripped_note:
+            out["note_statement"] = superseded.note_statement(citation or self._parsed.normalized)
+        return out
+
+
+# ---------------------------------------------------------------------------
 # get_us_code_section
 # ---------------------------------------------------------------------------
+
+
+async def _resolve_granule(
+    client: GovInfoClient,
+    parsed: USCCitation,
+    year: int | None,
+    normalization: dict[str, Any],
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, str | None, dict[str, Any] | None]:
+    """Resolve a parsed citation to exactly one granule with a txtLink.
+
+    Returns ``(hit, download, txt_link, None)`` on success, or ``(None, None, None,
+    outcome)`` for every early outcome: upstream failure, not_found,
+    appendix_redirect, ambiguous, or a hit without a txtLink."""
+    query = f'collection:USCODE citation:"{parsed.normalized}"'
+    body = {
+        "query": query,
+        "pageSize": MAX_PAGE_SIZE,
+        "offsetMark": "*",
+        "historical": year is not None,
+    }
+    data, failure = await _search(client, body)
+    if failure is not None:
+        return None, None, None, failure
+    assert data is not None
+    results = data["results"] or []
+    if year is not None:
+        results = [r for r in results if str(r.get("dateIssued", "")).startswith(str(year))]
+
+    if not results:
+        if parsed.appendix:
+            terms = f' "{parsed.appendix_text}"' if parsed.appendix_text else ""
+            return None, None, None, {
+                "outcome": "appendix_redirect",
+                "citation": parsed.normalized,
+                "query": query,
+                "year": year,
+                "message": (
+                    "The appendix citation resolved to zero granules — real for appendix material that no "
+                    "longer exists in the current edition (e.g. the eliminated title 50 Appendix, O24). "
+                    "Appendix granules are full-text indexed, so retry with search_us_code and the "
+                    "suggested query."
+                ),
+                "suggested_tool": "search_us_code",
+                "suggested_query": f"collection:USCODE usctitlenum:{parsed.title}{terms}",
+            }
+        return None, None, None, {
+            "outcome": "not_found",
+            "normalized_citation": parsed.normalized,
+            "query": query,
+            "year": year,
+            "normalization": normalization,
+            "message": (
+                "The search succeeded but the citation resolved to zero granules"
+                + (f" for edition year {year}" if year is not None else "")
+                + ". The exact upstream query is echoed above; retry with search_us_code for full-text discovery."
+            ),
+        }
+    if len(results) > 1:
+        return None, None, None, {
+            "outcome": "ambiguous",
+            "normalized_citation": parsed.normalized,
+            "query": query,
+            "year": year,
+            **_disambiguation_fields(data.get("count"), results),
+        }
+
+    hit = results[0]
+    download = hit.get("download") or {}
+    txt_link = download.get("txtLink")
+    if not txt_link:
+        return None, None, None, {
+            "outcome": "upstream_error",
+            "http_status": None,
+            "detail": (
+                "search result carried no txtLink in its download map (response-shape drift; failing loudly "
+                "per spec rather than constructing a URL)"
+            ),
+            "result": _result_pointer(hit),
+        }
+
+    return hit, download, txt_link, None
 
 
 async def get_us_code_section(
@@ -212,85 +449,31 @@ async def get_us_code_section(
     if notes:
         normalization["messages"] = notes
 
-    query = f'collection:USCODE citation:"{parsed.normalized}"'
-    body = {
-        "query": query,
-        "pageSize": MAX_PAGE_SIZE,
-        "offsetMark": "*",
-        "historical": year is not None,
-    }
-    data, failure = await _search(client, body)
-    if failure is not None:
-        return failure
-    assert data is not None
-    results = data["results"] or []
-    if year is not None:
-        results = [r for r in results if str(r.get("dateIssued", "")).startswith(str(year))]
+    # R14: with a remembered bound the detector goes out before the citation
+    # search, overlapping both upstream round trips; it is verified after the fetch.
+    detector = _Detector(client, parsed, year)
+    detector.start_early()
+    hit, download, txt_link, early = await _resolve_granule(client, parsed, year, normalization)
+    if early is not None:
+        await detector.abandon()
+        return early
+    assert hit is not None and download is not None and txt_link is not None
 
-    if not results:
-        if parsed.appendix:
-            terms = f' "{parsed.appendix_text}"' if parsed.appendix_text else ""
-            return {
-                "outcome": "appendix_redirect",
-                "citation": parsed.normalized,
-                "query": query,
-                "year": year,
-                "message": (
-                    "The appendix citation resolved to zero granules — real for appendix material that no "
-                    "longer exists in the current edition (e.g. the eliminated title 50 Appendix, O24). "
-                    "Appendix granules are full-text indexed, so retry with search_us_code and the "
-                    "suggested query."
-                ),
-                "suggested_tool": "search_us_code",
-                "suggested_query": f"collection:USCODE usctitlenum:{parsed.title}{terms}",
-            }
-        return {
-            "outcome": "not_found",
-            "normalized_citation": parsed.normalized,
-            "query": query,
-            "year": year,
-            "normalization": normalization,
-            "message": (
-                "The search succeeded but the citation resolved to zero granules"
-                + (f" for edition year {year}" if year is not None else "")
-                + ". The exact upstream query is echoed above; retry with search_us_code for full-text discovery."
-            ),
-        }
-    if len(results) > 1:
-        return {
-            "outcome": "ambiguous",
-            "normalized_citation": parsed.normalized,
-            "query": query,
-            "year": year,
-            **_disambiguation_fields(data.get("count"), results),
-        }
-
-    hit = results[0]
-    download = hit.get("download") or {}
-    txt_link = download.get("txtLink")
-    if not txt_link:
-        return {
-            "outcome": "upstream_error",
-            "http_status": None,
-            "detail": (
-                "search result carried no txtLink in its download map (response-shape drift; failing loudly "
-                "per spec rather than constructing a URL)"
-            ),
-            "result": _result_pointer(hit),
-        }
-
+    package_id = hit.get("packageId")
+    edition_year = edition_year_from_package_id(package_id)
     resp, failure = await _fetch(client, txt_link)
     if failure is not None:
+        await detector.abandon()
         return failure
     assert resp is not None
     html = resp.text
 
     currentthrough = extract_currentthrough(html)
-    package_id = hit.get("packageId")
+    await detector.after_fetch(edition_year, currentthrough)
     provenance: dict[str, Any] = {
         "package_id": package_id,
         "granule_id": hit.get("granuleId"),
-        "edition_year": edition_year_from_package_id(package_id),
+        "edition_year": edition_year,
         "currentthrough": currentthrough,
         "last_modified": hit.get("lastModified"),
         "pdf_link": download.get("pdfLink"),
@@ -308,13 +491,18 @@ async def get_us_code_section(
     try:
         window = window_text(text, start_char=start_char, max_chars=max_chars)
     except ValueError as exc:
+        await detector.abandon()
         return _invalid_argument(str(exc))
+
+    # The text is ready: wait the bounded budget for the detector, never longer.
+    possibly_superseded = await detector.finish(stripped_note=parsed.stripped_note)
 
     out: dict[str, Any] = {
         "outcome": "success",
         "citation": parsed.normalized,
         "normalization": normalization,
         "provenance": provenance,
+        "possibly_superseded": possibly_superseded,
         "structure": structure,
         "text": window,
     }
