@@ -249,6 +249,8 @@ R14b — **Fires on every `get_us_code_section` success, gated on measured cost.
 
 R14c — **E16 runs now, as a spec-session measurement of the public API,** with the key in `../.env`. Protocol amendments pinned before the run in `95-open-questions.md`.
 
+R16 (from Q14) — **`get_us_code_section` accepts a granule id.** Maintainer, 2026-09-15: "Yep, let's allow the granule ID as an argument. It does change the schema, but optionally, so it's quite alright." Contract in `40-tools.md`; build order WO-3 in `80-work-orders.md`. The id path is the fix for the same-citation, same-edition pair (the two `28 U.S.C. App. Rule 9`s, O24/O45c) and retires the "re-request by ids" message wording that promised an input the tool did not accept.
+
 ## R15 — 2026-09-11, `fields=["statute"]` deferred (Q12)
 
 Maintainer: "Agreed" to the deferral recommendation, and relayed the consumer session's own concurrence (S12 in `90-observations.md`, verbatim). Ruling: **no `fields` request parameter.** The decisive argument is S12's — the field vocabulary is GovInfo's marker taxonomy reported verbatim in `structure`, and turning it into a request parameter would promise a vocabulary the server does not control, cannot version, and that some granules lack entirely (the `omitted` case has no correct answer for `fields=["statute"]`). Reopening trigger, narrowed per S12: a consumer that hits a section whose operative text alone exceeds a reasonable window, so that the whole payload cannot be fetched and `find` cannot help because the consumer does not yet know what to search for. If that ever shows in real traffic, the pre-committed direction is statute-first ordering with notes windowed behind it — no new request vocabulary — not `fields`.

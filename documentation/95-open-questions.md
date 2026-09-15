@@ -34,9 +34,13 @@ Q12 — DEFERRED 2026-09-11, ruled R15. Maintainer agreed; the consumer session 
 
 Q14 — **`get_us_code_section` has no id input, but its disambiguation message says "re-request by ids or year" (O45c).** Two granules can share a citation and an edition — the two `28 U.S.C. App. Rule 9`s (Appellate vs Civil rules, O24) — and nothing the tool accepts separates them, so the text of one of them is unreachable by this tool. Consumers have coped by asking the user which (A5, run 021336Z), which does not actually get them the text. Recommendation (IR judgment, but it adds a tool argument, so it is yours): accept an optional `granule_id` on `get_us_code_section` that bypasses the citation search and fetches that granule's `txtLink` directly — identity over string-matching is already the convention (`00-INDEX.md`), the ids are already in the disambiguation list, and no new upstream surface is needed. If declined, the message wording must drop "by ids". Either answer is a one-line ruling; the wording fix alone would be a trivial order.
 
+Yep, let's allow the granule ID as an argument. It does change the schema, but optionally, so it's quite alright.
+
+Q14 — ANSWERED 2026-09-15, ruled R16. Optional `granule_id` (with optional `package_id`) on `get_us_code_section`; contract in `40-tools.md`, build order WO-3.
+
 ## Implementation queue
 
-**Server queue is empty.** WO-2 CLOSED 2026-09-15 (faa9974, O45); WO-1 CLOSED 2026-09-15 (1d42c52, O44). Candidate next order: Q14 (an id path for `get_us_code_section`), if the maintainer wants it.
+**WO-3 — `granule_id` path on `get_us_code_section` (R16), the disambiguation message wording, and the server-instructions text (issued 2026-09-15 in `80-work-orders.md`).** Previously: WO-2 CLOSED 2026-09-15 (faa9974, O45); WO-1 CLOSED 2026-09-15 (1d42c52, O44).
 
 Harness-side (mcp-e2e, not the server): E15's api-surface extension — per-request body size and the `count_tokens` result alongside the existing keys. Blocks the O40b duplication reading and F3's default-`max_chars` disposition; both wait on it.
 
