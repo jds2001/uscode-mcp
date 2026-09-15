@@ -45,7 +45,7 @@ Example Claude Code / Claude Desktop stdio config:
 
 ## Tools
 
-- `get_us_code_section` — resolve a citation ("17 U.S.C. 107", "42 U.S.C. 2210 note", …) and return the section's text, statutory notes included, with provenance (`currentthrough` staleness date, edition year, PDF link). Every success also carries `possibly_superseded`, a three-state staleness indicator (see below).
+- `get_us_code_section` — resolve a citation ("17 U.S.C. 107", "42 U.S.C. 2210 note", …) and return the section's text, statutory notes included, with provenance (`currentthrough` staleness date, edition year, PDF link). Every success also carries `possibly_superseded`, a three-state staleness indicator (see below). When a citation matches several granules (the two "28 U.S.C. App. Rule 9"s, say) the response is `ambiguous` with a candidate list; re-request with `granule_id` from that list, passing the same `citation` alongside so the staleness check still runs. The id is never turned into a URL: the server fetches the granule summary and follows its `txtLink` verbatim.
 - `search_us_code` — full-text and fielded search over the USCODE collection; returns pointers, not text.
 - `get_public_law` — resolve "Pub. L. 118-31" (or congress + number) and return the law's text, or USLM XML where offered.
 - `search_public_laws` — as above, scoped to PLAW; documents the `uscodecitation` reverse-lookup recipe and its measured recall gap.

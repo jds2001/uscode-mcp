@@ -15,22 +15,24 @@ from .govinfo import GovInfoClient, client_from_env
 from .trace import Tracer, TracingMiddleware, tracer_from_env
 
 SERVER_INSTRUCTIONS = """\
-Search and retrieval over the United States Code and Public Laws as published by GPO on GovInfo.
+Search and retrieval over the United States Code and Public Laws as published by GPO on GovInfo. The US Code
+tools serve the codified law by annual edition (annual editions lag enactment by 18+ months); every text
+response carries a `currentthrough` date as the staleness disclosure. For law enacted after that date — or law
+that never enters the Code at all — use the public-law tools.
 
-The US Code tools serve the codified law by annual edition (annual editions lag enactment by 18+ months);
-every text response carries a `currentthrough` date as the staleness disclosure. For law enacted after that
-date — or law that never enters the Code at all — use the public-law tools.
+You do not need to check for later laws yourself: every `get_us_code_section` success already carries
+`possibly_superseded`, a three-state indicator (`laws_indexed` / `none_indexed` / `not_checked`) computed on
+every call by querying GovInfo for public laws published after that edition's `currentthrough` and indexed
+against the section. It is an indicator, never a certification. `laws_indexed` means a listed law MENTIONS the
+section — it may amend it, amend something else and merely cite it, or waive it for one named person; read the
+law with `get_public_law` to find out. `none_indexed` means the server's query found nothing — re-running the
+same query by hand will find nothing more, and it is NOT evidence the text is current: the index misses about
+one in seven listed (law, section) pairs. `not_checked` means the check failed and says nothing either way; the
+echoed `query` is your manual retry. Read the object's `caveat`.
 
-Every get_us_code_section success also carries `possibly_superseded`: a three-state indicator
-(`laws_indexed` / `none_indexed` / `not_checked`) of whether GovInfo indexes any public law published
-after that edition's `currentthrough` against the section. It is an indicator, never a certification —
-a fire does not mean the text is stale, silence does not mean it is current, and `not_checked` means the
-check failed and says nothing either way. Read its `caveat`.
-
-Composition recipe: resolve a section with get_us_code_section, note its `currentthrough` date, then
-search_public_laws with `uscodecitation:"{title} U.S.C. {section}"` for later laws touching it — noting that
-recipe's documented recall gap (absence from results is not evidence of absence). The `possibly_superseded`
-object echoes the exact `query` it ran, so that same search can be repeated or widened by hand.
+To widen beyond what the indicator ran: `search_public_laws` with the echoed `query` minus its `publishdate`
+bound, or a full-text search over the public-law collection; and read the section's own source credits for the
+amendment history GovInfo prints.
 """
 
 
@@ -63,6 +65,8 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         max_chars: int = tools.DEFAULT_MAX_CHARS,
         start_char: int = 0,
         find: str | None = None,
+        granule_id: str | None = None,
+        package_id: str | None = None,
     ) -> dict[str, Any]:
         """Resolve a US Code citation and return the section's full text — statutory text, source
         credits, and statutory notes included (note citations like "42 U.S.C. 2210 note" resolve to
@@ -71,9 +75,13 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         Pass `citation` (accepts "17 U.S.C. 107", "17 USC 107", "17 U.S.C. § 107(b)",
         "42 U.S.C. 2210 note") or `title` + `section` as separate fields. Subsection suffixes are
         stripped (the whole section is the retrieval unit). Optional `year` selects a historical
-        annual edition. Large sections are windowed via `max_chars`/`start_char` with explicit
-        truncation markers. Every text response carries provenance including the `currentthrough`
-        staleness date.
+        annual edition. When a citation matches several granules the response is `ambiguous` with a
+        candidate list: re-request with `granule_id` taken from that list (exactly as it appears
+        there or in a search_us_code result; `package_id` is optional and otherwise derived from the
+        id), passing the same `citation` alongside so the staleness check still runs — by id alone
+        it reports `not_checked`. `year` is ignored with `granule_id`, which names its edition.
+        Large sections are windowed via `max_chars`/`start_char` with explicit truncation markers.
+        Every text response carries provenance including the `currentthrough` staleness date.
 
         STALENESS INDICATOR: every success carries `possibly_superseded`, with `status` one of
         `laws_indexed` (GovInfo indexes at least one public law published after this edition's
@@ -119,6 +127,8 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
             max_chars=max_chars,
             start_char=start_char,
             find=find,
+            granule_id=granule_id,
+            package_id=package_id,
         )
 
     @mcp.tool()

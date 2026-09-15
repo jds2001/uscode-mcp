@@ -166,13 +166,22 @@ def _reject_blank_find(find: str | None) -> dict[str, Any] | None:
     return None
 
 
-def _disambiguation_fields(count: Any, results: list[dict[str, Any]]) -> dict[str, Any]:
+USCODE_RE_REQUEST = (
+    "Re-request with `granule_id` taken from a candidate below (pass the same `citation` alongside it "
+    "to keep the staleness check), or with `year` if the candidates differ by edition."
+)
+PLAW_RE_REQUEST = "get_public_law has no by-id path; re-request by the candidate's congress and law number."
+
+
+def _disambiguation_fields(count: Any, results: list[dict[str, Any]], re_request: str) -> dict[str, Any]:
     """Shared fields for an ambiguous outcome: the true total from the response's
     `count`, the shown candidates, and — stated, never implied — whether the list is
-    capped, so 100 shown of 251 never reads as 100 of 100 (40-tools.md, O24)."""
+    capped, so 100 shown of 251 never reads as 100 of 100 (40-tools.md, O24). The
+    message names the real re-request path for the tool (R16, O45c): never an input
+    the tool does not accept."""
     shown = len(results)
     capped = isinstance(count, int) and count > shown
-    message = f"Multiple matches ({count} total); not guessing. Pick one and re-request by ids or year."
+    message = f"Multiple matches ({count} total); not guessing. {re_request}"
     if capped:
         message += f" The candidate list is capped at one search page: showing {shown} of {count}."
     return {
@@ -201,7 +210,7 @@ class _Detector:
     Every path ends in a `possibly_superseded` object; none can fail the lookup.
     """
 
-    def __init__(self, client: GovInfoClient, parsed: USCCitation, year: int | None) -> None:
+    def __init__(self, client: GovInfoClient, parsed: USCCitation | None, year: int | None) -> None:
         self._client = client
         self._parsed = parsed
         self._year = year
@@ -220,6 +229,8 @@ class _Detector:
         strips, or the measured App. form for a numbered appendix section (O44d).
         Appendix rules and bare appendix citations have no measured form: None."""
         parsed = self._parsed
+        if parsed is None:
+            return None
         if parsed.appendix:
             if parsed.appendix_text and _NUMBERED_APPENDIX_RE.match(parsed.appendix_text):
                 return f"{parsed.title} U.S.C. App. {parsed.appendix_text}"
@@ -286,7 +297,15 @@ class _Detector:
             budget = superseded.DETECTOR_BUDGET_SECONDS
         citation = self._citation
         common = dict(query=self.query, since=self.since, currentthrough=self.currentthrough, checked_citation=citation)
-        if citation is None:
+        if self._parsed is None:
+            out = superseded.not_checked(
+                "no_citation_for_detector",
+                "the lookup was by granule_id and no citation was supplied; the detector needs a "
+                "'{title} U.S.C. {section}' form and the granule summary's usCodeCitation is null (O9). "
+                "Pass `citation` alongside `granule_id` to get the staleness check.",
+                **common,
+            )
+        elif citation is None:
             out = superseded.not_checked(
                 "no_measured_citation_form",
                 "appendix rules and bare appendix citations have no measured uscodecitation form (O44d: "
@@ -332,7 +351,7 @@ class _Detector:
                     f"was issued before the citation search, then discarded because this payload's currentthrough "
                     f"is {self.currentthrough}; the result above is from the re-issued, correctly bounded query."
                 )
-        if stripped_note:
+        if stripped_note and self._parsed is not None:
             out["note_statement"] = superseded.note_statement(citation or self._parsed.normalized)
         return out
 
@@ -403,7 +422,7 @@ async def _resolve_granule(
             "normalized_citation": parsed.normalized,
             "query": query,
             "year": year,
-            **_disambiguation_fields(data.get("count"), results),
+            **_disambiguation_fields(data.get("count"), results, USCODE_RE_REQUEST),
         }
 
     hit = results[0]
@@ -423,25 +442,13 @@ async def _resolve_granule(
     return hit, download, txt_link, None
 
 
-async def get_us_code_section(
-    client: GovInfoClient,
-    citation: str | None = None,
-    title: str | None = None,
-    section: str | None = None,
-    year: int | None = None,
-    max_chars: int = DEFAULT_MAX_CHARS,
-    start_char: int = 0,
-    find: str | None = None,
-) -> dict[str, Any]:
-    """Resolve a US Code citation and return the section's text, notes included."""
-    bad_find = _reject_blank_find(find)
-    if bad_find is not None:
-        return bad_find
-    try:
-        parsed = parse_usc(citation=citation, title=title, section=section)
-    except CitationParseError as exc:
-        return _invalid_argument(str(exc))
+_USCODE_GRANULE_ID_RE = re.compile(
+    r"^(?P<package>USCODE-(?P<year>\d{4})-title(?P<title>\d+[a-z]?))-\S+$", re.IGNORECASE
+)
+_USCODE_PACKAGE_ID_RE = re.compile(r"^USCODE-\d{4}-title\d+[a-z]?$", re.IGNORECASE)
 
+
+def _normalization_block(parsed: USCCitation) -> dict[str, Any]:
     normalization: dict[str, Any] = {
         "normalized_citation": parsed.normalized,
         "stripped_subsection": parsed.stripped_subsection,
@@ -460,17 +467,26 @@ async def get_us_code_section(
         )
     if notes:
         normalization["messages"] = notes
+    return normalization
 
-    # R14: with a remembered bound the detector goes out before the citation
-    # search, overlapping both upstream round trips; it is verified after the fetch.
-    detector = _Detector(client, parsed, year)
-    detector.start_early()
-    hit, download, txt_link, early = await _resolve_granule(client, parsed, year, normalization)
-    if early is not None:
-        await detector.abandon()
-        return early
-    assert hit is not None and download is not None and txt_link is not None
 
+async def _fetch_and_deliver(
+    client: GovInfoClient,
+    detector: _Detector,
+    parsed: USCCitation | None,
+    hit: dict[str, Any],
+    download: dict[str, Any],
+    txt_link: str,
+    max_chars: int,
+    start_char: int,
+    find: str | None,
+    head: dict[str, Any],
+) -> dict[str, Any]:
+    """Everything downstream of granule selection, shared by the citation and id
+    paths (R16: the id path is the citation path's code, not a copy): fetch the
+    txtLink verbatim, provenance, currentthrough, structure, windowing, the banner,
+    `find`, and the bounded wait for the staleness detector. ``head`` is the
+    path-specific leading part of the success object."""
     package_id = hit.get("packageId")
     edition_year = edition_year_from_package_id(package_id)
     resp, failure = await _fetch(client, txt_link)
@@ -507,12 +523,12 @@ async def get_us_code_section(
         return _invalid_argument(str(exc))
 
     # The text is ready: wait the bounded budget for the detector, never longer.
-    possibly_superseded = await detector.finish(stripped_note=parsed.stripped_note)
+    stripped_note = parsed.stripped_note if parsed is not None else False
+    possibly_superseded = await detector.finish(stripped_note=stripped_note)
 
     out: dict[str, Any] = {
         "outcome": "success",
-        "citation": parsed.normalized,
-        "normalization": normalization,
+        **head,
         "provenance": provenance,
         "possibly_superseded": possibly_superseded,
         "structure": structure,
@@ -521,6 +537,167 @@ async def get_us_code_section(
     if find is not None:
         out["find"] = find_occurrences(text, find)
     return out
+
+
+async def _get_section_by_id(
+    client: GovInfoClient,
+    granule_id: str,
+    package_id: str | None,
+    parsed: USCCitation | None,
+    year: int | None,
+    max_chars: int,
+    start_char: int,
+    find: str | None,
+) -> dict[str, Any]:
+    """R16 by-id path (40-tools.md, "By-id behavior"): no URL is constructed from the
+    id; the granule summary (O9) is fetched and its txtLink used verbatim."""
+    granule_id = granule_id.strip()
+    m = _USCODE_GRANULE_ID_RE.match(granule_id)
+    if not m:
+        return _invalid_argument(
+            f"granule_id {granule_id!r} is not a USCODE granule id (expected the form "
+            "USCODE-{year}-title{n}-..., exactly as a disambiguation list or search_us_code result carried it)."
+        )
+    derived = package_id is None or not package_id.strip()
+    if derived:
+        package_id = m.group("package")
+    else:
+        package_id = package_id.strip()
+        if not _USCODE_PACKAGE_ID_RE.match(package_id):
+            return _invalid_argument(
+                f"package_id {package_id!r} is not a USCODE package id (expected USCODE-{{year}}-title{{n}})."
+            )
+    assert package_id is not None
+
+    head: dict[str, Any] = {
+        "citation": parsed.normalized if parsed is not None else None,
+        "granule_id": granule_id,
+        "package_id": package_id,
+        "package_id_derived": derived,
+    }
+    if derived:
+        head["package_id_note"] = (
+            f"package_id was derived from the granule id's leading USCODE-{{year}}-title{{n}} segments "
+            f"({package_id}); pass package_id explicitly to override."
+        )
+    if parsed is not None:
+        head["normalization"] = _normalization_block(parsed)
+    if year is not None:
+        head["warnings"] = [
+            f"year={year} was ignored: granule_id names its edition (USCODE-{m.group('year')}-...). "
+            "Omit granule_id to select an edition by year."
+        ]
+
+    # The id names its edition, so the detector can predict its bound from the
+    # remembered currentthrough of that edition year (verified after the fetch).
+    detector = _Detector(client, parsed, int(m.group("year")))
+    detector.start_early()
+
+    try:
+        summary_resp = await client.granule_summary(package_id, granule_id)
+    except GovInfoTransportError as exc:
+        await detector.abandon()
+        return _transport_failure(exc)
+    if summary_resp.status == 404:
+        await detector.abandon()
+        return {
+            "outcome": "not_found",
+            **head,
+            "http_status": 404,
+            "url": summary_resp.url,
+            "body": summary_resp.text[:2000],
+            "message": (
+                f"GovInfo has no granule summary for granule_id {granule_id!r} in package {package_id!r} "
+                "(HTTP 404). This is 'not found', not an upstream failure. Check the id against a "
+                "disambiguation list or search_us_code result; if package_id was derived, pass it explicitly."
+            ),
+        }
+    failure = _classify(summary_resp)
+    if failure is not None:
+        await detector.abandon()
+        return failure
+    try:
+        summary = summary_resp.json()
+    except ValueError:
+        await detector.abandon()
+        return _upstream_failure(summary_resp, detail="granule summary was not valid JSON")
+    if not isinstance(summary, dict):
+        await detector.abandon()
+        return _upstream_failure(summary_resp, detail="granule summary was not a JSON object (response-shape drift)")
+    download = summary.get("download") or {}
+    txt_link = download.get("txtLink")
+    if not txt_link:
+        await detector.abandon()
+        return {
+            "outcome": "upstream_error",
+            "http_status": None,
+            "detail": (
+                "granule summary carried no txtLink in its download map (response-shape drift; failing loudly "
+                "per spec rather than constructing a URL)"
+            ),
+            **head,
+            "available_formats": sorted(download.keys()),
+        }
+    hit = {
+        "packageId": summary.get("packageId") or package_id,
+        "granuleId": summary.get("granuleId") or granule_id,
+        "lastModified": summary.get("lastModified"),
+    }
+    return await _fetch_and_deliver(
+        client, detector, parsed, hit, download, txt_link, max_chars, start_char, find, head
+    )
+
+
+async def get_us_code_section(
+    client: GovInfoClient,
+    citation: str | None = None,
+    title: str | None = None,
+    section: str | None = None,
+    year: int | None = None,
+    max_chars: int = DEFAULT_MAX_CHARS,
+    start_char: int = 0,
+    find: str | None = None,
+    granule_id: str | None = None,
+    package_id: str | None = None,
+) -> dict[str, Any]:
+    """Resolve a US Code citation (or select a granule by id, R16) and return the
+    section's text, notes included."""
+    bad_find = _reject_blank_find(find)
+    if bad_find is not None:
+        return bad_find
+
+    if granule_id is not None and granule_id.strip():
+        parsed: USCCitation | None = None
+        if (citation is not None and citation.strip()) or title is not None or section is not None:
+            try:
+                parsed = parse_usc(citation=citation, title=title, section=section)
+            except CitationParseError as exc:
+                return _invalid_argument(str(exc))
+        return await _get_section_by_id(
+            client, granule_id, package_id, parsed, year, max_chars, start_char, find
+        )
+    if package_id is not None and package_id.strip():
+        return _invalid_argument("package_id is only meaningful alongside granule_id; pass granule_id too.")
+
+    try:
+        parsed = parse_usc(citation=citation, title=title, section=section)
+    except CitationParseError as exc:
+        return _invalid_argument(str(exc))
+    normalization = _normalization_block(parsed)
+
+    # R14: with a remembered bound the detector goes out before the citation
+    # search, overlapping both upstream round trips; it is verified after the fetch.
+    detector = _Detector(client, parsed, year)
+    detector.start_early()
+    hit, download, txt_link, early = await _resolve_granule(client, parsed, year, normalization)
+    if early is not None:
+        await detector.abandon()
+        return early
+    assert hit is not None and download is not None and txt_link is not None
+    head = {"citation": parsed.normalized, "normalization": normalization}
+    return await _fetch_and_deliver(
+        client, detector, parsed, hit, download, txt_link, max_chars, start_char, find, head
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -669,7 +846,7 @@ async def get_public_law(
             "congress": congress,
             "law_number": law_number,
             "query": query,
-            **_disambiguation_fields(data.get("count"), results),
+            **_disambiguation_fields(data.get("count"), results, PLAW_RE_REQUEST),
         }
 
     package_id = results[0].get("packageId")

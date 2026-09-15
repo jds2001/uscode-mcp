@@ -97,6 +97,33 @@ def plaw_summary(package_id: str = "PLAW-118publ31", uslm: bool = True) -> dict[
     }
 
 
+def granule_summary(
+    package_id: str = "USCODE-2024-title17",
+    granule_id: str = "USCODE-2024-title17-chap1-sec107",
+    txt_link: bool = True,
+) -> dict[str, Any]:
+    """The granule summary shape measured in O9: LEAF granule, granule-level
+    txtLink/pdfLink/modsLink, package-level zipLink/premisLink, usCodeCitation null."""
+    download = {
+        "pdfLink": f"{API}/packages/{package_id}/granules/{granule_id}/pdf",
+        "modsLink": f"{API}/packages/{package_id}/granules/{granule_id}/mods",
+        "zipLink": f"{API}/packages/{package_id}/zip",
+        "premisLink": f"{API}/packages/{package_id}/premis",
+    }
+    if txt_link:
+        download["txtLink"] = f"{API}/packages/{package_id}/granules/{granule_id}/htm"
+    return {
+        "packageId": package_id,
+        "granuleId": granule_id,
+        "granuleClass": "LEAF",
+        "leafRange": {"from": "107", "to": "107", "type": "section"},
+        "usCodeCitation": None,
+        "dateIssued": "2024-12-31",
+        "lastModified": "2025-03-01T00:00:00Z",
+        "download": download,
+    }
+
+
 def search_response(hits: list[dict[str, Any]], count: int | None = None, offset_mark: str = "AoE=") -> dict[str, Any]:
     return {"count": count if count is not None else len(hits), "offsetMark": offset_mark, "results": hits}
 
