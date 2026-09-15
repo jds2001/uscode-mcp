@@ -40,7 +40,7 @@ Q14 — ANSWERED 2026-09-15, ruled R16. Optional `granule_id` (with optional `pa
 
 ## Implementation queue
 
-**WO-3 — `granule_id` path on `get_us_code_section` (R16), the disambiguation message wording, and the server-instructions text (issued 2026-09-15 in `80-work-orders.md`).** Previously: WO-2 CLOSED 2026-09-15 (faa9974, O45); WO-1 CLOSED 2026-09-15 (1d42c52, O44).
+**Server queue is empty.** WO-3 CLOSED 2026-09-15 (d15ddde + bb73359, O46); WO-2 CLOSED (faa9974, O45); WO-1 CLOSED (1d42c52, O44). Open board is spec/maintainer work only: A/D isolation-cell runs, E15 (harness-side), Q8 Group F questions, and the non-vacuity run for the three `superseded-*` checks.
 
 Harness-side (mcp-e2e, not the server): E15's api-surface extension — per-request body size and the `count_tokens` result alongside the existing keys. Blocks the O40b duplication reading and F3's default-`max_chars` disposition; both wait on it.
 
