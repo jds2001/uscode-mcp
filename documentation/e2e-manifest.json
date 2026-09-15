@@ -374,6 +374,66 @@
           "/response/structuredContent/find/occurrences"
         ]
       }
+    },
+    {
+      "id": "superseded-present-on-success",
+      "description": "every get_us_code_section success carries the three-state possibly_superseded object with its caveat and bound provenance (R14; 40-tools.md; O44a/O44b — pointer path measured in the WO-1 traces)",
+      "applies_to": {
+        "tool": "get_us_code_section",
+        "when": [
+          {
+            "pointer": "/response/structuredContent/outcome",
+            "equals": "success"
+          }
+        ]
+      },
+      "assert": {
+        "present": [
+          "/response/structuredContent/possibly_superseded/status",
+          "/response/structuredContent/possibly_superseded/caveat",
+          "/response/structuredContent/possibly_superseded/since_basis"
+        ]
+      }
+    },
+    {
+      "id": "superseded-not-checked-surfaces-reason",
+      "description": "a not_checked indicator names why, never reading as none found (three-outcomes rule; O44a forced 401)",
+      "applies_to": {
+        "tool": "get_us_code_section",
+        "when": [
+          {
+            "pointer": "/response/structuredContent/possibly_superseded/status",
+            "equals": "not_checked"
+          }
+        ]
+      },
+      "assert": {
+        "present": [
+          "/response/structuredContent/possibly_superseded/reason"
+        ]
+      }
+    },
+    {
+      "id": "superseded-fired-accounting",
+      "description": "a fired indicator carries the true upstream count and the capping envelope (disambiguation-totals rule; O44a)",
+      "applies_to": {
+        "tool": "get_us_code_section",
+        "when": [
+          {
+            "pointer": "/response/structuredContent/possibly_superseded/status",
+            "equals": "laws_indexed"
+          }
+        ]
+      },
+      "assert": {
+        "present": [
+          "/response/structuredContent/possibly_superseded/count",
+          "/response/structuredContent/possibly_superseded/laws",
+          "/response/structuredContent/possibly_superseded/laws_shown",
+          "/response/structuredContent/possibly_superseded/capped",
+          "/response/structuredContent/possibly_superseded/query"
+        ]
+      }
     }
   ],
   "prompts": [

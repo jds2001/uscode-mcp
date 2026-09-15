@@ -4,7 +4,7 @@ Each order is self-contained: what to build, the contract it implements, the evi
 
 ## WO-1 — `possibly_superseded` on `get_us_code_section` (R14a/b/c; contract in `40-tools.md`, "Staleness indicator"; measured basis O43)
 
-**Status:** OPEN, issued 2026-09-15. Q13 is answered: build fire-always with no opt-in argument. Nothing about this order is waiting on the maintainer.
+**Status:** CLOSED 2026-09-15 — built at implementation commit 1d42c52, verified O44 (artifact review, black-box probe, and the two ratification measurements). Disposition of the order's own error: its premise that the detector is independent of the text fetch was wrong (the bound needs `currentthrough` from the fetched HTML); the implementation's cold/warm two-regime design is ratified and the contract corrected (O44c). Both implementation decisions submitted for ratification are ratified as interim behavior and superseded by WO-2 below: appendix `not_checked`/`no_measured_citation_form` stays as the fallback for appendix rules, and the private-law question is answered by measurement (O44e), not by leaving the query alone. The order text below is kept as issued, for the record.
 
 **What it is.** Every successful `get_us_code_section` response carries a `possibly_superseded` object saying whether GovInfo's PLAW index lists any public law published after the returned edition's `currentthrough` date against this section. It is an indicator in both directions and never a certification (R14a): a fire does not mean the text is stale, and silence does not mean it is current.
 
@@ -47,3 +47,29 @@ Every state, including `not_checked`, echoes the exact `query` string sent and t
 The spec session will then black-box the same five inputs against the running server (as it did for R12 in O37 and R13 in O39) before marking this order closed and adding the manifest checks.
 
 **Out of this order.** E15's api-surface extension is harness-side (mcp-e2e), not this server. The A/D isolation-cell runs and Group F questions are spec-session and maintainer work.
+
+## WO-2 — detector follow-ups from O44: `lawtype:public`, and numbered appendix sections (contract in `40-tools.md`, "Staleness indicator"; measured basis O44d/O44e)
+
+**Status:** OPEN, issued 2026-09-15. Nothing in this order waits on the maintainer; both changes are IR/technical judgments recorded with their measurements.
+
+**Change 1 — add `lawtype:public` to the pinned detector query.** New shape, exactly:
+
+```
+collection:PLAW lawtype:public publishdate:range({since},) uscodecitation:"{title} U.S.C. {section}"
+```
+
+Why: a live section fires today on a 119th-Congress private law — `10 U.S.C. 7274` → [PLAW-119pvtl2, PLAW-119publ60] on the WO-1 shape — and `get_public_law` refuses `pvtl` packages under R6, so the consumer would be handed an id it cannot retrieve. `lawtype:public` composes with the pinned shape, drops exactly the private package (O44e: 7274 → 1, 8298 → 2, 8300 → 1), leaves the public cases unchanged (42/2210 → 1, 20/1070a → 1), and partitions the collection exactly (60 + 5,939 = 5,999). `count` stays upstream's count for the query actually sent; the caveat text does not change. Everything else about the object is unchanged.
+
+**Change 2 — run the detector for numbered appendix sections.** When the resolved granule is an appendix *section* (the citation normalized to `{title} U.S.C. App. {section}` with a numeric-led section, e.g. `18 U.S.C. App. 1201`), build the detector on the measured form:
+
+```
+collection:PLAW lawtype:public publishdate:range({since},) uscodecitation:"{title} U.S.C. App. {section}"
+```
+
+Measured basis (O44d): the field carries this form (`"50 U.S.C. App. 2012"` → 19 all-time, 1 since 2025-01-07; `"5 U.S.C. App. 3"` → 29; MODS witness on PLAW-119publ75). Appendix *rules* (`28 U.S.C. App. Rule N`, and any appendix citation whose qualifier is not a numbered section) keep the WO-1 fallback — `not_checked`, `reason: no_measured_citation_form`, `query: null` — because no form is measured for them (0 hits on `"28 U.S.C. App."` and `"28 U.S.C. App. Rule 9"`). The `checked_citation` field carries the App. form actually queried.
+
+**Do not.** Change the three-state shape, the caveats, the regimes, or the budget. Filter `pvtl` client-side after an unfiltered query — the filter goes in the query so `count` stays honest. Guess a form for appendix rules.
+
+**Unit tests.** The query builder emits `lawtype:public` in every query; the App. form for a numbered appendix section; the fallback for a rule; existing WO-1 tests updated to the new string, not loosened.
+
+**Verification artifacts** (real upstream, traced, as for WO-1): (1) `10 U.S.C. 7274` → `laws_indexed` listing PLAW-119publ60 only, query string shown with `lawtype:public`; (2) `42 U.S.C. 2210` → still publ74 only; (3) `18 U.S.C. App. 1201` → a real detector outcome on the App. form (expected `none_indexed`, O44d measured 0 all-time), `checked_citation: 18 U.S.C. App. 1201`; (4) an appendix section expected to fire — find one by probing `uscodecitation:"{t} U.S.C. App. {s}"` with the open-ended `publishdate` bound for a section that resolves to a single current-edition granule, and record which; (5) `28 U.S.C. App. Rule 9` disambiguated to one granule by ids → `not_checked`/`no_measured_citation_form` unchanged; (6) the exact query strings for all of the above.
