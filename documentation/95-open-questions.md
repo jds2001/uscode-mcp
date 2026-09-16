@@ -10,7 +10,7 @@ Q7 (E2E harness) is answered and ruled — R10 in `96-rulings.md`, maintainer an
 
 Q7e-completion — CLOSED by R11 (2026-08-31): the harness became the standalone mcp-e2e project, the suite (manifest, groundings, scored findings) is spec-owned here, cadence is manual. Nothing left to confirm.
 
-Q9 — in progress. Three runs scored in `70-run-findings.md`: the floor cell over all 11 prompts (021336Z, 10/11 pass, F1 filed), the C1 re-run (023317Z), the C3/E13 run (024850Z), and floor + ceiling + isolation over C1/C3/C4 (035906Z, 9/9 pass). Outstanding: the A and D prompt groups have never run in the `isolation` cell, so the attribution clauses of A2/C2/D3 remain unscored — that is the only unfinished cell×prompt coverage. The watch:"none" workaround can revert to null once the harness null-fix ships.
+Q9 — COVERAGE COMPLETE 2026-09-16: the full run (`runs/2026-09-16T012953Z`, all 13 prompts × 3 cells, scored in `70-run-findings.md`) ran the A and D groups in the isolation cell for the first time, so the attribution clauses of A2/C2/D3 are scored (all pass). Score 38/39 (D2 isolation FAIL → F4). Layer 1: 15/16 (`recall-caveat-always` FAIL → F5). Findings F4–F6 routed to WO-5. Earlier runs for the record: floor over 11 prompts (021336Z, 10/11, F1), C1 re-run (023317Z), C3/E13 (024850Z), floor + ceiling + isolation over C1/C3/C4 (035906Z, 9/9). The watch:"none" workaround can revert to null once the harness null-fix ships. Remaining: Q8 Group F.
 
 Q8. Group F needs 8–12 **verbatim** questions from real research sessions — congressMCP's sourcing rule, adopted whole: they must not be written by anyone who knows the internals, and the spec session is disqualified from authoring them by construction. The manifest ships with Group F empty and carries the caveat. Paste originals when available.
 
@@ -40,7 +40,7 @@ Q14 — ANSWERED 2026-09-15, ruled R16. Optional `granule_id` (with optional `pa
 
 ## Implementation queue
 
-**Server queue is empty.** WO-4 CLOSED 2026-09-16 (3967e66, O48); WO-3 CLOSED 2026-09-15 (d15ddde + bb73359, O46); WO-2 CLOSED (faa9974, O45); WO-1 CLOSED (1d42c52, O44). Harness-side E15 instrument: delivered and verified (O47d). Next: the maintainer's full run — first non-vacuous exercise of the three `superseded-*` checks (O47e), A/D isolation-cell coverage, and C1 at the new 20,000 default (WO-4 landed first, so the C1 cells measure 20,000; the C1 criteria do not depend on the value); Q8 Group F questions remain with the maintainer.
+**WO-5 — description and caveat fixes from the full run (F4/F5/F6), issued 2026-09-16 in `80-work-orders.md`.** Previously: WO-4 CLOSED 2026-09-16 (3967e66, O48); WO-3 CLOSED (d15ddde + bb73359, O46); WO-2 CLOSED (faa9974, O45); WO-1 CLOSED (1d42c52, O44). The full run is scored (`70-run-findings.md`): 38/39, the three `superseded-*` checks non-vacuous and passing, R14/R16/WO-4 consumer-validated (O49d). Q8 Group F questions remain with the maintainer.
 
 Harness-side (mcp-e2e, not the server): E15's api-surface extension — DELIVERED and verified from artifacts (O47d); the O40b duplication reading and F3's disposition are both settled on it (O47a/b).
 

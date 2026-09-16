@@ -106,3 +106,21 @@ Measured basis (O44d): the field carries this form (`"50 U.S.C. App. 2012"` → 
 
 **Verification artifacts** (real upstream, traced): (1) `get_public_law` for Pub. L. 118-31 with no `max_chars` → 20,000 chars returned, `total_chars: 3,590,552`, banner and `next_start_char: 20000`; (2) `get_us_code_section` `42 U.S.C. 2210` with no `max_chars` → 20,000 of 116,126; (3) the same with `max_chars: 100000` → 100,000 returned; (4) the served descriptions from tools/list.
 
+## WO-5 — description and caveat fixes from the full run (F4, F5, F6; contract in `40-tools.md`; measured basis O49, run 2026-09-16T012953Z)
+
+**Status:** OPEN, issued 2026-09-16. Four small changes, all IR/technical judgments on measured consumer behavior; nothing waits on the maintainer.
+
+**Change 1 — `search_public_laws` description: drop `approveddate`, name `publishdate`.** The served description lists `approveddate:range(...)` as a useful field; ranges on it return HTTP 500 upstream (O43f) and two of three A4 cells followed the description into that error (O49a). Replace with `publishdate:range(YYYY-MM-DD,)` (open-ended form measured, O43f) and say in one clause that `approveddate` ranges fail upstream.
+
+**Change 2 — both search descriptions: the `packageid:` scoping recipe.** Required by the contract since E13 (O30), measured absent from both served descriptions (F6b). USCODE: `packageid:USCODE-2024-title17 <terms>` for within-title section-level search; PLAW: `packageid:PLAW-118publ31 <terms>` as a within-law presence test. One sentence each, with the caveat that it tests presence, not location — `find` on the text tool locates.
+
+**Change 3 — `get_public_law` description: the numbered path is the public series.** Add: `congress` + `law_number` names the PUBLIC-law series only; do not use it for a private-law number — pass the citation string ("Private Law 118-1") and the server returns the out-of-scope outcome. Basis F4.
+
+**Change 4 — `recall_caveat` on every `search_public_laws` success.** Today it rides only on queries containing `uscodecitation:` (5 of 5 carried it, 0 of 6 others did). Emit it on every success: the existing measured-gap text when the query contains `uscodecitation:`; otherwise a caveat that full-text matching has unmeasured gaps — a quoted phrase was measured missing a law that contains it verbatim (O49c) — and that absence from results is not evidence of absence. The check `recall-caveat-always` is unchanged and will pass once this lands.
+
+**Do not.** Change the search tools' arguments or result shapes beyond the new caveat text. Touch `documentation/`.
+
+**Unit tests.** Descriptions: contain `publishdate`, do not contain `approveddate:range`, contain `packageid:` (both search tools), and the get_public_law public-series sentence. Caveat: present on a mocked success for a `uscodecitation:` query, a full-text query, and a `congress:`/`docnumber:` query, with the two wordings selected correctly; absent on `upstream_error`/`rate_limited` (unchanged).
+
+**Verification artifacts** (real upstream, traced): (1) tools/list descriptions for all three tools; (2) `search_public_laws` with `congress:119 "Price-Anderson"` → success, `count: 0`, `recall_caveat` present with the full-text wording; (3) `uscodecitation:"42 U.S.C. 2210"` → `recall_caveat` with the field wording; (4) the two query strings and both caveat texts verbatim.
+
