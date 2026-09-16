@@ -92,3 +92,17 @@ Measured basis (O44d): the field carries this form (`"50 U.S.C. App. 2012"` → 
 
 **Verification artifacts** (real upstream, traced): (1) `28 U.S.C. App. Rule 9` → `ambiguous` with two candidates, message showing the new wording; (2) `granule_id: USCODE-2024-title28-app-federalru-dup1-rule9` + `citation: "28 U.S.C. App. Rule 9"` → `success`, provenance complete, `package_id_derived: true`, text of the Civil-rules Rule 9 ("Pleading Special Matters"), `possibly_superseded` = `not_checked`/`no_measured_citation_form` (a rule); (3) `granule_id: USCODE-2024-title17-chap1-sec107` + `citation: "17 U.S.C. 107"` → `success` with `possibly_superseded` `none_indexed` on `17 U.S.C. 107`; (4) the same id without `citation` → `not_checked`/`no_citation_for_detector`; (5) a plausible-but-nonexistent id → `not_found` with the upstream status shown; (6) the served `instructions` string from `initialize`.
 
+## WO-4 — default `max_chars` 100,000 → 20,000 on `get_us_code_section` and `get_public_law` (contract in `40-tools.md`, "No silent truncation"; measured basis O47b, disposition of F3)
+
+**Status:** OPEN, issued 2026-09-16. The disposition was pre-committed in E15 (maintainer-approved 2026-09-02), so nothing here waits on the maintainer.
+
+**Change.** The default `max_chars` on both text tools becomes 20,000. Nothing else about windowing changes: explicit `max_chars` above 20,000 is honored as before (the cap, if any, is unchanged), `start_char`, the banner, `total_chars`, `next_start_char`, `find`, and `structure` are untouched. The tool descriptions and the server instructions state the new default and, in one clause, why: windows much larger than this are measured not to reach the model inline on the current driver, so the first call would be spent discovering that.
+
+**Why 20,000.** O47b: on claude-code 2.1.236 the 100,082-char default window (208 KB envelope) was not delivered inline in either cell that received it — the driver counted it and delivered a ~3 KB stand-in — while a 20,081-char window (43 KB envelope) in the same cell was delivered inline. 20,000 is just under the largest window measured to arrive. The exact threshold between 20,081 and 100,082 is not measured and is not needed for this order.
+
+**Do not.** Change the cap or the banner. Add a summary-plus-pointer shape (F1's parked option; not triggered — O47a measured 1×). Touch `documentation/`.
+
+**Unit tests.** Default resolves to 20,000 on both tools when `max_chars` is absent; an explicit larger value is honored; the banner and `next_start_char` are correct at the new default on a payload larger than it; the descriptions name the default.
+
+**Verification artifacts** (real upstream, traced): (1) `get_public_law` for Pub. L. 118-31 with no `max_chars` → 20,000 chars returned, `total_chars: 3,590,552`, banner and `next_start_char: 20000`; (2) `get_us_code_section` `42 U.S.C. 2210` with no `max_chars` → 20,000 of 116,126; (3) the same with `max_chars: 100000` → 100,000 returned; (4) the served descriptions from tools/list.
+
