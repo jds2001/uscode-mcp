@@ -46,7 +46,11 @@ from .htmltext import (
 
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
-DEFAULT_MAX_CHARS = 100_000
+# WO-4 (O47b): windows much larger than this were measured not to reach the model
+# inline on the current driver (a 100,082-char window was replaced by a ~3 KB
+# stand-in; a 20,081-char window arrived), so a larger default would spend the
+# first call discovering that. Explicit larger values are honored unchanged.
+DEFAULT_MAX_CHARS = 20_000
 
 # Per-process memory of each edition's observed currentthrough, so a repeat lookup
 # of an edition can issue the staleness detector concurrently with the text fetch

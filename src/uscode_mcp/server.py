@@ -33,6 +33,10 @@ echoed `query` is your manual retry. Read the object's `caveat`.
 To widen beyond what the indicator ran: `search_public_laws` with the echoed `query` minus its `publishdate`
 bound, or a full-text search over the public-law collection; and read the section's own source credits for the
 amendment history GovInfo prints.
+
+Text windows default to 20,000 characters (`max_chars`), because larger windows are measured not to reach the
+model inline on the current driver; every window states `total_chars` and `next_start_char`, and `find` locates
+content in the full payload so you can read exactly the window you need.
 """
 
 
@@ -80,7 +84,9 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         there or in a search_us_code result; `package_id` is optional and otherwise derived from the
         id), passing the same `citation` alongside so the staleness check still runs — by id alone
         it reports `not_checked`. `year` is ignored with `granule_id`, which names its edition.
-        Large sections are windowed via `max_chars`/`start_char` with explicit truncation markers.
+        Large sections are windowed via `max_chars`/`start_char` with explicit truncation markers;
+        `max_chars` defaults to 20,000 because larger windows are measured not to reach the model
+        inline on the current driver — pass a larger value explicitly if your host delivers it.
         Every text response carries provenance including the `currentthrough` staleness date.
 
         STALENESS INDICATOR: every success carries `possibly_superseded`, with `status` one of
@@ -169,7 +175,9 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         Retrieval is package-level and a law can run to millions of characters, so a single call
         almost never returns the whole thing: `max_chars`/`start_char` window it, `truncated` and
         `total_chars` say so, and a truncated response repeats that as a banner line at the head of
-        the text. A window is NEVER the complete law — do not describe it as one.
+        the text. `max_chars` defaults to 20,000 because larger windows are measured not to reach the
+        model inline on the current driver — pass a larger value explicitly if your host delivers it.
+        A window is NEVER the complete law — do not describe it as one.
 
         DON'T PAGE BLINDLY looking for a provision. `find` takes a case-insensitive literal
         substring, searches the FULL law (not just the returned window), and reports the true
