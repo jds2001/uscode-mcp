@@ -94,7 +94,7 @@ Measured basis (O44d): the field carries this form (`"50 U.S.C. App. 2012"` → 
 
 ## WO-4 — default `max_chars` 100,000 → 20,000 on `get_us_code_section` and `get_public_law` (contract in `40-tools.md`, "No silent truncation"; measured basis O47b, disposition of F3)
 
-**Status:** OPEN, issued 2026-09-16. The disposition was pre-committed in E15 (maintainer-approved 2026-09-02), so nothing here waits on the maintainer.
+**Status:** CLOSED 2026-09-16 — built at 3967e66, verified O48 (artifact review and black-box probe, including the by-id path and `find` past the window). The order text below is kept as issued, for the record.
 
 **Change.** The default `max_chars` on both text tools becomes 20,000. Nothing else about windowing changes: explicit `max_chars` above 20,000 is honored as before (the cap, if any, is unchanged), `start_char`, the banner, `total_chars`, `next_start_char`, `find`, and `structure` are untouched. The tool descriptions and the server instructions state the new default and, in one clause, why: windows much larger than this are measured not to reach the model inline on the current driver, so the first call would be spent discovering that.
 
