@@ -40,7 +40,7 @@ Q14 — ANSWERED 2026-09-15, ruled R16. Optional `granule_id` (with optional `pa
 
 ## Implementation queue
 
-**WO-4 — default `max_chars` 100,000 → 20,000 on both text tools (E15/O47 disposition of F3), issued 2026-09-16 in `80-work-orders.md`.** Previously: WO-3 CLOSED 2026-09-15 (d15ddde + bb73359, O46); WO-2 CLOSED (faa9974, O45); WO-1 CLOSED (1d42c52, O44). Harness-side E15 instrument: delivered and verified (O47d). Next: a full run (maintainer, 2026-09-16) — it gives the three `superseded-*` checks their first non-vacuous exercise (O47e) and covers the A/D isolation-cell gap; Q8 Group F questions remain with the maintainer. Note for scoring that run: C1 cells will measure whichever `max_chars` default the built server has at run time — 100,000 until WO-4 lands, 20,000 after — and the C1 criteria do not depend on the value.
+**Server queue is empty.** WO-4 CLOSED 2026-09-16 (3967e66, O48); WO-3 CLOSED 2026-09-15 (d15ddde + bb73359, O46); WO-2 CLOSED (faa9974, O45); WO-1 CLOSED (1d42c52, O44). Harness-side E15 instrument: delivered and verified (O47d). Next: the maintainer's full run — first non-vacuous exercise of the three `superseded-*` checks (O47e), A/D isolation-cell coverage, and C1 at the new 20,000 default (WO-4 landed first, so the C1 cells measure 20,000; the C1 criteria do not depend on the value); Q8 Group F questions remain with the maintainer.
 
 Harness-side (mcp-e2e, not the server): E15's api-surface extension — DELIVERED and verified from artifacts (O47d); the O40b duplication reading and F3's disposition are both settled on it (O47a/b).
 
