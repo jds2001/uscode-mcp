@@ -136,19 +136,53 @@ class TestSearchPublicLaws:
         assert fx.request_body(seen[0])["query"] == "collection:PLAW defense authorization"
         assert out["outcome"] == "success"
 
-    async def test_reverse_lookup_carries_recall_caveat(self, make_client):
+    async def test_reverse_lookup_carries_the_field_recall_caveat(self, make_client):
         def handler(request):
             return fx.json_response(fx.search_response([fx.plaw_hit()], count=14))
 
         out = await tools.search_public_laws(make_client(handler), 'uscodecitation:"42 U.S.C. 2210"')
-        assert "recall_caveat" in out
+        assert out["recall_caveat"] == tools.RECALL_CAVEAT_USCODECITATION
         assert "never evidence" in out["recall_caveat"]
         assert "25/33" in out["recall_caveat"]
         assert "structural" in out["recall_caveat"]
 
-    async def test_non_reverse_lookup_has_no_caveat(self, make_client):
+    async def test_full_text_query_carries_the_full_text_caveat(self, make_client):
+        # WO-5 change 4 (O49c): a quoted phrase was measured missing a law containing it
+        # verbatim, so full-text results are not evidence of absence either.
         out = await tools.search_public_laws(
-            make_client(lambda request: fx.json_response(fx.search_response([]))), "congress:118 docnumber:31"
+            make_client(lambda request: fx.json_response(fx.search_response([], count=0))),
+            'congress:119 "Price-Anderson"',
+        )
+        assert out["outcome"] == "success"
+        assert out["count"] == 0
+        assert out["recall_caveat"] == tools.RECALL_CAVEAT_FULLTEXT
+        assert "never evidence of absence" in out["recall_caveat"]
+        assert "25/33" not in out["recall_caveat"]
+
+    async def test_numbered_query_carries_the_full_text_caveat(self, make_client):
+        out = await tools.search_public_laws(
+            make_client(lambda request: fx.json_response(fx.search_response([fx.plaw_hit()]))),
+            "congress:118 docnumber:31",
+        )
+        assert out["recall_caveat"] == tools.RECALL_CAVEAT_FULLTEXT
+
+    async def test_caveat_selection_is_by_the_query_actually_sent(self, make_client):
+        # Mixed query: the field wording wins whenever uscodecitation: is present.
+        out = await tools.search_public_laws(
+            make_client(lambda request: fx.json_response(fx.search_response([]))),
+            'uscodecitation:"42 U.S.C. 2210" publishdate:range(2025-01-07,)',
+        )
+        assert out["recall_caveat"] == tools.RECALL_CAVEAT_USCODECITATION
+
+    async def test_no_caveat_on_failure_outcomes(self, make_client):
+        for resp in (httpx.Response(500, text="err"), httpx.Response(429, text="slow")):
+            out = await tools.search_public_laws(make_client(lambda request, r=resp: r), "anything")
+            assert out["outcome"] in {"upstream_error", "rate_limited"}
+            assert "recall_caveat" not in out
+
+    async def test_search_us_code_has_no_plaw_caveat(self, make_client):
+        out = await tools.search_us_code(
+            make_client(lambda request: fx.json_response(fx.search_response([]))), "fair use"
         )
         assert "recall_caveat" not in out
 

@@ -148,8 +148,11 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         discovery path for topics, appendix material, and anything citation resolution redirects
         here. `collection:USCODE` is prepended unless the query already contains a `collection:`
         term. Fielded search is available (e.g. `citation:"17 U.S.C. 107"`, `usctitlenum:28`,
-        `shorttitle:...`); `historical:true` includes superseded annual editions. Returns result
-        pointers (ids, dates, download links), not text — follow up with get_us_code_section.
+        `shorttitle:...`); the `historical` ARGUMENT (not a query term) includes superseded annual
+        editions. Within-title section-level search: scope by package, `packageid:USCODE-2024-title17
+        <terms>` — this tests which sections contain the terms, not where in a section; `find` on
+        get_us_code_section locates. Returns result pointers (ids, dates, download links), not
+        text — follow up with get_us_code_section (or pass a result's `granule_id` to it).
         Pagination via `offset_mark`: pass "*" to start, then echo back the returned value.
         """
         return await tools.search_us_code(
@@ -169,6 +172,9 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         """Resolve a public law and return its text with provenance. Pass `congress` + `law_number`,
         or a `citation` string ("Pub. L. 118-31", "Public Law 118-31", "P.L. 118-31"). Public laws
         only: a private-law request is a distinct out-of-scope outcome, not a failed lookup.
+        `congress` + `law_number` names the PUBLIC-law series only — do not use it for a
+        private-law number (Private Law 118-1 is not Public Law 118-1); pass the citation string
+        ("Private Law 118-1") instead and the server returns the out-of-scope outcome.
         `format="uslm"` returns USLM XML when the package offers it — present for congresses 113
         (2013) and later, absent for 104-112 — and absence is a distinct not-available outcome.
 
@@ -208,9 +214,14 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         25/33 on sampled membership tests, with misses in every congress sampled from the 115th on,
         varying per (law, section) — not a recency artifact. Absence of a law from these results is
         never evidence it doesn't touch the section, and this result set must never be presented as
-        complete. Other useful fields: `congress:118 docnumber:31`,
-        `approveddate:range(...)`, `billscitation:...`. Returns result pointers, not text — follow up
-        with get_public_law.
+        complete. Full-text matching has unmeasured gaps too: a quoted phrase was measured missing a
+        law that contains it verbatim, so absence from any result set here is not evidence of
+        absence. Other useful fields: `congress:118 docnumber:31`, `billscitation:...`, and a date
+        bound as `publishdate:range(YYYY-MM-DD,)` (open-ended upper bound measured to work) — do NOT
+        use `approveddate:range(...)`, which returns HTTP 500 upstream in every form tried.
+        Within-law presence test: `packageid:PLAW-118publ31 <terms>` says whether that law's text
+        contains the terms, not where; `find` on get_public_law locates. Returns result pointers,
+        not text — follow up with get_public_law.
         """
         return await tools.search_public_laws(_client(), query, page_size=page_size, offset_mark=offset_mark)
 

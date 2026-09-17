@@ -782,6 +782,23 @@ async def search_us_code(
     )
 
 
+# WO-5 change 4: every search_public_laws success carries a recall caveat — the
+# measured field gap when the query uses uscodecitation:, and otherwise the
+# measured full-text gap (O49c) — so no result set here reads as complete.
+RECALL_CAVEAT_USCODECITATION = (
+    "The uscodecitation field's recall gap is measured and structural (O21, O17/O18): 25/33 sampled "
+    "recall against packages' own references arrays, with misses in every congress sampled from the "
+    "115th on, varying per (law, section). Absence of a law from these results is never evidence it "
+    "doesn't touch the section; this result set must not be presented as complete."
+)
+RECALL_CAVEAT_FULLTEXT = (
+    "Full-text matching on the public-law collection has unmeasured gaps: a quoted phrase was measured "
+    "missing a law whose text contains it verbatim (the unquoted terms found it), so absence of a law "
+    "from these results is never evidence of absence. This result set must not be presented as "
+    "complete; to test one law for a term, scope with packageid: or use `find` on get_public_law."
+)
+
+
 async def search_public_laws(
     client: GovInfoClient,
     query: str,
@@ -790,13 +807,11 @@ async def search_public_laws(
 ) -> dict[str, Any]:
     """As search_us_code but scoped collection:PLAW (public laws only, R6)."""
     result = await _scoped_search(client, "PLAW", query, page_size=page_size, offset_mark=offset_mark)
-    if result.get("outcome") == "success" and "uscodecitation:" in result.get("query", ""):
-        result["recall_caveat"] = (
-            "The uscodecitation field's recall gap is measured and structural (O21, O17/O18): 25/33 sampled "
-            "recall against packages' own references arrays, with misses in every congress sampled from the "
-            "115th on, varying per (law, section). Absence of a law from these results is never evidence it "
-            "doesn't touch the section; this result set must not be presented as complete."
-        )
+    if result.get("outcome") == "success":
+        if "uscodecitation:" in result.get("query", ""):
+            result["recall_caveat"] = RECALL_CAVEAT_USCODECITATION
+        else:
+            result["recall_caveat"] = RECALL_CAVEAT_FULLTEXT
     return result
 
 

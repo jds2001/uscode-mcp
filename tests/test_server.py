@@ -42,6 +42,46 @@ async def test_get_public_law_description_states_private_law_scope():
     assert "out-of-scope" in tool.description
 
 
+async def test_get_public_law_description_says_numbered_path_is_the_public_series():
+    """WO-5 change 3 (F4): congress + law_number names the public series only."""
+    server = create_server()
+    flat = " ".join({t.name: t for t in await server.list_tools()}["get_public_law"].description.split())
+    assert "PUBLIC-law series only" in flat
+    assert "Private Law 118-1" in flat
+    assert "out-of-scope outcome" in flat
+
+
+async def test_search_descriptions_carry_the_packageid_recipe():
+    """WO-5 change 2 (F6b, O30): within-title / within-law scoping by package, with the
+    presence-not-location caveat on both."""
+    server = create_server()
+    by_name = {t.name: t for t in await server.list_tools()}
+    usc = " ".join(by_name["search_us_code"].description.split())
+    plaw = " ".join(by_name["search_public_laws"].description.split())
+    assert "packageid:USCODE-2024-title17" in usc
+    assert "packageid:PLAW-118publ31" in plaw
+    assert "`find`" in usc and "`find`" in plaw
+    assert "not where" in usc and "not where" in plaw
+
+
+async def test_search_public_laws_description_names_publishdate_not_approveddate_ranges():
+    """WO-5 change 1 (F6a, O43f/O49a): approveddate ranges return HTTP 500 upstream."""
+    server = create_server()
+    flat = " ".join({t.name: t for t in await server.list_tools()}["search_public_laws"].description.split())
+    assert "publishdate:range(YYYY-MM-DD,)" in flat
+    assert "approveddate:range(...)" not in flat.replace("do NOT use `approveddate:range(...)`", "")
+    assert "do NOT use `approveddate:range(...)`" in flat
+    assert "HTTP 500" in flat
+    assert "not evidence of absence" in flat
+
+
+async def test_search_us_code_description_says_historical_is_an_argument():
+    """O49b: a consumer typed historical:true into the query string and got a 500."""
+    server = create_server()
+    flat = " ".join({t.name: t for t in await server.list_tools()}["search_us_code"].description.split())
+    assert "`historical` ARGUMENT (not a query term)" in flat
+
+
 async def test_get_us_code_section_description_promises_notes():
     server = create_server()
     tool = {t.name: t for t in await server.list_tools()}["get_us_code_section"]
