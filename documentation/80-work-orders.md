@@ -108,7 +108,7 @@ Measured basis (O44d): the field carries this form (`"50 U.S.C. App. 2012"` → 
 
 ## WO-5 — description and caveat fixes from the full run (F4, F5, F6; contract in `40-tools.md`; measured basis O49, run 2026-09-16T012953Z)
 
-**Status:** OPEN, issued 2026-09-16. Four small changes, all IR/technical judgments on measured consumer behavior; nothing waits on the maintainer.
+**Status:** CLOSED 2026-09-17 — built at 4f238a6, verified O50 (artifact review and black-box probe of all three descriptions and six query shapes, including the `packageid:` recipe live and an `approveddate` failure still carrying no caveat). F4's consumer-side effect is measured on the next run's D2/isolation. The order text below is kept as issued, for the record.
 
 **Change 1 — `search_public_laws` description: drop `approveddate`, name `publishdate`.** The served description lists `approveddate:range(...)` as a useful field; ranges on it return HTTP 500 upstream (O43f) and two of three A4 cells followed the description into that error (O49a). Replace with `publishdate:range(YYYY-MM-DD,)` (open-ended form measured, O43f) and say in one clause that `approveddate` ranges fail upstream.
 

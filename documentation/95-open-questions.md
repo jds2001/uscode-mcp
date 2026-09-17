@@ -40,7 +40,7 @@ Q14 — ANSWERED 2026-09-15, ruled R16. Optional `granule_id` (with optional `pa
 
 ## Implementation queue
 
-**WO-5 — description and caveat fixes from the full run (F4/F5/F6), issued 2026-09-16 in `80-work-orders.md`.** Previously: WO-4 CLOSED 2026-09-16 (3967e66, O48); WO-3 CLOSED (d15ddde + bb73359, O46); WO-2 CLOSED (faa9974, O45); WO-1 CLOSED (1d42c52, O44). The full run is scored (`70-run-findings.md`): 38/39, the three `superseded-*` checks non-vacuous and passing, R14/R16/WO-4 consumer-validated (O49d). Q8 Group F questions remain with the maintainer.
+**Server queue is empty.** WO-5 CLOSED 2026-09-17 (4f238a6, O50); WO-4 CLOSED 2026-09-16 (3967e66, O48); WO-3 CLOSED (d15ddde + bb73359, O46); WO-2 CLOSED (faa9974, O45); WO-1 CLOSED (1d42c52, O44). The full run is scored (`70-run-findings.md`, 38/39). Owed by a future run: `recall-caveat-always` should now pass, and D2/isolation measures whether F4's description fix holds. Q8 Group F questions remain with the maintainer.
 
 Harness-side (mcp-e2e, not the server): E15's api-surface extension — DELIVERED and verified from artifacts (O47d); the O40b duplication reading and F3's disposition are both settled on it (O47a/b).
 
