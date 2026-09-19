@@ -6,6 +6,7 @@ import fx
 import httpx
 
 from uscode_mcp import tools
+from uscode_mcp.htmltext import window_text
 
 
 def plaw_handler(search_payload=None, summary=None, htm=fx.PLAW_HTML, uslm=fx.PLAW_USLM, seen=None):
@@ -311,3 +312,57 @@ class TestBannerCoordinateDisclosure:
     async def test_no_message_claim_when_there_is_no_banner(self, make_client):
         out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31)
         assert "message" not in out["text"]
+
+
+class TestAudienceSentenceOnTruncatedLaw:
+    """WO-6: a truncated get_public_law response tells the tool caller the start_char
+    continuation is theirs and gives the person asking the PDF link inline (O51c: 21/21
+    consumer answers relayed the continuation to an asker with no tool access; 0/10
+    gave the PDF link the response carried)."""
+
+    async def test_message_carries_the_provenance_pdf_link_inline_and_names_the_pdf(self, make_client):
+        out = await tools.get_public_law(
+            make_client(plaw_handler()), congress=118, law_number=31, max_chars=40
+        )
+        text = out["text"]
+        assert text["truncated"] is True
+        pdf = out["provenance"]["pdf_link"]
+        assert pdf and pdf.endswith("/pdf")
+        message = text["message"]
+        assert pdf in message
+        assert "PDF" in message
+        assert "tool caller" in message
+        assert "person asking" in message
+        assert "provenance" not in message  # the URL itself, never a pointer to the field
+
+    async def test_continuation_sentence_and_banner_are_byte_unchanged(self, make_client):
+        out = await tools.get_public_law(
+            make_client(plaw_handler()), congress=118, law_number=31, max_chars=40
+        )
+        text = out["text"]
+        # Reconstruct what the window said before WO-6 from the response's own coordinates.
+        bare = window_text("x" * text["total_chars"], start_char=text["start_char"], max_chars=40)
+        assert text["message"].startswith(bare["message"])
+        assert "NOT part of the payload" in bare["message"]  # R13c's statement is what stays first
+        assert text["banner"] == bare["banner"]
+        assert text["content"].split("\n", 1)[0] == bare["banner"]
+
+    async def test_untruncated_response_has_no_audience_sentence(self, make_client):
+        out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31)
+        assert out["text"]["truncated"] is False
+        assert "message" not in out["text"]
+        assert out["provenance"]["pdf_link"] not in out["text"]["content"]
+
+    async def test_summary_without_a_pdf_link_says_unavailable_not_an_empty_url(self, make_client):
+        summary = fx.plaw_summary()
+        del summary["download"]["pdfLink"]
+        out = await tools.get_public_law(
+            make_client(plaw_handler(summary=summary)), congress=118, law_number=31, max_chars=40
+        )
+        assert out["outcome"] == "success"
+        assert out["provenance"]["pdf_link"] is None
+        message = out["text"]["message"]
+        assert "no PDF link is available" in message
+        assert "tool caller" in message
+        assert "PDF link: " not in message
+        assert "None" not in message

@@ -5,6 +5,8 @@ import fx
 import pytest
 
 from uscode_mcp.htmltext import (
+    add_audience_sentence,
+    audience_sentence,
     edition_year_from_package_id,
     extract_currentthrough,
     find_occurrences,
@@ -355,3 +357,49 @@ class TestStructureOmittedForReadingCall:
         _, derived = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)
         assert derived["omitted"] is False
         assert structure_omitted_for_reading_call(1)["omitted"] is True
+
+
+class TestAudienceSentence:
+    """WO-6 (40-tools.md, "No silent truncation"; E17): a truncated window's message
+    says the start_char continuation is the tool caller's and gives the person asking
+    the PDF link inline — O51c saw consumers relay the continuation verbatim to an
+    asker with no tool access and never surface the link the response carried."""
+
+    PDF = "https://api.govinfo.gov/packages/PLAW-118publ31/pdf"
+
+    def test_sentence_names_both_audiences_and_carries_the_url_inline(self):
+        s = audience_sentence(self.PDF)
+        assert "tool caller" in s
+        assert "person asking" in s
+        assert "PDF" in s
+        assert self.PDF in s
+        assert "provenance" not in s  # never a pointer to the field (O51c)
+
+    def test_sentence_without_a_pdf_link_says_unavailable_not_an_empty_url(self):
+        for missing in (None, ""):
+            s = audience_sentence(missing)
+            assert "tool caller" in s
+            assert "no PDF link is available" in s
+            assert "https://" not in s
+            assert not s.endswith(": ")
+
+    def test_truncated_window_keeps_the_continuation_sentence_first_byte_for_byte(self):
+        before = window_text("abcdefghij", start_char=0, max_chars=4)
+        original_message = before["message"]
+        original_banner = before["banner"]
+        original_content = before["content"]
+        after = add_audience_sentence(window_text("abcdefghij", start_char=0, max_chars=4), self.PDF)
+        assert after["message"] == f"{original_message} {audience_sentence(self.PDF)}"
+        assert after["message"].startswith(original_message)
+        assert "NOT part of the payload" in after["message"]  # R13c stays intact
+        assert after["banner"] == original_banner
+        assert after["content"] == original_content
+
+    def test_untruncated_window_gains_no_message(self):
+        w = add_audience_sentence(window_text("abcdef", start_char=0, max_chars=100), self.PDF)
+        assert "message" not in w
+        assert self.PDF not in w["content"]
+
+    def test_returns_the_same_window_object(self):
+        w = window_text("abcdefghij", start_char=0, max_chars=4)
+        assert add_audience_sentence(w, self.PDF) is w

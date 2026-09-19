@@ -329,6 +329,35 @@ def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dic
     return result
 
 
+def audience_sentence(pdf_link: str | None) -> str:
+    """The WO-6 audience sentence (40-tools.md, "No silent truncation"; E17).
+
+    O51c: consumers relayed the ``start_char`` continuation verbatim to a person with
+    no tool access and never gave the PDF link the response already carried. The
+    sentence says who each route is for, with the URL written inline — never a
+    pointer to the ``provenance`` field, which one consumer relayed as-is.
+    """
+    lead = "The start_char continuation is for the tool caller, not the person asking."
+    if pdf_link:
+        return f"{lead} A person who wants the whole document should be given the PDF link: {pdf_link}"
+    return (
+        f"{lead} A person who wants the whole document would normally be given the PDF link, "
+        "but no PDF link is available for this document."
+    )
+
+
+def add_audience_sentence(window: dict[str, Any], pdf_link: str | None) -> dict[str, Any]:
+    """Append the audience sentence to a truncated window's ``message`` (WO-6).
+
+    The existing continuation sentence stays byte-for-byte first so R13c's
+    banner-outside-the-coordinates statement is intact; the banner itself is untouched.
+    A non-truncated window has no ``message`` and gains none.
+    """
+    if window.get("truncated"):
+        window["message"] = f"{window['message']} {audience_sentence(pdf_link)}"
+    return window
+
+
 def find_occurrences(
     text: str,
     needle: str,

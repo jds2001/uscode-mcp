@@ -8,6 +8,7 @@ import fx
 import httpx
 
 from uscode_mcp import tools
+from uscode_mcp.htmltext import window_text
 
 
 def section_handler(search_payload, htm_text=fx.SECTION_HTML, seen=None):
@@ -504,3 +505,58 @@ class TestSectionFieldExtent:
         )
         assert read["text"]["truncated"] is False
         assert read["text"]["content"].startswith("Amendments")
+
+
+class TestAudienceSentenceOnTruncatedSection:
+    """WO-6: the audience sentence rides on truncated get_us_code_section responses too,
+    with the granule's PDF link from the same response's provenance written inline."""
+
+    async def test_message_carries_the_provenance_pdf_link_inline_and_names_the_pdf(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", max_chars=50)
+        text = out["text"]
+        assert text["truncated"] is True
+        pdf = out["provenance"]["pdf_link"]
+        assert pdf and pdf.endswith("/pdf")
+        message = text["message"]
+        assert pdf in message
+        assert "PDF" in message
+        assert "tool caller" in message
+        assert "person asking" in message
+        assert "provenance" not in message
+
+    async def test_continuation_sentence_and_banner_are_byte_unchanged(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", max_chars=50)
+        text = out["text"]
+        bare = window_text("x" * text["total_chars"], start_char=text["start_char"], max_chars=50)
+        assert text["message"].startswith(bare["message"])
+        assert "NOT part of the payload" in bare["message"]
+        assert text["banner"] == bare["banner"]
+        assert text["content"].split("\n", 1)[0] == bare["banner"]
+
+    async def test_reading_call_window_also_carries_the_sentence(self, make_client):
+        # A continuation window that is itself truncated is still a truncated response.
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", start_char=10, max_chars=20)
+        assert out["text"]["truncated"] is True
+        assert out["provenance"]["pdf_link"] in out["text"]["message"]
+
+    async def test_untruncated_response_has_no_audience_sentence(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        assert out["text"]["truncated"] is False
+        assert "message" not in out["text"]
+        assert out["provenance"]["pdf_link"] not in out["text"]["content"]
+
+    async def test_hit_without_a_pdf_link_says_unavailable_not_an_empty_url(self, make_client):
+        hit = fx.usc_hit()
+        del hit["download"]["pdfLink"]
+        client = make_client(section_handler(fx.search_response([hit])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", max_chars=50)
+        assert out["outcome"] == "success"
+        assert out["provenance"]["pdf_link"] is None
+        message = out["text"]["message"]
+        assert "no PDF link is available" in message
+        assert "PDF link: " not in message
+        assert "None" not in message

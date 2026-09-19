@@ -36,6 +36,7 @@ from . import superseded
 from .citations import CitationParseError, USCCitation, parse_public_law, parse_usc
 from .govinfo import GovInfoClient, GovInfoTransportError, UpstreamResponse
 from .htmltext import (
+    add_audience_sentence,
     edition_year_from_package_id,
     extract_currentthrough,
     find_occurrences,
@@ -525,6 +526,7 @@ async def _fetch_and_deliver(
     except ValueError as exc:
         await detector.abandon()
         return _invalid_argument(str(exc))
+    add_audience_sentence(window, provenance["pdf_link"])
 
     # The text is ready: wait the bounded budget for the detector, never longer.
     stripped_note = parsed.stripped_note if parsed is not None else False
@@ -949,6 +951,7 @@ async def get_public_law(
         window = window_text(content, start_char=start_char, max_chars=max_chars)
     except ValueError as exc:
         return _invalid_argument(str(exc))
+    add_audience_sentence(window, download.get("pdfLink"))
 
     out: dict[str, Any] = {
         "outcome": "success",
