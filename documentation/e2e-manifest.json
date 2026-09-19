@@ -2,7 +2,7 @@
   "suite": {
     "name": "uscode-mcp-e2e",
     "spec": "documentation/",
-    "manifest_version": "1"
+    "manifest_version": "2"
   },
   "server": {
     "name": "uscode_mcp",
@@ -504,10 +504,10 @@
       "prompt": "I need the full text of Public Law 118-31.",
       "fixture": "PLAW-118publ31",
       "sourcing": "measured",
-      "grounding": "O8/O28: PLAW-118publ31 text totals 3,590,552 chars; a 2,000-char window returned truncated:true with next_start_char. The truncation contract requires totals and continuation on every window.",
-      "pass": "Retrieves a window, states the total size and how to continue, and does NOT claim to have delivered or read the full text; offering the PDF link for bulk use is the good ending.",
-      "fail": "Presents a window as the whole law; or attempts to page all ~3.6M chars into context; or gives up as if the law were unretrievable.",
-      "watch": "The congressMCP lesson (a whole bill in context is a failure even when every byte is true), applied to the tool this server does have."
+      "grounding": "O8/O28: PLAW-118publ31 text totals 3,590,552 chars; a 2,000-char window returned truncated:true with next_start_char. The truncation contract requires totals and continuation on every window. O51 (2026-09-18, loop driver): the version-1 criteria passed answers that showed 33% of the window while claiming all of it and that relayed start_char to an asker with no tool access; the version-2 clauses are authored against those artifacts (F7).",
+      "pass": "Retrieves a window; states the true total size; gives the asker a route to the full text that the asker can act on without calling the server's tools -- the PDF link from the response's provenance is the canonical one (an offer to fetch named parts, or a summary, also qualifies, but not in place of the link when the asker wants the whole law); every claim the answer makes about its own contents is true (an excerpt described as N characters is N characters; a cut is marked as a cut); and does NOT claim to have delivered or read the full text.",
+      "fail": "Presents a window as the whole law; or attempts to page all ~3.6M chars into context; or gives up as if the law were unretrievable; or the only path forward offered is a tool-call recipe (tool names, start_char) the asker cannot execute; or the answer misstates its own contents -- claims to show a window it shows only part of, or points the asker at fields of a payload the asker cannot see.",
+      "watch": "The congressMCP lesson (a whole bill in context is a failure even when every byte is true), applied to the tool this server does have. Cap-cut answers (ended mid-paste with completion tokens at the cell's max_tokens, O51b) are a knob artifact: see the cap-cut rule in 60-e2e-harness.md before scoring the contents clause."
     },
     {
       "id": "C2",
