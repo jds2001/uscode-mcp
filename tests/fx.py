@@ -92,6 +92,7 @@ def plaw_summary(package_id: str = "PLAW-118publ31", uslm: bool = True) -> dict[
         "packageId": package_id,
         "dateIssued": "2023-12-22",
         "lastModified": "2024-01-15T00:00:00Z",
+        "detailsLink": f"https://www.govinfo.gov/app/details/{package_id}",
         "download": download,
         "references": [{"contents": [{"title": "42", "sections": [{"section": "2210"}]}]}],
     }
@@ -120,6 +121,7 @@ def granule_summary(
         "usCodeCitation": None,
         "dateIssued": "2024-12-31",
         "lastModified": "2025-03-01T00:00:00Z",
+        "detailsLink": f"https://www.govinfo.gov/app/details/{package_id}/{granule_id}",
         "download": download,
     }
 

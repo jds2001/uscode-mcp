@@ -329,24 +329,55 @@ def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dic
     return result
 
 
-def audience_sentence(pdf_link: str | None) -> str:
+PUBLIC_CONTENT_ROOT = "https://www.govinfo.gov/content/pkg"
+
+
+def public_pdf_link(package_id: str | None, granule_id: str | None = None) -> str | None:
+    """The keyless PDF URL on www.govinfo.gov's content path (WO-7, O53).
+
+    ``download.pdfLink`` lives on api.govinfo.gov and answers 401 without the key
+    (O53a), so the person the audience sentence addresses cannot open it. The content
+    path is built from the identifiers the response already carries and nothing else:
+    ``{root}/{package_id}/pdf/{package_id}.pdf`` for a package, ``{root}/{package_id}/
+    pdf/{granule_id}.pdf`` for a granule — so it names the same granule the text came
+    from, including granule_id lookups (R16). Measured 4/4 direct, 7/7 via the Link
+    Service (O53). Never fetched to verify: no extra upstream call.
+    """
+    if not package_id:
+        return None
+    leaf = granule_id if granule_id else package_id
+    return f"{PUBLIC_CONTENT_ROOT}/{package_id}/pdf/{leaf}.pdf"
+
+
+def audience_sentence(public_pdf: str | None, details_link: str | None = None) -> str:
     """The WO-6 audience sentence (40-tools.md, "No silent truncation"; E17).
 
     O51c: consumers relayed the ``start_char`` continuation verbatim to a person with
     no tool access and never gave the PDF link the response already carried. The
     sentence says who each route is for, with the URL written inline — never a
     pointer to the ``provenance`` field, which one consumer relayed as-is.
+
+    WO-7: the URL is the public content-path PDF (``public_pdf_link``), which opens
+    without a key. If that could not be built, the upstream ``detailsLink`` stands in;
+    if neither exists, the sentence says so rather than emitting an empty URL.
     """
     lead = "The start_char continuation is for the tool caller, not the person asking."
-    if pdf_link:
-        return f"{lead} A person who wants the whole document should be given the PDF link: {pdf_link}"
+    if public_pdf:
+        return f"{lead} A person who wants the whole document should be given the PDF link: {public_pdf}"
+    if details_link:
+        return (
+            f"{lead} A person who wants the whole document should be given the document's "
+            f"GovInfo details page, which links the PDF: {details_link}"
+        )
     return (
         f"{lead} A person who wants the whole document would normally be given the PDF link, "
         "but no PDF link is available for this document."
     )
 
 
-def add_audience_sentence(window: dict[str, Any], pdf_link: str | None) -> dict[str, Any]:
+def add_audience_sentence(
+    window: dict[str, Any], public_pdf: str | None, details_link: str | None = None
+) -> dict[str, Any]:
     """Append the audience sentence to a truncated window's ``message`` (WO-6).
 
     The existing continuation sentence stays byte-for-byte first so R13c's
@@ -354,7 +385,7 @@ def add_audience_sentence(window: dict[str, Any], pdf_link: str | None) -> dict[
     A non-truncated window has no ``message`` and gains none.
     """
     if window.get("truncated"):
-        window["message"] = f"{window['message']} {audience_sentence(pdf_link)}"
+        window["message"] = f"{window['message']} {audience_sentence(public_pdf, details_link)}"
     return window
 
 

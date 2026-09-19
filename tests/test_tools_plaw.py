@@ -314,22 +314,58 @@ class TestBannerCoordinateDisclosure:
         assert "message" not in out["text"]
 
 
-class TestAudienceSentenceOnTruncatedLaw:
-    """WO-6: a truncated get_public_law response tells the tool caller the start_char
-    continuation is theirs and gives the person asking the PDF link inline (O51c: 21/21
-    consumer answers relayed the continuation to an asker with no tool access; 0/10
-    gave the PDF link the response carried)."""
+class TestPublicLinksOnLaw:
+    """WO-7 (O53): every text-bearing success carries a keyless content-path PDF built
+    from the package id and nothing else, plus the package summary's detailsLink
+    verbatim; pdf_link (api.govinfo.gov, 401 without the key) stays exactly as it was."""
 
-    async def test_message_carries_the_provenance_pdf_link_inline_and_names_the_pdf(self, make_client):
+    async def test_provenance_carries_public_pdf_link_and_details_link(self, make_client):
+        out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31)
+        prov = out["provenance"]
+        assert prov["package_id"] == "PLAW-118publ31"
+        assert prov["public_pdf_link"] == "https://www.govinfo.gov/content/pkg/PLAW-118publ31/pdf/PLAW-118publ31.pdf"
+        assert prov["details_link"] == fx.plaw_summary()["detailsLink"]
+        assert prov["pdf_link"] == fx.plaw_summary()["download"]["pdfLink"]  # unchanged
+
+    async def test_untruncated_response_carries_both_links_and_no_sentence(self, make_client):
+        out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31)
+        assert out["text"]["truncated"] is False
+        assert "message" not in out["text"]
+        assert out["provenance"]["public_pdf_link"]
+        assert out["provenance"]["details_link"]
+        assert "govinfo.gov" not in out["text"]["content"]
+
+    async def test_summary_without_details_link_yields_null_not_an_error(self, make_client):
+        summary = fx.plaw_summary()
+        del summary["detailsLink"]
+        out = await tools.get_public_law(make_client(plaw_handler(summary=summary)), congress=118, law_number=31)
+        assert out["outcome"] == "success"
+        assert out["provenance"]["details_link"] is None
+        assert out["provenance"]["public_pdf_link"].endswith("/PLAW-118publ31.pdf")
+
+    async def test_uslm_format_carries_the_same_public_links(self, make_client):
+        out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31, format="uslm")
+        assert out["outcome"] == "success"
+        assert out["provenance"]["public_pdf_link"].endswith("/pdf/PLAW-118publ31.pdf")
+        assert out["provenance"]["details_link"] == fx.plaw_summary()["detailsLink"]
+
+
+class TestAudienceSentenceOnTruncatedLaw:
+    """WO-6 (O51c) as amended by WO-7 (O53a): a truncated get_public_law response tells
+    the tool caller the start_char continuation is theirs and gives the person asking
+    the PUBLIC PDF link inline — the api.govinfo.gov pdf_link answers 401 without a key."""
+
+    async def test_message_carries_public_pdf_link_inline_and_not_the_keyed_one(self, make_client):
         out = await tools.get_public_law(
             make_client(plaw_handler()), congress=118, law_number=31, max_chars=40
         )
         text = out["text"]
         assert text["truncated"] is True
-        pdf = out["provenance"]["pdf_link"]
-        assert pdf and pdf.endswith("/pdf")
+        prov = out["provenance"]
         message = text["message"]
-        assert pdf in message
+        assert prov["public_pdf_link"] in message
+        assert prov["pdf_link"] not in message
+        assert "api.govinfo.gov" not in message
         assert "PDF" in message
         assert "tool caller" in message
         assert "person asking" in message
@@ -351,9 +387,10 @@ class TestAudienceSentenceOnTruncatedLaw:
         out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31)
         assert out["text"]["truncated"] is False
         assert "message" not in out["text"]
-        assert out["provenance"]["pdf_link"] not in out["text"]["content"]
 
-    async def test_summary_without_a_pdf_link_says_unavailable_not_an_empty_url(self, make_client):
+    async def test_summary_without_a_keyed_pdf_link_still_gives_the_public_link(self, make_client):
+        # The public link is built from the package id, so a download map without
+        # pdfLink changes pdf_link (null) and nothing about the sentence.
         summary = fx.plaw_summary()
         del summary["download"]["pdfLink"]
         out = await tools.get_public_law(
@@ -362,7 +399,6 @@ class TestAudienceSentenceOnTruncatedLaw:
         assert out["outcome"] == "success"
         assert out["provenance"]["pdf_link"] is None
         message = out["text"]["message"]
-        assert "no PDF link is available" in message
-        assert "tool caller" in message
-        assert "PDF link: " not in message
+        assert out["provenance"]["public_pdf_link"] in message
+        assert "no PDF link is available" not in message
         assert "None" not in message

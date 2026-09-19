@@ -41,6 +41,7 @@ from .htmltext import (
     extract_currentthrough,
     find_occurrences,
     html_to_text_with_structure,
+    public_pdf_link,
     structure_omitted_for_reading_call,
     window_text,
 )
@@ -503,13 +504,20 @@ async def _fetch_and_deliver(
 
     currentthrough = extract_currentthrough(html)
     await detector.after_fetch(edition_year, currentthrough)
+    granule_id = hit.get("granuleId")
     provenance: dict[str, Any] = {
         "package_id": package_id,
-        "granule_id": hit.get("granuleId"),
+        "granule_id": granule_id,
         "edition_year": edition_year,
         "currentthrough": currentthrough,
         "last_modified": hit.get("lastModified"),
         "pdf_link": download.get("pdfLink"),
+        # WO-7: the keyless content-path PDF, built from the ids above and nothing else;
+        # details_link is the granule summary's detailsLink verbatim — present on the
+        # granule_id path, null on the citation path, whose search hit carries none
+        # (measured 2026-09-19: search hits have resultLink/relatedLink, no detailsLink).
+        "public_pdf_link": public_pdf_link(package_id, granule_id),
+        "details_link": hit.get("detailsLink"),
     }
     if currentthrough is None:
         provenance["currentthrough_note"] = (
@@ -526,7 +534,7 @@ async def _fetch_and_deliver(
     except ValueError as exc:
         await detector.abandon()
         return _invalid_argument(str(exc))
-    add_audience_sentence(window, provenance["pdf_link"])
+    add_audience_sentence(window, provenance["public_pdf_link"], provenance["details_link"])
 
     # The text is ready: wait the bounded budget for the detector, never longer.
     stripped_note = parsed.stripped_note if parsed is not None else False
@@ -664,6 +672,7 @@ async def _get_section_by_id(
         "packageId": summary.get("packageId") or package_id,
         "granuleId": summary.get("granuleId") or granule_id,
         "lastModified": summary.get("lastModified"),
+        "detailsLink": summary.get("detailsLink"),
     }
     return await _fetch_and_deliver(
         client, detector, parsed, hit, download, txt_link, max_chars, start_char, find, head
@@ -951,19 +960,24 @@ async def get_public_law(
         window = window_text(content, start_char=start_char, max_chars=max_chars)
     except ValueError as exc:
         return _invalid_argument(str(exc))
-    add_audience_sentence(window, download.get("pdfLink"))
+    provenance: dict[str, Any] = {
+        "package_id": package_id,
+        "date_issued": summary.get("dateIssued"),
+        "last_modified": summary.get("lastModified"),
+        "pdf_link": download.get("pdfLink"),
+        # WO-7: keyless content-path PDF for the package, and the package summary's
+        # detailsLink verbatim.
+        "public_pdf_link": public_pdf_link(package_id),
+        "details_link": summary.get("detailsLink"),
+    }
+    add_audience_sentence(window, provenance["public_pdf_link"], provenance["details_link"])
 
     out: dict[str, Any] = {
         "outcome": "success",
         "congress": congress,
         "law_number": law_number,
         "format": format,
-        "provenance": {
-            "package_id": package_id,
-            "date_issued": summary.get("dateIssued"),
-            "last_modified": summary.get("lastModified"),
-            "pdf_link": download.get("pdfLink"),
-        },
+        "provenance": provenance,
         "text": window,
     }
     if find is not None:

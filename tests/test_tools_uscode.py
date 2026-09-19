@@ -507,19 +507,60 @@ class TestSectionFieldExtent:
         assert read["text"]["content"].startswith("Amendments")
 
 
-class TestAudienceSentenceOnTruncatedSection:
-    """WO-6: the audience sentence rides on truncated get_us_code_section responses too,
-    with the granule's PDF link from the same response's provenance written inline."""
+class TestPublicLinksOnSection:
+    """WO-7 (O53): the granule form of the keyless content-path PDF, built from the
+    response's own package_id and granule_id. The citation path resolves through a
+    search hit, which carries no detailsLink (measured 2026-09-19), so details_link is
+    null here; the granule_id path (test_tools_by_id) has the summary's value."""
 
-    async def test_message_carries_the_provenance_pdf_link_inline_and_names_the_pdf(self, make_client):
+    async def test_provenance_carries_granule_form_public_pdf_link(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        prov = out["provenance"]
+        assert prov["public_pdf_link"] == (
+            "https://www.govinfo.gov/content/pkg/USCODE-2024-title17/pdf/USCODE-2024-title17-chap1-sec107.pdf"
+        )
+        assert prov["pdf_link"] == fx.usc_hit()["download"]["pdfLink"]  # unchanged
+
+    async def test_citation_path_details_link_is_null_because_search_hits_carry_none(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        assert out["outcome"] == "success"
+        assert "details_link" in out["provenance"]
+        assert out["provenance"]["details_link"] is None
+
+    async def test_public_link_follows_the_resolved_ids_not_the_citation(self, make_client):
+        hit = fx.usc_hit(package_id="USCODE-1998-title17", granule_id="USCODE-1998-title17-chap1-sec107",
+                         date_issued="1998-01-05")
+        client = make_client(section_handler(fx.search_response([hit])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", year=1998)
+        assert out["outcome"] == "success"
+        assert out["provenance"]["public_pdf_link"] == (
+            "https://www.govinfo.gov/content/pkg/USCODE-1998-title17/pdf/USCODE-1998-title17-chap1-sec107.pdf"
+        )
+
+    async def test_untruncated_response_carries_both_fields_and_no_sentence(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        assert out["text"]["truncated"] is False
+        assert "message" not in out["text"]
+        assert "public_pdf_link" in out["provenance"] and "details_link" in out["provenance"]
+
+
+class TestAudienceSentenceOnTruncatedSection:
+    """WO-6 as amended by WO-7: the audience sentence on truncated get_us_code_section
+    responses carries the granule's PUBLIC PDF link, not the keyed api.govinfo.gov one."""
+
+    async def test_message_carries_public_pdf_link_inline_and_not_the_keyed_one(self, make_client):
         client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
         out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", max_chars=50)
         text = out["text"]
         assert text["truncated"] is True
-        pdf = out["provenance"]["pdf_link"]
-        assert pdf and pdf.endswith("/pdf")
+        prov = out["provenance"]
         message = text["message"]
-        assert pdf in message
+        assert prov["public_pdf_link"] in message
+        assert prov["pdf_link"] not in message
+        assert "api.govinfo.gov" not in message
         assert "PDF" in message
         assert "tool caller" in message
         assert "person asking" in message
@@ -540,16 +581,15 @@ class TestAudienceSentenceOnTruncatedSection:
         client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
         out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", start_char=10, max_chars=20)
         assert out["text"]["truncated"] is True
-        assert out["provenance"]["pdf_link"] in out["text"]["message"]
+        assert out["provenance"]["public_pdf_link"] in out["text"]["message"]
 
     async def test_untruncated_response_has_no_audience_sentence(self, make_client):
         client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
         out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
         assert out["text"]["truncated"] is False
         assert "message" not in out["text"]
-        assert out["provenance"]["pdf_link"] not in out["text"]["content"]
 
-    async def test_hit_without_a_pdf_link_says_unavailable_not_an_empty_url(self, make_client):
+    async def test_hit_without_a_keyed_pdf_link_still_gives_the_public_link(self, make_client):
         hit = fx.usc_hit()
         del hit["download"]["pdfLink"]
         client = make_client(section_handler(fx.search_response([hit])))
@@ -557,6 +597,24 @@ class TestAudienceSentenceOnTruncatedSection:
         assert out["outcome"] == "success"
         assert out["provenance"]["pdf_link"] is None
         message = out["text"]["message"]
+        assert out["provenance"]["public_pdf_link"] in message
+        assert "no PDF link is available" not in message
+        assert "None" not in message
+
+    async def test_hit_without_a_package_id_reaches_the_no_link_wording(self, make_client):
+        # The one reachable fallback: a search hit with no packageId (shape drift) is
+        # the only way public_pdf_link cannot be built, and the citation path has no
+        # summary so details_link is null too — the sentence says so rather than
+        # emitting an empty URL. (The details-page fallback is NOT reachable: details_link
+        # exists only on the summary paths, where a package id always exists.)
+        hit = fx.usc_hit()
+        del hit["packageId"]
+        client = make_client(section_handler(fx.search_response([hit])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", max_chars=50)
+        assert out["outcome"] == "success"
+        assert out["provenance"]["public_pdf_link"] is None
+        assert out["provenance"]["details_link"] is None
+        message = out["text"]["message"]
         assert "no PDF link is available" in message
-        assert "PDF link: " not in message
+        assert "https://" not in message.split("NOT part of the payload", 1)[1]
         assert "None" not in message

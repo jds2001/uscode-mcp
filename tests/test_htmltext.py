@@ -12,6 +12,7 @@ from uscode_mcp.htmltext import (
     find_occurrences,
     html_to_text,
     html_to_text_with_structure,
+    public_pdf_link,
     structure_omitted_for_reading_call,
     window_text,
 )
@@ -365,7 +366,8 @@ class TestAudienceSentence:
     the PDF link inline — O51c saw consumers relay the continuation verbatim to an
     asker with no tool access and never surface the link the response carried."""
 
-    PDF = "https://api.govinfo.gov/packages/PLAW-118publ31/pdf"
+    PDF = "https://www.govinfo.gov/content/pkg/PLAW-118publ31/pdf/PLAW-118publ31.pdf"
+    DETAILS = "https://www.govinfo.gov/app/details/PLAW-118publ31"
 
     def test_sentence_names_both_audiences_and_carries_the_url_inline(self):
         s = audience_sentence(self.PDF)
@@ -403,3 +405,44 @@ class TestAudienceSentence:
     def test_returns_the_same_window_object(self):
         w = window_text("abcdefghij", start_char=0, max_chars=4)
         assert add_audience_sentence(w, self.PDF) is w
+
+    def test_fallback_chain_public_pdf_then_details_then_unavailable(self):
+        # WO-7: public PDF wins; the details page stands in only when it cannot be built.
+        with_pdf = audience_sentence(self.PDF, self.DETAILS)
+        assert self.PDF in with_pdf and self.DETAILS not in with_pdf
+        details_only = audience_sentence(None, self.DETAILS)
+        assert self.DETAILS in details_only
+        assert "details page" in details_only
+        assert "PDF link: " not in details_only  # a details page is not offered as a PDF
+        assert "tool caller" in details_only and "person asking" in details_only
+        neither = audience_sentence(None, None)
+        assert "no PDF link is available" in neither
+        assert "https://" not in neither
+
+    def test_add_audience_sentence_passes_the_details_fallback_through(self):
+        w = add_audience_sentence(window_text("abcdefghij", start_char=0, max_chars=4), None, self.DETAILS)
+        assert w["message"].endswith(self.DETAILS)
+
+
+class TestPublicPdfLink:
+    """WO-7 (O53): the keyless content-path PDF, built from ids only, never fetched."""
+
+    def test_package_form(self):
+        assert public_pdf_link("PLAW-118publ31") == (
+            "https://www.govinfo.gov/content/pkg/PLAW-118publ31/pdf/PLAW-118publ31.pdf"
+        )
+
+    def test_granule_form(self):
+        assert public_pdf_link("USCODE-2024-title42", "USCODE-2024-title42-chap23-divsnA-subchapXIII-sec2210") == (
+            "https://www.govinfo.gov/content/pkg/USCODE-2024-title42/pdf/"
+            "USCODE-2024-title42-chap23-divsnA-subchapXIII-sec2210.pdf"
+        )
+
+    def test_empty_granule_id_means_package_form(self):
+        assert public_pdf_link("PLAW-118publ31", None) == public_pdf_link("PLAW-118publ31", "")
+        assert public_pdf_link("PLAW-118publ31", "").endswith("/PLAW-118publ31.pdf")
+
+    def test_no_package_id_cannot_be_built(self):
+        assert public_pdf_link(None) is None
+        assert public_pdf_link("") is None
+        assert public_pdf_link(None, "USCODE-2024-title17-chap1-sec107") is None

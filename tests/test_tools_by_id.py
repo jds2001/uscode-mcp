@@ -397,3 +397,33 @@ class TestServerWiring:
     async def test_served_instructions_are_the_constant(self):
         server = create_server()
         assert server.instructions == SERVER_INSTRUCTIONS
+
+
+class TestPublicLinksById:
+    """WO-7 (O53), the Rule 9 case (O46): on a granule_id lookup public_pdf_link names
+    THAT granule, from the ids the response carries, and details_link is the granule
+    summary's detailsLink verbatim."""
+
+    async def test_public_pdf_link_names_the_looked_up_granule(self, make_client):
+        out = await tools.get_us_code_section(make_client(by_id_handler()), granule_id=GID)
+        assert out["outcome"] == "success"
+        assert out["provenance"]["public_pdf_link"] == f"https://www.govinfo.gov/content/pkg/{PID}/pdf/{GID}.pdf"
+        assert out["provenance"]["details_link"] == fx.granule_summary()["detailsLink"]
+        assert out["provenance"]["pdf_link"] == fx.granule_summary()["download"]["pdfLink"]  # unchanged
+
+    async def test_summary_without_details_link_yields_null_not_an_error(self, make_client):
+        summary = fx.granule_summary()
+        del summary["detailsLink"]
+        out = await tools.get_us_code_section(
+            make_client(by_id_handler(summary_response=fx.json_response(summary))), granule_id=GID
+        )
+        assert out["outcome"] == "success"
+        assert out["provenance"]["details_link"] is None
+        assert out["provenance"]["public_pdf_link"].endswith(f"/{GID}.pdf")
+
+    async def test_truncated_by_id_sentence_carries_the_public_granule_link(self, make_client):
+        out = await tools.get_us_code_section(make_client(by_id_handler()), granule_id=GID, max_chars=50)
+        assert out["text"]["truncated"] is True
+        message = out["text"]["message"]
+        assert out["provenance"]["public_pdf_link"] in message
+        assert out["provenance"]["pdf_link"] not in message
