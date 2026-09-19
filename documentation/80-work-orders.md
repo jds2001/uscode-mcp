@@ -124,3 +124,18 @@ Measured basis (O44d): the field carries this form (`"50 U.S.C. App. 2012"` → 
 
 **Verification artifacts** (real upstream, traced): (1) tools/list descriptions for all three tools; (2) `search_public_laws` with `congress:119 "Price-Anderson"` → success, `count: 0`, `recall_caveat` present with the full-text wording; (3) `uscodecitation:"42 U.S.C. 2210"` → `recall_caveat` with the field wording; (4) the two query strings and both caveat texts verbatim.
 
+## WO-6 — the audience sentence in `text.message` on truncated responses (contract in `40-tools.md`, "No silent truncation"; measured basis O51; consumer effect preregistered as E17)
+
+**Status:** ISSUED 2026-09-18.
+
+**What it is.** When `truncated` is true on either text tool (`get_public_law`, `get_us_code_section`), `text.message` gains a sentence saying that the `start_char` continuation is for the tool caller, and that a person who wants the whole document should be given the PDF link — with the URL from the same response's `provenance` written into the sentence. The banner is unchanged: its exact text is pinned by the `banner-leads-truncated-content` check and O37. Non-truncated responses are unchanged.
+
+**Why.** O51c, from the harness's loop-driver runs of C1: 21 of 21 answers relayed the continuation verbatim to an asker who has no tool access; 0 of 10 pinned answers gave the PDF link the response carried; one told the asker the link was "in the provenance metadata". Consumers repeat `text.message` — F1 closed the same way when the truncation truth moved in-band (E12).
+
+**Shape.** Exact wording is the implementation's; it must: name the continuation as the tool caller's; name the PDF as the whole-document route for the person asking; carry the URL inline, never a pointer to the `provenance` field; be one or two sentences; appear on both text tools; follow the existing continuation sentence so R13c's banner-outside-the-coordinates statement is kept intact. Report the final wording verbatim.
+
+**Do not.** Change the banner text or position. Add the sentence to non-truncated responses. Change any field name or the shape of the `text` object. Write under `documentation/`.
+
+**Unit tests.** On truncated `get_public_law` and `get_us_code_section` responses: the message contains the URL from that response's provenance, names the PDF, and the existing continuation sentence and the banner are byte-unchanged from before. On non-truncated responses: no audience sentence. A provenance with no PDF link, if that case is reachable: the sentence says the link is unavailable rather than emitting an empty URL — and if the case is not reachable, say so in the report instead of testing a case that cannot occur.
+
+**Verification artifacts** (real upstream, traced): (1) `get_public_law` on `Public Law 118-31` at the default `max_chars` — the trace record with `text.message` verbatim, URL inline; (2) `get_us_code_section` on `42 U.S.C. 2210` at `max_chars` 2000 — the same; (3) one un-truncated response from each tool showing no audience sentence; (4) the final wording, verbatim, in the report. Whether consumers repeat it to the asker is E17's measurement, not this order's.
