@@ -126,7 +126,7 @@ Measured basis (O44d): the field carries this form (`"50 U.S.C. App. 2012"` → 
 
 ## WO-6 — the audience sentence in `text.message` on truncated responses (contract in `40-tools.md`, "No silent truncation"; measured basis O51; consumer effect preregistered as E17)
 
-**Status:** ISSUED 2026-09-18.
+**Status:** CLOSED 2026-09-19 — built at implementation commit ee4ca88, verified O52: the run's four trace lines checked programmatically (banner shape and position, continuation sentence byte-unchanged and first, audience sentence after one space with the URL equal to the response's own `provenance.pdf_link`, no "provenance" in the message, nothing on un-truncated responses), a fresh-process probe over five inputs including the continuation window and the default-window `17 U.S.C. 107` truncation, and a clean secret scan. Final wording from the trace: `The start_char continuation is for the tool caller, not the person asking. A person who wants the whole document should be given the PDF link: <pdf_link>`. The no-`pdfLink` wording is unobserved upstream and stands as the implementation's claim (O52d). The order text below is kept as issued.
 
 **What it is.** When `truncated` is true on either text tool (`get_public_law`, `get_us_code_section`), `text.message` gains a sentence saying that the `start_char` continuation is for the tool caller, and that a person who wants the whole document should be given the PDF link — with the URL from the same response's `provenance` written into the sentence. The banner is unchanged: its exact text is pinned by the `banner-leads-truncated-content` check and O37. Non-truncated responses are unchanged.
 
