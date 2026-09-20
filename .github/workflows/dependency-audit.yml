@@ -1,0 +1,49 @@
+name: Dependency audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "17 9 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: ${{ matrix.dependencies }} dependencies / ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dependencies: [runtime, development]
+        service: [pypi, osv]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Export locked ${{ matrix.dependencies }} dependencies
+        env:
+          DEPENDENCIES: ${{ matrix.dependencies }}
+        run: |
+          if [[ "$DEPENDENCIES" == "runtime" ]]; then
+            group_args=(--no-dev)
+          else
+            group_args=(--only-dev)
+          fi
+          uv export \
+            --locked \
+            --no-emit-project \
+            --format requirements.txt \
+            "${group_args[@]}" \
+            --output-file audit-requirements.txt
+
+      - name: Audit with ${{ matrix.service }} advisories
+        run: >-
+          uvx --from pip-audit pip-audit
+          --requirement audit-requirements.txt
+          --vulnerability-service ${{ matrix.service }}
+          --progress-spinner off
