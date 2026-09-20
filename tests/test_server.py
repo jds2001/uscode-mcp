@@ -6,9 +6,36 @@ import json
 import fx
 import httpx
 
+from uscode_mcp.govinfo import UpstreamResponse
 from uscode_mcp.server import create_server
 
 EXPECTED_TOOLS = {"get_us_code_section", "search_us_code", "get_public_law", "search_public_laws"}
+
+
+class _LifecycleClient:
+    def __init__(self, *, close_error=False):
+        self.close_calls = 0
+        self.search_calls = 0
+        self.close_error = close_error
+
+    async def search(self, body):
+        self.search_calls += 1
+        return UpstreamResponse(
+            status=200,
+            headers={},
+            text=json.dumps(fx.search_response([])),
+            url="https://api.govinfo.gov/search",
+        )
+
+    async def aclose(self):
+        self.close_calls += 1
+        if self.close_error:
+            raise RuntimeError("close failed")
+
+
+def _lifespan(server):
+    assert server.settings.lifespan is not None
+    return server.settings.lifespan(server)
 
 
 def _payload(result):
@@ -147,6 +174,53 @@ async def test_call_tool_end_to_end_section_retrieval(make_client):
     assert payload["outcome"] == "success"
     assert payload["provenance"]["currentthrough"] == "2025-01-06"
     assert "fair use of a copyrighted work" in payload["text"]["content"]
+
+
+async def test_lifespan_closes_server_created_client_exactly_once(monkeypatch):
+    client = _LifecycleClient()
+    monkeypatch.setattr("uscode_mcp.server.client_from_env", lambda: client)
+    server = create_server()
+
+    async with _lifespan(server):
+        await server.call_tool("search_us_code", {"query": "x"})
+        assert client.close_calls == 0
+
+    assert client.search_calls == 1
+    assert client.close_calls == 1
+
+
+async def test_lifespan_never_closes_injected_client():
+    client = _LifecycleClient()
+    server = create_server(client=client)
+
+    async with _lifespan(server):
+        await server.call_tool("search_us_code", {"query": "x"})
+
+    assert client.search_calls == 1
+    assert client.close_calls == 0
+
+
+async def test_lifespan_does_not_create_client_only_to_close_it(monkeypatch):
+    created = []
+    monkeypatch.setattr("uscode_mcp.server.client_from_env", lambda: created.append(_LifecycleClient()))
+    server = create_server()
+
+    async with _lifespan(server):
+        pass
+
+    assert created == []
+
+
+async def test_client_close_failure_does_not_mask_shutdown(monkeypatch, caplog):
+    client = _LifecycleClient(close_error=True)
+    monkeypatch.setattr("uscode_mcp.server.client_from_env", lambda: client)
+    server = create_server()
+
+    async with _lifespan(server):
+        await server.call_tool("search_us_code", {"query": "x"})
+
+    assert client.close_calls == 1
+    assert "failed to close" in caplog.text
 
 
 async def test_create_server_registers_tracing_middleware(tmp_path):

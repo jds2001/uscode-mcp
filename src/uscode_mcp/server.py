@@ -5,6 +5,9 @@ notably the reverse-lookup recipe and its recall caveat on search_public_laws)."
 
 from __future__ import annotations
 
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
@@ -13,6 +16,8 @@ from . import tools
 from ._version import __version__
 from .govinfo import GovInfoClient, client_from_env
 from .trace import Tracer, TracingMiddleware, tracer_from_env
+
+logger = logging.getLogger(__name__)
 
 SERVER_INSTRUCTIONS = """\
 Search and retrieval over the United States Code and Public Laws as published by GPO on GovInfo. The US Code
@@ -50,14 +55,39 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
     if tracer is None:
         tracer = tracer_from_env()
     middleware = [TracingMiddleware(tracer)] if tracer is not None else None
-    mcp = MCPServer("uscode-mcp", instructions=SERVER_INSTRUCTIONS, version=__version__, middleware=middleware)
     state: dict[str, GovInfoClient] = {}
+    owned_client = False
     if client is not None:
         state["client"] = client
 
+    @asynccontextmanager
+    async def lifespan(_: MCPServer) -> AsyncIterator[None]:
+        nonlocal owned_client
+        try:
+            yield None
+        finally:
+            if owned_client:
+                owned_client = False
+                created_client = state.pop("client", None)
+                if created_client is not None:
+                    try:
+                        await created_client.aclose()
+                    except Exception:  # noqa: BLE001 — cleanup failure must not mask shutdown
+                        logger.exception("failed to close the server-owned GovInfo client during shutdown")
+
+    mcp = MCPServer(
+        "uscode-mcp",
+        instructions=SERVER_INSTRUCTIONS,
+        version=__version__,
+        middleware=middleware,
+        lifespan=lifespan,
+    )
+
     def _client() -> GovInfoClient:
+        nonlocal owned_client
         if "client" not in state:
             state["client"] = client_from_env()
+            owned_client = True
         return state["client"]
 
     @mcp.tool()
