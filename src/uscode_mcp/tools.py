@@ -112,26 +112,48 @@ def _classify(resp: UpstreamResponse) -> dict[str, Any] | None:
     return None
 
 
-async def _search(client: GovInfoClient, body: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-    """Run a search. Returns (parsed_json, None) on success or (None, failure_outcome)."""
+async def _search(
+    client: GovInfoClient, body: dict[str, Any]
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, UpstreamResponse | None]:
+    """Run and shape-check a search, retaining the response for path-specific checks."""
     try:
         resp = await client.search(body)
     except GovInfoTransportError as exc:
-        return None, _transport_failure(exc)
+        return None, _transport_failure(exc), None
     failure = _classify(resp)
     if failure is not None:
-        return None, failure
+        return None, failure, resp
     try:
         data = resp.json()
     except ValueError:
         return None, _upstream_failure(
             resp, detail="search response was not valid JSON (response-shape drift; failing loudly per spec)"
-        )
-    if not isinstance(data, dict) or "results" not in data:
+        ), resp
+    if not isinstance(data, dict):
         return None, _upstream_failure(
-            resp, detail="search response lacked a 'results' field (response-shape drift; failing loudly per spec)"
-        )
-    return data, None
+            resp,
+            detail=f"search response expected a JSON object, got {type(data).__name__}",
+        ), resp
+    if "results" not in data:
+        return None, _upstream_failure(
+            resp, detail="search response expected a 'results' field, but it was absent"
+        ), resp
+    results = data["results"]
+    if not isinstance(results, list):
+        return None, _upstream_failure(
+            resp,
+            detail=f"search response expected 'results' to be a list of objects, got {type(results).__name__}",
+        ), resp
+    for index, result in enumerate(results):
+        if not isinstance(result, dict):
+            return None, _upstream_failure(
+                resp,
+                detail=(
+                    f"search response expected 'results' to be a list of objects, but item {index} "
+                    f"was {type(result).__name__}"
+                ),
+            ), resp
+    return data, None, resp
 
 
 async def _fetch(
@@ -556,10 +578,10 @@ async def _resolve_granule(
         "offsetMark": "*",
         "historical": year is not None,
     }
-    data, failure = await _search(client, body)
+    data, failure, search_resp = await _search(client, body)
     if failure is not None:
         return None, None, None, failure
-    assert data is not None
+    assert data is not None and search_resp is not None
     results = data["results"] or []
     if year is not None:
         results = [r for r in results if str(r.get("dateIssued", "")).startswith(str(year))]
@@ -603,8 +625,19 @@ async def _resolve_granule(
         }
 
     hit = results[0]
-    download = hit.get("download") or {}
+    raw_download = hit.get("download")
+    if raw_download is not None and not isinstance(raw_download, dict):
+        return None, None, None, _upstream_failure(
+            search_resp,
+            detail=f"search result expected 'download' to be an object, got {type(raw_download).__name__}",
+        )
+    download = raw_download or {}
     txt_link = download.get("txtLink")
+    if txt_link is not None and not isinstance(txt_link, str):
+        return None, None, None, _upstream_failure(
+            search_resp,
+            detail=f"search result expected 'download.txtLink' to be a string, got {type(txt_link).__name__}",
+        )
     if not txt_link:
         return None, None, None, {
             "outcome": "upstream_error",
@@ -843,9 +876,24 @@ async def _get_section_by_id(
         return _upstream_failure(summary_resp, detail="granule summary was not valid JSON")
     if not isinstance(summary, dict):
         await detector.abandon()
-        return _upstream_failure(summary_resp, detail="granule summary was not a JSON object (response-shape drift)")
-    download = summary.get("download") or {}
+        return _upstream_failure(
+            summary_resp, detail=f"granule summary expected a JSON object, got {type(summary).__name__}"
+        )
+    raw_download = summary.get("download")
+    if raw_download is not None and not isinstance(raw_download, dict):
+        await detector.abandon()
+        return _upstream_failure(
+            summary_resp,
+            detail=f"granule summary expected 'download' to be an object, got {type(raw_download).__name__}",
+        )
+    download = raw_download or {}
     txt_link = download.get("txtLink")
+    if txt_link is not None and not isinstance(txt_link, str):
+        await detector.abandon()
+        return _upstream_failure(
+            summary_resp,
+            detail=f"granule summary expected 'download.txtLink' to be a string, got {type(txt_link).__name__}",
+        )
     if not txt_link:
         await detector.abandon()
         return {
@@ -952,7 +1000,7 @@ async def _scoped_search(
         "offsetMark": offset_mark or "*",
         "historical": bool(historical),
     }
-    data, failure = await _search(client, body)
+    data, failure, _ = await _search(client, body)
     if failure is not None:
         return failure
     assert data is not None
@@ -1068,10 +1116,10 @@ async def get_public_law(
 
     query = f"collection:PLAW lawtype:public congress:{congress} docnumber:{law_number}"
     body = {"query": query, "pageSize": MAX_PAGE_SIZE, "offsetMark": "*"}
-    data, failure = await _search(client, body)
+    data, failure, search_resp = await _search(client, body)
     if failure is not None:
         return failure
-    assert data is not None
+    assert data is not None and search_resp is not None
     results = data["results"] or []
     if not results:
         return {
@@ -1104,15 +1152,13 @@ async def get_public_law(
 
     expected_package_id = f"PLAW-{congress}publ{law_number}"
     if package_id != expected_package_id:
-        return {
-            "outcome": "upstream_error",
-            "http_status": None,
-            "detail": (
+        return _upstream_failure(
+            search_resp,
+            detail=(
                 f"public-law resolution expected packageId {expected_package_id!r}, "
                 f"but the search result carried {package_id!r}"
             ),
-            "result": _result_pointer(results[0]),
-        }
+        )
 
     try:
         summary_resp = await client.package_summary(package_id)
@@ -1125,10 +1171,25 @@ async def get_public_law(
         summary = summary_resp.json()
     except ValueError:
         return _upstream_failure(summary_resp, detail="package summary was not valid JSON")
-    download = summary.get("download") or {}
+    if not isinstance(summary, dict):
+        return _upstream_failure(
+            summary_resp, detail=f"package summary expected a JSON object, got {type(summary).__name__}"
+        )
+    raw_download = summary.get("download")
+    if raw_download is not None and not isinstance(raw_download, dict):
+        return _upstream_failure(
+            summary_resp,
+            detail=f"package summary expected 'download' to be an object, got {type(raw_download).__name__}",
+        )
+    download = raw_download or {}
 
     if format == "uslm":
         link = download.get("uslmLink")
+        if link is not None and not isinstance(link, str):
+            return _upstream_failure(
+                summary_resp,
+                detail=f"package summary expected 'download.uslmLink' to be a string, got {type(link).__name__}",
+            )
         if not link:
             return {
                 "outcome": "format_not_available",
@@ -1146,6 +1207,11 @@ async def get_public_law(
         source_field = "uslmLink"
     else:
         link = download.get("txtLink")
+        if link is not None and not isinstance(link, str):
+            return _upstream_failure(
+                summary_resp,
+                detail=f"package summary expected 'download.txtLink' to be a string, got {type(link).__name__}",
+            )
         if not link:
             return {
                 "outcome": "upstream_error",
