@@ -6,6 +6,7 @@ truncation is always marked, and normalization strips are reported."""
 
 import fx
 import httpx
+import pytest
 
 from uscode_mcp import tools
 from uscode_mcp.htmltext import window_text
@@ -240,10 +241,41 @@ class TestGetSectionNonSuccessOutcomes:
         out = await tools.get_us_code_section(make_client(None), citation="banana")
         assert out["outcome"] == "invalid_argument"
 
-    async def test_invalid_window_args_are_invalid_argument(self, make_client):
-        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
-        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", start_char=-5)
+    @pytest.mark.parametrize(
+        "window",
+        [{"start_char": -5}, {"max_chars": 0}, {"start_char": "5"}, {"max_chars": "20"}],
+    )
+    async def test_invalid_window_args_are_rejected_before_any_request(self, make_client, window):
+        seen = []
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()]), seen=seen))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", **window)
         assert out["outcome"] == "invalid_argument"
+        assert seen == []
+
+    @pytest.mark.parametrize("extra", [0, 10])
+    async def test_start_at_or_past_end_is_invalid_with_total(self, make_client, extra):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        located = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        total = located["text"]["total_chars"]
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", start_char=total + extra)
+        assert out["outcome"] == "invalid_argument"
+        assert out["total_chars"] == total
+        assert "no text exists" in out["detail"]
+        assert "not empty" in out["detail"]
+
+    async def test_last_character_window_still_succeeds(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        located = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        total = located["text"]["total_chars"]
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", start_char=total - 1)
+        assert out["outcome"] == "success"
+        assert out["text"]["returned_chars"] == 1
+
+    async def test_empty_payload_at_zero_still_succeeds(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()]), htm_text=""))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", start_char=0)
+        assert out["outcome"] == "success"
+        assert out["text"]["total_chars"] == 0
 
 
 class TestGetSectionAppendix:

@@ -145,9 +145,14 @@ class TestByIdSuccess:
         assert out["structure"]["omitted"] is False
         assert [f["field"] for f in out["structure"]["fields"]][:2] == ["head", "statute"]
 
-    async def test_invalid_window_args_on_the_id_path(self, make_client):
-        out = await tools.get_us_code_section(make_client(by_id_handler()), granule_id=GID, max_chars=0)
+    @pytest.mark.parametrize("window", [{"max_chars": 0}, {"start_char": -1}, {"max_chars": "20"}])
+    async def test_invalid_window_args_on_the_id_path_make_no_request(self, make_client, window):
+        seen = []
+        out = await tools.get_us_code_section(
+            make_client(by_id_handler(seen=seen)), granule_id=GID, **window
+        )
         assert out["outcome"] == "invalid_argument"
+        assert seen == []
 
 
 class TestByIdDetector:

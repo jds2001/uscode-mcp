@@ -134,6 +134,44 @@ class TestGetPublicLaw:
         out = await tools.get_public_law(make_client(None), congress=118, law_number=31, format="docx")
         assert out["outcome"] == "invalid_argument"
 
+    @pytest.mark.parametrize(
+        "window",
+        [{"start_char": -1}, {"max_chars": 0}, {"start_char": "5"}, {"max_chars": "20"}],
+    )
+    async def test_invalid_window_args_are_rejected_before_any_request(self, make_client, window):
+        seen = []
+        out = await tools.get_public_law(
+            make_client(plaw_handler(seen=seen)), congress=118, law_number=31, **window
+        )
+        assert out["outcome"] == "invalid_argument"
+        assert seen == []
+
+    @pytest.mark.parametrize("extra", [0, 10])
+    async def test_start_at_or_past_end_is_invalid_with_total(self, make_client, extra):
+        client = make_client(plaw_handler())
+        located = await tools.get_public_law(client, congress=118, law_number=31)
+        total = located["text"]["total_chars"]
+        out = await tools.get_public_law(client, congress=118, law_number=31, start_char=total + extra)
+        assert out["outcome"] == "invalid_argument"
+        assert out["total_chars"] == total
+        assert "no text exists" in out["detail"]
+        assert "not empty" in out["detail"]
+
+    async def test_last_character_window_still_succeeds(self, make_client):
+        client = make_client(plaw_handler())
+        located = await tools.get_public_law(client, congress=118, law_number=31)
+        total = located["text"]["total_chars"]
+        out = await tools.get_public_law(client, congress=118, law_number=31, start_char=total - 1)
+        assert out["outcome"] == "success"
+        assert out["text"]["returned_chars"] == 1
+
+    async def test_empty_payload_at_zero_still_succeeds(self, make_client):
+        out = await tools.get_public_law(
+            make_client(plaw_handler(htm="")), congress=118, law_number=31, start_char=0
+        )
+        assert out["outcome"] == "success"
+        assert out["text"]["total_chars"] == 0
+
     async def test_missing_arguments_rejected(self, make_client):
         out = await tools.get_public_law(make_client(None), congress=118)
         assert out["outcome"] == "invalid_argument"

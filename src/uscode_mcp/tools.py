@@ -316,6 +316,31 @@ def _reject_blank_find(find: str | None) -> dict[str, Any] | None:
     return None
 
 
+def _validate_window_arguments(start_char: Any, max_chars: Any) -> dict[str, Any] | None:
+    """Reject argument-only window errors before any upstream request."""
+    if not isinstance(start_char, int) or isinstance(start_char, bool):
+        return _invalid_argument(f"start_char must be an integer, got {start_char!r}")
+    if not isinstance(max_chars, int) or isinstance(max_chars, bool):
+        return _invalid_argument(f"max_chars must be an integer, got {max_chars!r}")
+    if start_char < 0:
+        return _invalid_argument(f"start_char must be >= 0, got {start_char}")
+    if max_chars <= 0:
+        return _invalid_argument(f"max_chars must be > 0, got {max_chars}")
+    return None
+
+
+def _past_end_failure(start_char: int, total_chars: int) -> dict[str, Any] | None:
+    if start_char == 0 or start_char < total_chars:
+        return None
+    detail = (
+        f"no text exists at start_char={start_char}; the document was retrieved and has "
+        f"total_chars={total_chars}"
+    )
+    if total_chars > 0:
+        detail += " (the document is not empty)"
+    return {"outcome": "invalid_argument", "detail": detail, "total_chars": total_chars}
+
+
 USCODE_RE_REQUEST = (
     "Re-request with `granule_id` taken from a candidate below (pass the same `citation` alongside it "
     "to keep the staleness check), or with `year` if the candidates differ by edition."
@@ -672,6 +697,10 @@ async def _fetch_and_deliver(
         )
 
     text, structure = html_to_text_with_structure(html)
+    past_end = _past_end_failure(start_char, len(text))
+    if past_end is not None:
+        await detector.abandon()
+        return past_end
     if start_char:
         # R13a: the block is invariant per (section, year); a reading call has no use
         # for it and paid ~15x a small window to carry it (O38).
@@ -854,6 +883,9 @@ async def get_us_code_section(
 ) -> dict[str, Any]:
     """Resolve a US Code citation (or select a granule by id, R16) and return the
     section's text, notes included."""
+    bad_window = _validate_window_arguments(start_char, max_chars)
+    if bad_window is not None:
+        return bad_window
     bad_find = _reject_blank_find(find)
     if bad_find is not None:
         return bad_find
@@ -1005,6 +1037,9 @@ async def get_public_law(
     find: str | None = None,
 ) -> dict[str, Any]:
     """Resolve a public law and return its text (or USLM XML) with provenance."""
+    bad_window = _validate_window_arguments(start_char, max_chars)
+    if bad_window is not None:
+        return bad_window
     if format not in ("text", "uslm"):
         return _invalid_argument(f"format must be 'text' or 'uslm', got {format!r}")
     bad_find = _reject_blank_find(find)
@@ -1132,6 +1167,10 @@ async def get_public_law(
     # PLAW payloads are flat — no field markers upstream (O36) — so there is no
     # structure block here; `find` is the structure-free locator that R12a specifies.
     content = html_to_text_with_structure(resp.text)[0] if content_is_html else resp.text
+
+    past_end = _past_end_failure(start_char, len(content))
+    if past_end is not None:
+        return past_end
 
     try:
         window = window_text(content, start_char=start_char, max_chars=max_chars)
