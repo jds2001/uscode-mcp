@@ -57,6 +57,13 @@ class TestGetSectionSuccess:
         assert body["query"] == 'collection:USCODE citation:"17 U.S.C. 107"'
         assert body["historical"] is False
 
+    async def test_citation_path_marks_citation_as_resolved(self, make_client):
+        out = await tools.get_us_code_section(
+            make_client(section_handler(fx.search_response([fx.usc_hit()]))), citation="17 U.S.C. 107"
+        )
+        assert out["normalization"]["citation_basis"] == "resolved"
+        assert "citation_statement" not in out["possibly_superseded"]
+
     async def test_title_section_fields(self, make_client):
         client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
         out = await tools.get_us_code_section(client, title="17", section="107")

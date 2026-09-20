@@ -597,12 +597,13 @@ async def _resolve_granule(
 _USCODE_GRANULE_ID_RE = re.compile(
     r"^(?P<package>USCODE-(?P<year>\d{4})-title(?P<title>\d+[a-z]?))-\S+$", re.IGNORECASE
 )
-_USCODE_PACKAGE_ID_RE = re.compile(r"^USCODE-\d{4}-title\d+[a-z]?$", re.IGNORECASE)
+_USCODE_PACKAGE_ID_RE = re.compile(r"^USCODE-\d{4}-title(?P<title>\d+[a-z]?)$", re.IGNORECASE)
 
 
-def _normalization_block(parsed: USCCitation) -> dict[str, Any]:
+def _normalization_block(parsed: USCCitation, *, citation_basis: str = "resolved") -> dict[str, Any]:
     normalization: dict[str, Any] = {
         "normalized_citation": parsed.normalized,
+        "citation_basis": citation_basis,
         "stripped_subsection": parsed.stripped_subsection,
         "stripped_note": parsed.stripped_note,
     }
@@ -685,6 +686,11 @@ async def _fetch_and_deliver(
     # The text is ready: wait the bounded budget for the detector, never longer.
     stripped_note = parsed.stripped_note if parsed is not None else False
     possibly_superseded = await detector.finish(stripped_note=stripped_note)
+    if head.get("normalization", {}).get("citation_basis") == "caller_supplied":
+        possibly_superseded["citation_statement"] = (
+            "This check ran on the citation the caller supplied. The server did not verify that citation "
+            "names this granule; if it does not, this result is about a different section."
+        )
 
     out: dict[str, Any] = {
         "outcome": "success",
@@ -729,6 +735,15 @@ async def _get_section_by_id(
             )
     assert package_id is not None
 
+    package_match = _USCODE_PACKAGE_ID_RE.match(package_id)
+    assert package_match is not None
+    package_title = package_match.group("title")
+    if parsed is not None and parsed.title.casefold() != package_title.casefold():
+        return _invalid_argument(
+            f"citation title {parsed.title!r} does not match package title {package_title!r}; "
+            "nothing was fetched"
+        )
+
     head: dict[str, Any] = {
         "citation": parsed.normalized if parsed is not None else None,
         "granule_id": granule_id,
@@ -741,7 +756,7 @@ async def _get_section_by_id(
             f"({package_id}); pass package_id explicitly to override."
         )
     if parsed is not None:
-        head["normalization"] = _normalization_block(parsed)
+        head["normalization"] = _normalization_block(parsed, citation_basis="caller_supplied")
     if year is not None:
         head["warnings"] = [
             f"year={year} was ignored: granule_id names its edition (USCODE-{m.group('year')}-...). "

@@ -162,7 +162,39 @@ class TestByIdDetector:
         assert ps["checked_citation"] == "17 U.S.C. 107"  # the subsection strip applied
         assert ps["query"] == DETECTOR_QUERY_107
         assert out["normalization"]["stripped_subsection"] == "(b)"
+        assert out["normalization"]["citation_basis"] == "caller_supplied"
+        assert "caller supplied" in ps["citation_statement"]
+        assert "did not verify" in ps["citation_statement"]
         assert out["citation"] == "17 U.S.C. 107"
+
+    @pytest.mark.parametrize(
+        ("detector_response", "status"),
+        [
+            (fx.json_response(fx.search_response([], count=0)), "none_indexed"),
+            (
+                fx.json_response(
+                    fx.search_response(
+                        [{"packageId": "PLAW-119publ1", "title": "x", "dateIssued": "2025-02-01"}],
+                        count=1,
+                    )
+                ),
+                "laws_indexed",
+            ),
+            (httpx.Response(500, text="detector failed"), "not_checked"),
+        ],
+    )
+    async def test_caller_supplied_statement_is_present_in_every_detector_state(
+        self, make_client, detector_response, status
+    ):
+        out = await tools.get_us_code_section(
+            make_client(by_id_handler(detector_response=detector_response)),
+            granule_id=GID,
+            citation="17 U.S.C. 106",
+        )
+        assert out["outcome"] == "success"
+        assert out["normalization"]["citation_basis"] == "caller_supplied"
+        assert out["possibly_superseded"]["status"] == status
+        assert "different section" in out["possibly_superseded"]["citation_statement"]
 
     async def test_detector_on_title_and_section_fields(self, make_client):
         out = await tools.get_us_code_section(make_client(by_id_handler()), granule_id=GID, title="17", section="107")
@@ -202,6 +234,30 @@ class TestByIdDetector:
         seen = []
         out = await tools.get_us_code_section(make_client(by_id_handler(seen=seen)), granule_id=GID, citation="banana")
         assert out["outcome"] == "invalid_argument"
+        assert seen == []
+
+    async def test_mismatched_citation_title_is_rejected_before_any_call(self, make_client):
+        seen = []
+        out = await tools.get_us_code_section(
+            make_client(by_id_handler(seen=seen)), granule_id=GID, citation="42 U.S.C. 2210"
+        )
+        assert out["outcome"] == "invalid_argument"
+        assert "citation title '42'" in out["detail"]
+        assert "package title '17'" in out["detail"]
+        assert "nothing was fetched" in out["detail"]
+        assert seen == []
+
+    async def test_explicit_package_title_controls_the_title_check(self, make_client):
+        seen = []
+        out = await tools.get_us_code_section(
+            make_client(by_id_handler(seen=seen)),
+            granule_id=GID,
+            package_id="USCODE-2024-title42",
+            citation="17 U.S.C. 107",
+        )
+        assert out["outcome"] == "invalid_argument"
+        assert "citation title '17'" in out["detail"]
+        assert "package title '42'" in out["detail"]
         assert seen == []
 
     async def test_warm_id_lookup_issues_the_detector_before_the_summary(self, make_client):
