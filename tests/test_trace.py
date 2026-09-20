@@ -3,6 +3,7 @@ unusable directory fails at startup, write failure fails the request loudly."""
 
 import json
 import os
+import stat
 
 import pytest
 
@@ -50,6 +51,18 @@ class TestTracerStartup:
         finally:
             os.chmod(locked, 0o700)
 
+    @pytest.mark.parametrize("process_umask", [0o000, 0o022, 0o077])
+    def test_created_trace_is_owner_only_regardless_of_umask(
+        self, tmp_path, process_umask
+    ):
+        previous_umask = os.umask(process_umask)
+        try:
+            tracer = Tracer(tmp_path / f"umask-{process_umask:o}")
+        finally:
+            os.umask(previous_umask)
+
+        assert stat.S_IMODE(tracer.path.stat().st_mode) == 0o600
+
 
 class TestTracerRecord:
     def test_one_jsonl_line_per_request_verbatim(self, tmp_path):
@@ -74,6 +87,12 @@ class TestTracerRecord:
         tracer.record("get_public_law", {"congress": 118, "law_number": 31}, big)
         line = json.loads(tracer.path.read_text().splitlines()[0])
         assert line["response"]["text"]["content"] == "y" * 500_000
+
+    def test_append_preserves_owner_only_mode(self, tmp_path):
+        tracer = Tracer(tmp_path)
+        tracer.record("search_us_code", {"query": "x"}, {"outcome": "success"})
+
+        assert stat.S_IMODE(tracer.path.stat().st_mode) == 0o600
 
     def test_write_failure_raises_loudly(self, tmp_path):
         tracer = Tracer(tmp_path)

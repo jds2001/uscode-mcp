@@ -47,8 +47,8 @@ class Tracer:
         # R8: an unusable trace directory fails the server at startup, not on the
         # first traced request — probe writability now.
         try:
-            with open(self.path, "a", encoding="utf-8"):
-                pass
+            fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+            os.close(fd)
         except OSError as exc:
             raise RuntimeError(f"{TRACE_DIR_ENV_VAR}={root} is not writable: {exc}") from exc
 
