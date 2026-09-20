@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
+from ipaddress import ip_address
 from typing import Any
 
 import httpx
@@ -29,6 +30,39 @@ _RATE_LIMIT_HEADERS = ("x-ratelimit-limit", "x-ratelimit-remaining", "retry-afte
 
 class GovInfoTransportError(Exception):
     """Network-level failure: no HTTP response was received at all."""
+
+
+class GovInfoURLPolicyError(Exception):
+    """An upstream-provided URL did not match the configured API origin."""
+
+    def __init__(self, url: str, source_field: str) -> None:
+        self.url = url
+        self.source_field = source_field
+        super().__init__(
+            f"refused URL {url!r} from upstream field {source_field!r}: it does not match the configured "
+            "GovInfo API origin; no request was made"
+        )
+
+
+def _is_loopback(host: str) -> bool:
+    if host.casefold() == "localhost":
+        return True
+    try:
+        return ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _validated_base_url(base_url: str) -> tuple[str, tuple[str, str, int | None]]:
+    try:
+        parsed = httpx.URL(base_url.rstrip("/"))
+    except httpx.InvalidURL as exc:
+        raise ValueError(f"base_url is not a valid URL: {base_url!r}") from exc
+    if not parsed.host or parsed.username or parsed.password:
+        raise ValueError("base_url must be an absolute URL without userinfo")
+    if parsed.scheme != "https" and not (parsed.scheme == "http" and _is_loopback(parsed.host)):
+        raise ValueError("base_url must use https; http is allowed only for a loopback test origin")
+    return str(parsed).rstrip("/"), (parsed.scheme, parsed.host.casefold(), parsed.port)
 
 
 @dataclass
@@ -69,18 +103,35 @@ class GovInfoClient:
         if not api_key:
             raise ValueError(f"a GovInfo API key is required (set {API_KEY_ENV_VAR})")
         self._api_key = api_key
-        self._base_url = base_url.rstrip("/")
+        self._base_url, self._allowed_origin = _validated_base_url(base_url)
         self._http = http if http is not None else httpx.AsyncClient(timeout=timeout)
 
     async def aclose(self) -> None:
         await self._http.aclose()
 
-    async def _request(self, method: str, url: str, json_body: dict[str, Any] | None = None) -> UpstreamResponse:
-        # R7: the key travels only in the X-Api-Key header, never in a URL, so
-        # every URL this client touches or surfaces is key-free by construction.
+    async def _request(
+        self,
+        method: str,
+        url: str,
+        *,
+        source_field: str,
+        json_body: dict[str, Any] | None = None,
+    ) -> UpstreamResponse:
+        # R18a: validate at the single egress seam, before attaching the key.
+        try:
+            parsed = httpx.URL(url)
+        except httpx.InvalidURL as exc:
+            raise GovInfoURLPolicyError(url, source_field) from exc
+        origin = (parsed.scheme, (parsed.host or "").casefold(), parsed.port)
+        if parsed.username or parsed.password or origin != self._allowed_origin:
+            raise GovInfoURLPolicyError(url, source_field)
         try:
             response = await self._http.request(
-                method, url, headers={"X-Api-Key": self._api_key}, json=json_body
+                method,
+                url,
+                headers={"X-Api-Key": self._api_key},
+                json=json_body,
+                follow_redirects=False,
             )
         except httpx.HTTPError as exc:
             raise GovInfoTransportError(f"{method} {url}: {type(exc).__name__}: {exc}") from exc
@@ -93,17 +144,23 @@ class GovInfoClient:
 
     async def search(self, body: dict[str, Any]) -> UpstreamResponse:
         """POST /search with a govinfo search request body."""
-        return await self._request("POST", f"{self._base_url}/search", json_body=body)
+        return await self._request("POST", f"{self._base_url}/search", source_field="base_url", json_body=body)
 
     async def package_summary(self, package_id: str) -> UpstreamResponse:
-        return await self._request("GET", f"{self._base_url}/packages/{package_id}/summary")
+        return await self._request(
+            "GET", f"{self._base_url}/packages/{package_id}/summary", source_field="base_url"
+        )
 
     async def granule_summary(self, package_id: str, granule_id: str) -> UpstreamResponse:
-        return await self._request("GET", f"{self._base_url}/packages/{package_id}/granules/{granule_id}/summary")
+        return await self._request(
+            "GET",
+            f"{self._base_url}/packages/{package_id}/granules/{granule_id}/summary",
+            source_field="base_url",
+        )
 
-    async def fetch(self, url: str) -> UpstreamResponse:
+    async def fetch(self, url: str, source_field: str) -> UpstreamResponse:
         """GET a download link taken verbatim from a search result or summary."""
-        return await self._request("GET", url)
+        return await self._request("GET", url, source_field=source_field)
 
 
 def client_from_env() -> GovInfoClient:

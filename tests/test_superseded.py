@@ -303,8 +303,8 @@ class TestNotChecked:
                     raise RuntimeError("something unforeseen")
                 return await self._inner.search(body)
 
-            async def fetch(self, url):
-                return await self._inner.fetch(url)
+            async def fetch(self, url, source_field):
+                return await self._inner.fetch(url, source_field)
 
         out = await tools.get_us_code_section(Client(make_client(make_handler())), citation="17 U.S.C. 107")
         assert out["outcome"] == "success"

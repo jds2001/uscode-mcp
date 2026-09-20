@@ -4,6 +4,7 @@ outcome, package-level windowing, and the uscodecitation recall caveat."""
 
 import fx
 import httpx
+import pytest
 
 from uscode_mcp import tools
 from uscode_mcp.htmltext import window_text
@@ -61,6 +62,50 @@ class TestGetPublicLaw:
         assert out["outcome"] == "success"
         assert out["format"] == "uslm"
         assert "<uslm" in out["text"]["content"]  # raw XML, not stripped
+
+    @pytest.mark.parametrize(
+        ("format", "field"),
+        [("text", "txtLink"), ("uslm", "uslmLink")],
+    )
+    async def test_foreign_summary_download_link_is_refused_without_fetch(
+        self, make_client, format, field
+    ):
+        seen = []
+        summary = fx.plaw_summary()
+        summary["download"][field] = "https://example.com/law"
+        client = make_client(plaw_handler(summary=summary, seen=seen))
+
+        out = await tools.get_public_law(client, congress=118, law_number=31, format=format)
+
+        assert [request.url.path for request in seen] == [
+            "/search",
+            "/packages/PLAW-118publ31/summary",
+        ]
+        assert out["outcome"] == "upstream_error"
+        assert out["http_status"] is None
+        assert "https://example.com/law" in out["detail"]
+        assert field in out["detail"]
+
+    @pytest.mark.parametrize("location", ["https://example.com/next", f"{fx.API}/next"])
+    async def test_download_redirect_is_not_followed_and_location_is_surfaced(self, make_client, location):
+        seen = []
+
+        def handler(request):
+            seen.append(request)
+            if request.url.path == "/search":
+                return fx.json_response(fx.search_response([fx.plaw_hit()]))
+            if request.url.path.endswith("/summary"):
+                return fx.json_response(fx.plaw_summary())
+            if request.url.path.endswith("/htm"):
+                return httpx.Response(302, headers={"Location": location})
+            raise AssertionError(f"redirect was followed: {request.url}")
+
+        out = await tools.get_public_law(make_client(handler), congress=118, law_number=31)
+
+        assert len(seen) == 3
+        assert out["outcome"] == "upstream_error"
+        assert out["http_status"] == 302
+        assert out["location"] == location
 
     async def test_uslm_absent_is_a_distinct_reportable_outcome(self, make_client):
         handler = plaw_handler(summary=fx.plaw_summary(uslm=False))

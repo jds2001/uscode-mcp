@@ -35,7 +35,7 @@ from typing import Any
 
 from . import superseded
 from .citations import CitationParseError, USCCitation, parse_public_law, parse_usc
-from .govinfo import GovInfoClient, GovInfoTransportError, UpstreamResponse
+from .govinfo import GovInfoClient, GovInfoTransportError, GovInfoURLPolicyError, UpstreamResponse
 from .htmltext import (
     add_audience_sentence,
     edition_year_from_package_id,
@@ -88,6 +88,8 @@ def _upstream_failure(resp: UpstreamResponse, detail: str | None = None) -> dict
     }
     if detail:
         out["detail"] = detail
+    if 300 <= resp.status < 400 and "location" in resp.headers:
+        out["location"] = resp.headers["location"]
     return out
 
 
@@ -132,10 +134,18 @@ async def _search(client: GovInfoClient, body: dict[str, Any]) -> tuple[dict[str
     return data, None
 
 
-async def _fetch(client: GovInfoClient, url: str) -> tuple[UpstreamResponse | None, dict[str, Any] | None]:
+async def _fetch(
+    client: GovInfoClient, url: str, source_field: str
+) -> tuple[UpstreamResponse | None, dict[str, Any] | None]:
     """Fetch a download link verbatim. Returns (response, None) or (None, failure_outcome)."""
     try:
-        resp = await client.fetch(url)
+        resp = await client.fetch(url, source_field)
+    except GovInfoURLPolicyError as exc:
+        return None, {
+            "outcome": "upstream_error",
+            "http_status": None,
+            "detail": str(exc),
+        }
     except GovInfoTransportError as exc:
         return None, _transport_failure(exc)
     failure = _classify(resp)
@@ -629,7 +639,7 @@ async def _fetch_and_deliver(
     path-specific leading part of the success object."""
     package_id = hit.get("packageId")
     edition_year = edition_year_from_package_id(package_id)
-    resp, failure = await _fetch(client, txt_link)
+    resp, failure = await _fetch(client, txt_link, "txtLink")
     if failure is not None:
         await detector.abandon()
         return failure
@@ -1069,6 +1079,7 @@ async def get_public_law(
                 ),
             }
         content_is_html = False
+        source_field = "uslmLink"
     else:
         link = download.get("txtLink")
         if not link:
@@ -1083,8 +1094,9 @@ async def get_public_law(
                 "available_formats": sorted(download.keys()),
             }
         content_is_html = True
+        source_field = "txtLink"
 
-    resp, failure = await _fetch(client, link)
+    resp, failure = await _fetch(client, link, source_field)
     if failure is not None:
         return failure
     assert resp is not None

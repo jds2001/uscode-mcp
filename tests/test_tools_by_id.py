@@ -78,6 +78,20 @@ class TestByIdSuccess:
         assert out["outcome"] == "success"
         assert any(str(r.url) == "https://api.govinfo.gov/some/other/path/htm" for r in seen)
 
+    async def test_foreign_summary_txtlink_is_refused_without_fetch(self, make_client):
+        seen = []
+        summary = fx.granule_summary()
+        summary["download"]["txtLink"] = "https://example.com/section.htm"
+        client = make_client(by_id_handler(fx.json_response(summary), seen=seen))
+
+        out = await tools.get_us_code_section(client, granule_id=GID)
+
+        assert [request.url.path for request in seen] == [SUMMARY_PATH]
+        assert out["outcome"] == "upstream_error"
+        assert out["http_status"] is None
+        assert "https://example.com/section.htm" in out["detail"]
+        assert "txtLink" in out["detail"]
+
     async def test_package_id_derived_and_disclosed(self, make_client):
         out = await tools.get_us_code_section(make_client(by_id_handler()), granule_id=GID)
         assert out["package_id"] == PID

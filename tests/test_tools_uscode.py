@@ -116,6 +116,25 @@ class TestGetSectionYear:
 
 
 class TestGetSectionNonSuccessOutcomes:
+    async def test_foreign_search_hit_txtlink_is_refused_without_fetch(self, make_client):
+        seen = []
+        hit = fx.usc_hit()
+        hit["download"]["txtLink"] = "https://example.com/section.htm"
+
+        def handler(request):
+            seen.append(request)
+            assert request.url.path == "/search"
+            return fx.json_response(fx.search_response([hit]))
+
+        out = await tools.get_us_code_section(make_client(handler), citation="17 U.S.C. 107")
+
+        assert len(seen) == 1
+        assert out["outcome"] == "upstream_error"
+        assert out["http_status"] is None
+        assert "https://example.com/section.htm" in out["detail"]
+        assert "txtLink" in out["detail"]
+        assert "no request was made" in out["detail"]
+
     async def test_zero_hits_is_not_found_with_query_echo(self, make_client):
         client = make_client(section_handler(fx.search_response([])))
         out = await tools.get_us_code_section(client, citation="17 U.S.C. 9999")

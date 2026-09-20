@@ -4,7 +4,7 @@ import fx
 import httpx
 import pytest
 
-from uscode_mcp.govinfo import GovInfoClient, GovInfoTransportError, client_from_env
+from uscode_mcp.govinfo import GovInfoClient, GovInfoTransportError, GovInfoURLPolicyError, client_from_env
 
 
 async def test_api_key_sent_only_as_header_never_in_url(make_client):
@@ -30,7 +30,7 @@ async def test_fetch_sends_header_too(make_client):
         seen["header"] = request.headers.get("X-Api-Key")
         return httpx.Response(200, text="ok")
 
-    await make_client(handler).fetch("https://api.govinfo.gov/packages/X/htm")
+    await make_client(handler).fetch("https://api.govinfo.gov/packages/X/htm", "txtLink")
     assert seen["header"] == "test-key"
 
 
@@ -64,7 +64,7 @@ async def test_fetch_preserves_existing_query_params(make_client):
         seen["params"] = dict(request.url.params)
         return httpx.Response(200, text="ok")
 
-    await make_client(handler).fetch("https://api.govinfo.gov/packages/X/htm?foo=1")
+    await make_client(handler).fetch("https://api.govinfo.gov/packages/X/htm?foo=1", "txtLink")
     assert seen["params"] == {"foo": "1"}  # untouched: no api_key merged into the URL (R7)
 
 
@@ -108,3 +108,57 @@ def test_client_from_env_fails_loudly_when_unset(monkeypatch):
     monkeypatch.delenv("GOVINFO_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="GOVINFO_API_KEY"):
         client_from_env()
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://api.govinfo.gov/packages/X/htm",
+        "https://api.govinfo.gov.example.com/packages/X/htm",
+        "https://x.api.govinfo.gov/packages/X/htm",
+        "https://api.govinfo.gov:8443/packages/X/htm",
+        "https://api.govinfo.gov@example.com/packages/X/htm",
+        "https://example.com/packages/X/htm",
+        "file:///etc/passwd",
+    ],
+)
+async def test_foreign_download_url_is_refused_before_request(url):
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, text="should not run")
+
+    client = GovInfoClient(api_key="test-key", http=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    with pytest.raises(GovInfoURLPolicyError) as raised:
+        await client.fetch(url, "txtLink")
+
+    assert seen == []
+    assert url in str(raised.value)
+    assert "txtLink" in str(raised.value)
+    assert "no request was made" in str(raised.value)
+
+
+@pytest.mark.parametrize("location", ["https://example.com/next", "https://api.govinfo.gov/next"])
+async def test_redirect_is_not_followed_even_when_injected_client_would_follow(location):
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(302, headers={"Location": location})
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler), follow_redirects=True)
+    response = await GovInfoClient(api_key="test-key", http=http).fetch(
+        "https://api.govinfo.gov/packages/X/htm", "txtLink"
+    )
+
+    assert response.status == 302
+    assert response.headers["location"] == location
+    assert len(seen) == 1
+
+
+def test_http_base_url_is_limited_to_loopback():
+    GovInfoClient(api_key="test-key", base_url="http://127.0.0.1:8080")
+    GovInfoClient(api_key="test-key", base_url="http://localhost:8080")
+    with pytest.raises(ValueError, match="loopback"):
+        GovInfoClient(api_key="test-key", base_url="http://api.govinfo.gov")
