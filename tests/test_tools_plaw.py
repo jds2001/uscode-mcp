@@ -267,6 +267,22 @@ class TestSearchPublicLaws:
         assert "25/33" in out["recall_caveat"]
         assert "structural" in out["recall_caveat"]
 
+    @pytest.mark.parametrize("field", ["uscodecitation", "USCODECITATION", "UsCodeCitation"])
+    async def test_reverse_lookup_caveat_selection_is_case_insensitive(self, make_client, field):
+        query = f'{field}:"42 U.S.C. 2210"'
+        out = await tools.search_public_laws(
+            make_client(lambda request: fx.json_response(fx.search_response([], count=0))), query
+        )
+        assert out["query"] == f"collection:PLAW {query}"
+        assert out["recall_caveat"] == tools.RECALL_CAVEAT_USCODECITATION
+
+    async def test_unfielded_citation_phrase_keeps_fulltext_caveat(self, make_client):
+        out = await tools.search_public_laws(
+            make_client(lambda request: fx.json_response(fx.search_response([], count=0))),
+            '"42 U.S.C. 2210"',
+        )
+        assert out["recall_caveat"] == tools.RECALL_CAVEAT_FULLTEXT
+
     async def test_full_text_query_carries_the_full_text_caveat(self, make_client):
         # WO-5 change 4 (O49c): a quoted phrase was measured missing a law containing it
         # verbatim, so full-text results are not evidence of absence either.

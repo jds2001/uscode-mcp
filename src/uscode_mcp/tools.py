@@ -1014,7 +1014,7 @@ async def search_public_laws(
     """As search_us_code but scoped collection:PLAW (public laws only, R6)."""
     result = await _scoped_search(client, "PLAW", query, page_size=page_size, offset_mark=offset_mark)
     if result.get("outcome") == "success":
-        if "uscodecitation:" in result.get("query", ""):
+        if "uscodecitation:" in result.get("query", "").casefold():
             result["recall_caveat"] = RECALL_CAVEAT_USCODECITATION
         else:
             result["recall_caveat"] = RECALL_CAVEAT_FULLTEXT
