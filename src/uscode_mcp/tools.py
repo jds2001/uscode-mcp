@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from dataclasses import dataclass
 from typing import Any
 
 from . import superseded
@@ -59,7 +60,6 @@ DEFAULT_MAX_CHARS = 20_000
 # (superseded.py explains the verified-prediction scheme).
 CURRENTTHROUGH_MEMORY = superseded.CurrentthroughMemory()
 
-_COLLECTION_TERM_RE = re.compile(r"\bcollection:", re.IGNORECASE)
 # A numbered appendix section ("18 U.S.C. App. 1201"), as opposed to a rule
 # ("28 U.S.C. App. Rule 9") or a bare appendix citation — only the former has a
 # measured uscodecitation form (O44d).
@@ -159,6 +159,155 @@ def _result_pointer(hit: dict[str, Any]) -> dict[str, Any]:
 
 def _invalid_argument(detail: str) -> dict[str, Any]:
     return {"outcome": "invalid_argument", "detail": detail}
+
+
+@dataclass(frozen=True)
+class _CollectionClause:
+    text: str
+    value: str | None
+    negated: bool
+    whitespace_after_colon: bool
+
+
+def _is_word_char(char: str) -> bool:
+    return char.isalnum() or char == "_"
+
+
+def _quoted_end(query: str, start: int) -> int:
+    """Return the exclusive end of a double-quoted token, honoring backslash escapes."""
+    i = start + 1
+    while i < len(query):
+        if query[i] == "\\":
+            i += 2
+            continue
+        if query[i] == '"':
+            return i + 1
+        i += 1
+    return len(query)
+
+
+def _group_end(query: str, start: int) -> int:
+    """Return the exclusive end of a balanced parenthesized collection value."""
+    depth = 0
+    in_quote = False
+    i = start
+    while i < len(query):
+        char = query[i]
+        if in_quote and char == "\\":
+            i += 2
+            continue
+        if char == '"':
+            in_quote = not in_quote
+        elif not in_quote:
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0:
+                    return i + 1
+        i += 1
+    return len(query)
+
+
+def _collection_clauses(query: str) -> list[_CollectionClause]:
+    """Find collection clauses outside quoted phrases, including nested groups.
+
+    R17 deliberately recognizes more malformed forms than GovInfo does: once a
+    caller writes ``collection`` + optional whitespace + ``:``, the server either
+    proves the clause names this tool's collection or refuses it before searching.
+    """
+    clauses: list[_CollectionClause] = []
+    in_quote = False
+    i = 0
+    while i < len(query):
+        char = query[i]
+        if in_quote and char == "\\":
+            i += 2
+            continue
+        if char == '"':
+            in_quote = not in_quote
+            i += 1
+            continue
+        if in_quote or query[i : i + 10].lower() != "collection":
+            i += 1
+            continue
+
+        word_end = i + 10
+        if (i > 0 and _is_word_char(query[i - 1])) or (
+            word_end < len(query) and _is_word_char(query[word_end])
+        ):
+            i += 1
+            continue
+
+        colon = word_end
+        while colon < len(query) and query[colon].isspace():
+            colon += 1
+        if colon >= len(query) or query[colon] != ":":
+            i += 1
+            continue
+
+        clause_start = i - 1 if i > 0 and query[i - 1] == "-" else i
+        value_start = colon + 1
+        whitespace_after_colon = value_start < len(query) and query[value_start].isspace()
+        token_start = value_start
+        while token_start < len(query) and query[token_start].isspace():
+            token_start += 1
+
+        if token_start < len(query) and query[token_start] == '"':
+            clause_end = _quoted_end(query, token_start)
+            closed = clause_end > token_start and query[clause_end - 1] == '"'
+            value = query[token_start + 1 : clause_end - 1] if closed else None
+        elif token_start < len(query) and query[token_start] == "(":
+            clause_end = _group_end(query, token_start)
+            value = None
+        else:
+            clause_end = token_start
+            while clause_end < len(query) and (_is_word_char(query[clause_end]) or query[clause_end] == "-"):
+                clause_end += 1
+            value = query[token_start:clause_end] or None
+
+        clauses.append(
+            _CollectionClause(
+                text=query[clause_start:clause_end],
+                value=value,
+                negated=clause_start != i,
+                whitespace_after_colon=whitespace_after_colon,
+            )
+        )
+        i += 1
+    return clauses
+
+
+def _scope_query(query: str, collection: str) -> tuple[str | None, dict[str, Any] | None]:
+    clauses = _collection_clauses(query)
+    tools_by_collection = {"USCODE": "search_us_code", "PLAW": "search_public_laws"}
+    for clause in clauses:
+        conforms = (
+            not clause.negated
+            and not clause.whitespace_after_colon
+            and clause.value is not None
+            and clause.value.casefold() == collection.casefold()
+        )
+        if conforms:
+            continue
+        suggested_tool = tools_by_collection.get(
+            clause.value.upper() if clause.value is not None else ""
+        )
+        out: dict[str, Any] = {
+            "outcome": "out_of_scope_collection",
+            "offending_clause": clause.text,
+            "collection": collection,
+            "message": (
+                f"No search was run. This tool is restricted to collection:{collection}; "
+                f"the query's clause {clause.text!r} does not conform."
+            ),
+        }
+        if suggested_tool is not None and suggested_tool != tools_by_collection[collection]:
+            out["suggested_tool"] = suggested_tool
+        return None, out
+    if not clauses:
+        return f"collection:{collection} {query}", None
+    return query, None
 
 
 def _reject_blank_find(find: str | None) -> dict[str, Any] | None:
@@ -747,8 +896,10 @@ async def _scoped_search(
     if not query or not query.strip():
         return _invalid_argument("query must be a non-empty govinfo query string")
     query = query.strip()
-    if not _COLLECTION_TERM_RE.search(query):
-        query = f"collection:{collection} {query}"
+    query, scope_failure = _scope_query(query, collection)
+    if scope_failure is not None:
+        return scope_failure
+    assert query is not None
 
     effective_page_size = max(1, min(int(page_size), MAX_PAGE_SIZE))
     body = {

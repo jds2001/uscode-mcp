@@ -146,8 +146,9 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
     ) -> dict[str, Any]:
         """Full-text and fielded search over the USCODE collection (govinfo query syntax) — the
         discovery path for topics, appendix material, and anything citation resolution redirects
-        here. `collection:USCODE` is prepended unless the query already contains a `collection:`
-        term. Fielded search is available (e.g. `citation:"17 U.S.C. 107"`, `usctitlenum:28`,
+        here. `collection:USCODE` is prepended when the query has no collection clause; a clause
+        naming USCODE is accepted, and any other collection clause is refused before searching.
+        Fielded search is available (e.g. `citation:"17 U.S.C. 107"`, `usctitlenum:28`,
         `shorttitle:...`); the `historical` ARGUMENT (not a query term) includes superseded annual
         editions. Within-title section-level search: scope by package, `packageid:USCODE-2024-title17
         <terms>` — this tests which sections contain the terms, not where in a section; `find` on
@@ -208,7 +209,9 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         offset_mark: str = "*",
     ) -> dict[str, Any]:
         """Full-text and fielded search over the PLAW collection (public laws only). Reverse lookup —
-        which public laws touch a US Code section — is `uscodecitation:"42 U.S.C. 2210"`.
+        which public laws touch a US Code section — is `uscodecitation:"42 U.S.C. 2210"`. A
+        `collection:PLAW` clause is accepted; any other collection clause is refused before
+        searching.
 
         CAVEAT (measured, structural — O21, O17/O18): the uscodecitation field's recall gap is
         25/33 on sampled membership tests, with misses in every congress sampled from the 115th on,

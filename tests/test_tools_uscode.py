@@ -283,16 +283,6 @@ class TestSearchUSCode:
         assert out["outcome"] == "success"
         assert out["results"][0]["package_id"] == "USCODE-2024-title17"
 
-    async def test_existing_collection_term_respected(self, make_client):
-        seen = []
-
-        def handler(request):
-            seen.append(request)
-            return fx.json_response(fx.search_response([]))
-
-        await tools.search_us_code(make_client(handler), "collection:PLAW fair use")
-        assert fx.request_body(seen[0])["query"] == "collection:PLAW fair use"
-
     async def test_zero_results_is_explicit_success_with_query_echo(self, make_client):
         out = await tools.search_us_code(
             make_client(lambda request: fx.json_response(fx.search_response([], count=0))), "zxqv"

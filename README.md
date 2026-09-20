@@ -30,6 +30,8 @@ Streamable HTTP:
 uv run uscode-mcp --transport http --host 127.0.0.1 --port 8000
 ```
 
+> **Security warning:** The HTTP transport is unauthenticated. Anyone who can reach its port can call every tool and spend the configured GovInfo API key's quota. Keep it bound to loopback unless its network accessibility is otherwise restricted; for remote access, put it behind something that authenticates callers, such as an API Gateway or an authenticating reverse proxy.
+
 Example Claude Code / Claude Desktop stdio config:
 
 ```json

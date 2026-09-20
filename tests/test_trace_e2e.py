@@ -40,3 +40,36 @@ async def test_real_session_tool_call_is_traced_verbatim(tmp_path, make_client):
     # Verbatim: exactly what the client sent, no page_size/offset_mark defaults added.
     assert line["request"] == {"tool": "search_us_code", "arguments": {"query": "fair use"}}
     assert line["response"]["structuredContent"]["outcome"] == "success"
+
+
+async def test_collection_refusal_is_traced_without_upstream_request(tmp_path, make_client):
+    def must_not_run(request):
+        raise AssertionError(f"unexpected upstream request: {request.url}")
+
+    tracer = Tracer(tmp_path)
+    server = create_server(client=make_client(must_not_run), tracer=tracer)
+
+    async with create_client_server_memory_streams() as (client_streams, server_streams):
+        client_read, client_write = client_streams
+        server_read, server_write = server_streams
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(
+                server._lowlevel_server.run,
+                server_read,
+                server_write,
+                server._lowlevel_server.create_initialization_options(),
+            )
+            async with ClientSession(client_read, client_write) as session:
+                await session.initialize()
+                result = await session.call_tool("search_us_code", {"query": "collection:PLAW congress:118"})
+                assert not result.is_error
+            tg.cancel_scope.cancel()
+
+    lines = tracer.path.read_text().splitlines()
+    assert len(lines) == 1
+    line = json.loads(lines[0])
+    assert line["request"] == {
+        "tool": "search_us_code",
+        "arguments": {"query": "collection:PLAW congress:118"},
+    }
+    assert line["response"]["structuredContent"]["outcome"] == "out_of_scope_collection"

@@ -64,6 +64,15 @@ async def test_search_descriptions_carry_the_packageid_recipe():
     assert "not where" in usc and "not where" in plaw
 
 
+async def test_search_descriptions_state_the_collection_boundary():
+    server = create_server()
+    by_name = {t.name: " ".join(t.description.split()) for t in await server.list_tools()}
+    assert "collection:USCODE" in by_name["search_us_code"]
+    assert "any other collection clause is refused before searching" in by_name["search_us_code"]
+    assert "collection:PLAW" in by_name["search_public_laws"]
+    assert "any other collection clause is refused before searching" in by_name["search_public_laws"]
+
+
 async def test_search_public_laws_description_names_publishdate_not_approveddate_ranges():
     """WO-5 change 1 (F6a, O43f/O49a): approveddate ranges return HTTP 500 upstream."""
     server = create_server()
