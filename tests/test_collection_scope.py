@@ -55,14 +55,6 @@ class TestConformingCollectionClauses:
         assert out["outcome"] == "success"
         assert fx.request_body(seen[0])["query"] == query
 
-    async def test_collection_text_inside_phrase_is_not_a_clause(self, scoped_search, make_client):
-        search, collection = scoped_search
-        query = 'title:"the collection: of duties"'
-        out, seen = await _run(search, make_client, query)
-
-        assert out["outcome"] == "success"
-        assert fx.request_body(seen[0])["query"] == f"collection:{collection} {query}"
-
     async def test_live_detector_query_is_accepted_unchanged_by_plaw(self, make_client):
         query = (
             'collection:PLAW lawtype:public publishdate:range(2025-01-07,) '
@@ -121,3 +113,59 @@ class TestOutOfScopeCollectionClauses:
 
         assert seen == []
         assert "suggested_tool" not in out
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            '"fair use collection:{other}',
+            '"fair \\" collection:{other} "fair use"',
+            '"appropriations collection:{other}',
+            '"x collection:{other} y"',
+            "subcollection:{other}",
+        ],
+    )
+    async def test_no_quote_or_prefix_exemption(self, scoped_search, make_client, query):
+        search, collection = scoped_search
+        other = "PLAW" if collection == "USCODE" else "USCODE"
+        out, seen = await _run(search, make_client, query.format(other=other))
+
+        assert seen == []
+        assert out["outcome"] == "out_of_scope_collection"
+        assert out["offending_clause"] == f"collection:{other}"
+
+    async def test_literal_phrase_gets_colon_advice(self, scoped_search, make_client):
+        search, _ = scoped_search
+        out, seen = await _run(search, make_client, '"the collection: of duties"')
+
+        assert seen == []
+        assert out["outcome"] == "out_of_scope_collection"
+        assert "phrase containing collection:" in out["message"]
+        assert "without the colon" in out["message"]
+
+    @pytest.mark.parametrize(
+        "suffix",
+        ["*", ",PLAW", "~", "^2", "/PLAW", "|PLAW", ".PLAW", ":PLAW", '"PLAW"'],
+    )
+    async def test_whole_bare_token_must_conform(self, scoped_search, make_client, suffix):
+        search, collection = scoped_search
+        clause = f"collection:{collection}{suffix}"
+        out, seen = await _run(search, make_client, f'{clause} "fair use"')
+
+        assert seen == []
+        assert out["outcome"] == "out_of_scope_collection"
+        assert out["offending_clause"] == clause
+
+    @pytest.mark.parametrize(
+        "template",
+        [
+            '(collection:{collection} "fair use")',
+            '(collection:"{collection}" "fair use")',
+        ],
+    )
+    async def test_closing_group_delimits_conforming_value(self, scoped_search, make_client, template):
+        search, collection = scoped_search
+        query = template.format(collection=collection)
+        out, seen = await _run(search, make_client, query)
+
+        assert out["outcome"] == "success"
+        assert fx.request_body(seen[0])["query"] == query

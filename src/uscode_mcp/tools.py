@@ -167,23 +167,7 @@ class _CollectionClause:
     value: str | None
     negated: bool
     whitespace_after_colon: bool
-
-
-def _is_word_char(char: str) -> bool:
-    return char.isalnum() or char == "_"
-
-
-def _quoted_end(query: str, start: int) -> int:
-    """Return the exclusive end of a double-quoted token, honoring backslash escapes."""
-    i = start + 1
-    while i < len(query):
-        if query[i] == "\\":
-            i += 2
-            continue
-        if query[i] == '"':
-            return i + 1
-        i += 1
-    return len(query)
+    inside_quoted_phrase: bool
 
 
 def _group_end(query: str, start: int) -> int:
@@ -210,35 +194,21 @@ def _group_end(query: str, start: int) -> int:
 
 
 def _collection_clauses(query: str) -> list[_CollectionClause]:
-    """Find collection clauses outside quoted phrases, including nested groups.
+    """Find every collection clause, without interpreting the surrounding query.
 
-    R17 deliberately recognizes more malformed forms than GovInfo does: once a
-    caller writes ``collection`` + optional whitespace + ``:``, the server either
-    proves the clause names this tool's collection or refuses it before searching.
+    R17 deliberately has no quote, parenthesis, or word-boundary exemptions: any
+    parser the server applies to the surrounding query can disagree with GovInfo.
+    Once the letters ``collection`` + optional whitespace + ``:`` occur, the
+    server either proves the whole value names this tool's collection or refuses.
     """
     clauses: list[_CollectionClause] = []
-    in_quote = False
     i = 0
     while i < len(query):
-        char = query[i]
-        if in_quote and char == "\\":
-            i += 2
-            continue
-        if char == '"':
-            in_quote = not in_quote
-            i += 1
-            continue
-        if in_quote or query[i : i + 10].lower() != "collection":
+        if query[i : i + 10].lower() != "collection":
             i += 1
             continue
 
         word_end = i + 10
-        if (i > 0 and _is_word_char(query[i - 1])) or (
-            word_end < len(query) and _is_word_char(query[word_end])
-        ):
-            i += 1
-            continue
-
         colon = word_end
         while colon < len(query) and query[colon].isspace():
             colon += 1
@@ -254,24 +224,37 @@ def _collection_clauses(query: str) -> list[_CollectionClause]:
             token_start += 1
 
         if token_start < len(query) and query[token_start] == '"':
-            clause_end = _quoted_end(query, token_start)
-            closed = clause_end > token_start and query[clause_end - 1] == '"'
-            value = query[token_start + 1 : clause_end - 1] if closed else None
+            quote_end = query.find('"', token_start + 1)
+            if quote_end == -1:
+                clause_end = len(query)
+                value = None
+            else:
+                clause_end = quote_end + 1
+                boundary_ok = clause_end == len(query) or query[clause_end].isspace() or query[clause_end] == ")"
+                if boundary_ok:
+                    value = query[token_start + 1 : quote_end]
+                else:
+                    while clause_end < len(query) and not query[clause_end].isspace() and query[clause_end] != ")":
+                        clause_end += 1
+                    value = None
         elif token_start < len(query) and query[token_start] == "(":
             clause_end = _group_end(query, token_start)
             value = None
         else:
             clause_end = token_start
-            while clause_end < len(query) and (_is_word_char(query[clause_end]) or query[clause_end] == "-"):
+            while clause_end < len(query) and not query[clause_end].isspace() and query[clause_end] != ")":
                 clause_end += 1
             value = query[token_start:clause_end] or None
 
+        quotes_before = query[:i].count('"')
+        inside_quoted_phrase = quotes_before % 2 == 1 and '"' in query[clause_end:]
         clauses.append(
             _CollectionClause(
                 text=query[clause_start:clause_end],
                 value=value,
                 negated=clause_start != i,
                 whitespace_after_colon=whitespace_after_colon,
+                inside_quoted_phrase=inside_quoted_phrase,
             )
         )
         i += 1
@@ -302,6 +285,8 @@ def _scope_query(query: str, collection: str) -> tuple[str | None, dict[str, Any
                 f"the query's clause {clause.text!r} does not conform."
             ),
         }
+        if clause.inside_quoted_phrase:
+            out["message"] += " A phrase containing collection: must be written without the colon."
         if suggested_tool is not None and suggested_tool != tools_by_collection[collection]:
             out["suggested_tool"] = suggested_tool
         return None, out
