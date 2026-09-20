@@ -44,4 +44,4 @@ Different tools look for different filenames — Claude Code reads `.claude/CLAU
 1. Fork the repository.
 2. Create a feature branch.
 3. Follow the conventions above.
-4. Submit a pull request against `master`.
+4. Submit a pull request against `main`.
