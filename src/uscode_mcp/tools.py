@@ -320,7 +320,9 @@ USCODE_RE_REQUEST = (
     "Re-request with `granule_id` taken from a candidate below (pass the same `citation` alongside it "
     "to keep the staleness check), or with `year` if the candidates differ by edition."
 )
-PLAW_RE_REQUEST = "get_public_law has no by-id path; re-request by the candidate's congress and law number."
+PLAW_RE_REQUEST = (
+    "The number did not resolve to one public law; treat the candidates' package_id values as findings."
+)
 
 
 def _disambiguation_fields(count: Any, results: list[dict[str, Any]], re_request: str) -> dict[str, Any]:
@@ -1014,7 +1016,7 @@ async def get_public_law(
     elif congress is None or law_number is None:
         return _invalid_argument("provide 'citation', or both 'congress' and 'law_number'")
 
-    query = f"collection:PLAW congress:{congress} docnumber:{law_number}"
+    query = f"collection:PLAW lawtype:public congress:{congress} docnumber:{law_number}"
     body = {"query": query, "pageSize": MAX_PAGE_SIZE, "offsetMark": "*"}
     data, failure = await _search(client, body)
     if failure is not None:
@@ -1047,6 +1049,18 @@ async def get_public_law(
             "outcome": "upstream_error",
             "http_status": None,
             "detail": "search result carried no packageId (response-shape drift; failing loudly per spec)",
+            "result": _result_pointer(results[0]),
+        }
+
+    expected_package_id = f"PLAW-{congress}publ{law_number}"
+    if package_id != expected_package_id:
+        return {
+            "outcome": "upstream_error",
+            "http_status": None,
+            "detail": (
+                f"public-law resolution expected packageId {expected_package_id!r}, "
+                f"but the search result carried {package_id!r}"
+            ),
             "result": _result_pointer(results[0]),
         }
 

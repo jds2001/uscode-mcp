@@ -37,7 +37,7 @@ class TestGetPublicLaw:
         client = make_client(plaw_handler(seen=seen))
         out = await tools.get_public_law(client, congress=118, law_number=31)
         assert out["outcome"] == "success"
-        assert fx.request_body(seen[0])["query"] == "collection:PLAW congress:118 docnumber:31"
+        assert fx.request_body(seen[0])["query"] == "collection:PLAW lawtype:public congress:118 docnumber:31"
         prov = out["provenance"]
         assert prov["package_id"] == "PLAW-118publ31"
         assert prov["date_issued"] == "2023-12-22"
@@ -51,6 +51,16 @@ class TestGetPublicLaw:
             assert out["outcome"] == "success", citation
             assert out["congress"] == 118
             assert out["law_number"] == 31
+
+    async def test_citation_path_uses_public_law_filter(self, make_client):
+        seen = []
+        out = await tools.get_public_law(
+            make_client(plaw_handler(seen=seen)), citation="Pub. L. 118-31"
+        )
+        assert out["outcome"] == "success"
+        assert fx.request_body(seen[0])["query"] == (
+            "collection:PLAW lawtype:public congress:118 docnumber:31"
+        )
 
     async def test_private_law_is_out_of_scope_not_a_failed_lookup(self, make_client):
         out = await tools.get_public_law(make_client(None), citation="Priv. L. 108-1")
@@ -108,7 +118,11 @@ class TestGetPublicLaw:
         assert out["location"] == location
 
     async def test_uslm_absent_is_a_distinct_reportable_outcome(self, make_client):
-        handler = plaw_handler(summary=fx.plaw_summary(uslm=False))
+        package_id = "PLAW-104publ1"
+        handler = plaw_handler(
+            search_payload=fx.search_response([fx.plaw_hit(package_id=package_id)]),
+            summary=fx.plaw_summary(package_id=package_id, uslm=False),
+        )
         out = await tools.get_public_law(make_client(handler), congress=104, law_number=1, format="uslm")
         assert out["outcome"] == "format_not_available"
         assert out["format"] == "uslm"
@@ -135,7 +149,30 @@ class TestGetPublicLaw:
             make_client(plaw_handler(search_payload=fx.search_response([]))), congress=118, law_number=9999
         )
         assert out["outcome"] == "not_found"
-        assert out["query"] == "collection:PLAW congress:118 docnumber:9999"
+        assert out["query"] == "collection:PLAW lawtype:public congress:118 docnumber:9999"
+
+    async def test_non_public_package_identity_is_upstream_error(self, make_client):
+        hit = fx.plaw_hit(package_id="PLAW-119pvtl2")
+        out = await tools.get_public_law(
+            make_client(plaw_handler(search_payload=fx.search_response([hit]))),
+            congress=119,
+            law_number=2,
+        )
+        assert out["outcome"] == "upstream_error"
+        assert "PLAW-119publ2" in out["detail"]
+        assert "PLAW-119pvtl2" in out["detail"]
+
+    async def test_ambiguous_message_does_not_repeat_the_same_inputs(self, make_client):
+        hits = [fx.plaw_hit(), fx.plaw_hit(package_id="PLAW-118publ31-duplicate")]
+        out = await tools.get_public_law(
+            make_client(plaw_handler(search_payload=fx.search_response(hits, count=2))),
+            congress=118,
+            law_number=31,
+        )
+        assert out["outcome"] == "ambiguous"
+        assert "did not resolve to one public law" in out["message"]
+        assert "package_id" in out["message"]
+        assert "re-request" not in out["message"]
 
     async def test_search_failure_is_never_not_found(self, make_client):
         out = await tools.get_public_law(
