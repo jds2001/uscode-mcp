@@ -2,7 +2,7 @@
   "suite": {
     "name": "uscode-mcp-e2e",
     "spec": "documentation/",
-    "manifest_version": "3"
+    "manifest_version": "4"
   },
   "server": {
     "name": "uscode_mcp",
@@ -122,6 +122,247 @@
         "D"
       ],
       "_note": "The only cell where trace scope equals tool surface, so it is the ONLY cell where attribution-dependent clauses score (A2/C2/D3 fabrication-and-priors clauses). Elsewhere those clauses are watch items."
+    },
+    "loop-floor": {
+      "driver": "loop",
+      "endpoint": "openrouter",
+      "model": "openai/gpt-oss-120b",
+      "provider": "deepinfra/bf16",
+      "scaffold": "loop-scaffold@1",
+      "knobs": {
+        "reasoning": {
+          "effort": "low"
+        },
+        "temperature": 1.0,
+        "max_tokens": 8192
+      },
+      "role": "floor",
+      "context": "crowded",
+      "crowding": {
+        "procedure": "neutral-file-triage@2",
+        "collision_review": "2026-08-31, spec session: uscode-mcp's domain is US statutory-law search and retrieval (US Code sections, public laws, legal citations); disjoint from office notes-triage content"
+      },
+      "tool_surface": "full",
+      "merge_gating": false,
+      "groups": [
+        "A",
+        "C",
+        "D"
+      ],
+      "budget_usd": 1.0,
+      "notes": "The real floor (2026-09-21): a weak open-weight model under the harness's lean scaffold, crowded, full surface. Never pooled with the claude-code cells. Doubles as E22's `both` arm at the floor. Not gating until one complete run has been scored from artifacts."
+    },
+    "loop-isolation": {
+      "driver": "loop",
+      "endpoint": "openrouter",
+      "model": "openai/gpt-oss-120b",
+      "provider": "deepinfra/bf16",
+      "scaffold": "loop-scaffold@1",
+      "knobs": {
+        "reasoning": {
+          "effort": "low"
+        },
+        "temperature": 1.0,
+        "max_tokens": 8192
+      },
+      "role": "isolation",
+      "context": "fresh",
+      "tool_surface": [
+        "get_us_code_section",
+        "search_us_code",
+        "get_public_law",
+        "search_public_laws"
+      ],
+      "merge_gating": false,
+      "groups": [
+        "A",
+        "C",
+        "D"
+      ],
+      "budget_usd": 1.0,
+      "notes": "Loop-driver attribution cell; E22's `both` arm in isolation. Not gating until one complete run has been scored."
+    },
+    "loop-floor-banner-field": {
+      "driver": "loop",
+      "endpoint": "openrouter",
+      "model": "openai/gpt-oss-120b",
+      "provider": "deepinfra/bf16",
+      "scaffold": "loop-scaffold@1",
+      "knobs": {
+        "reasoning": {
+          "effort": "low"
+        },
+        "temperature": 1.0,
+        "max_tokens": 8192
+      },
+      "role": "floor",
+      "context": "crowded",
+      "crowding": {
+        "procedure": "neutral-file-triage@2",
+        "collision_review": "2026-08-31, spec session: uscode-mcp's domain is US statutory-law search and retrieval (US Code sections, public laws, legal citations); disjoint from office notes-triage content"
+      },
+      "tool_surface": "full",
+      "merge_gating": false,
+      "groups": [
+        "C"
+      ],
+      "env": {
+        "USCODE_MCP_BANNER_CARRIERS": "field"
+      },
+      "budget_usd": 1.0,
+      "notes": "E22 arm `field`: identical to loop-floor except the server env USCODE_MCP_BANNER_CARRIERS=field (40-tools.md, experimental switch; WO-12 part F). Scored for E22 only, never as a suite result."
+    },
+    "loop-floor-banner-content": {
+      "driver": "loop",
+      "endpoint": "openrouter",
+      "model": "openai/gpt-oss-120b",
+      "provider": "deepinfra/bf16",
+      "scaffold": "loop-scaffold@1",
+      "knobs": {
+        "reasoning": {
+          "effort": "low"
+        },
+        "temperature": 1.0,
+        "max_tokens": 8192
+      },
+      "role": "floor",
+      "context": "crowded",
+      "crowding": {
+        "procedure": "neutral-file-triage@2",
+        "collision_review": "2026-08-31, spec session: uscode-mcp's domain is US statutory-law search and retrieval (US Code sections, public laws, legal citations); disjoint from office notes-triage content"
+      },
+      "tool_surface": "full",
+      "merge_gating": false,
+      "groups": [
+        "C"
+      ],
+      "env": {
+        "USCODE_MCP_BANNER_CARRIERS": "content"
+      },
+      "budget_usd": 1.0,
+      "notes": "E22 arm `content`: identical to loop-floor except the server env USCODE_MCP_BANNER_CARRIERS=content (40-tools.md, experimental switch; WO-12 part F). Scored for E22 only, never as a suite result."
+    },
+    "loop-isolation-banner-field": {
+      "driver": "loop",
+      "endpoint": "openrouter",
+      "model": "openai/gpt-oss-120b",
+      "provider": "deepinfra/bf16",
+      "scaffold": "loop-scaffold@1",
+      "knobs": {
+        "reasoning": {
+          "effort": "low"
+        },
+        "temperature": 1.0,
+        "max_tokens": 8192
+      },
+      "role": "isolation",
+      "context": "fresh",
+      "tool_surface": [
+        "get_us_code_section",
+        "search_us_code",
+        "get_public_law",
+        "search_public_laws"
+      ],
+      "merge_gating": false,
+      "groups": [
+        "C"
+      ],
+      "env": {
+        "USCODE_MCP_BANNER_CARRIERS": "field"
+      },
+      "budget_usd": 1.0,
+      "notes": "E22 arm `field`: identical to loop-isolation except the server env USCODE_MCP_BANNER_CARRIERS=field (40-tools.md, experimental switch; WO-12 part F). Scored for E22 only, never as a suite result."
+    },
+    "loop-isolation-banner-content": {
+      "driver": "loop",
+      "endpoint": "openrouter",
+      "model": "openai/gpt-oss-120b",
+      "provider": "deepinfra/bf16",
+      "scaffold": "loop-scaffold@1",
+      "knobs": {
+        "reasoning": {
+          "effort": "low"
+        },
+        "temperature": 1.0,
+        "max_tokens": 8192
+      },
+      "role": "isolation",
+      "context": "fresh",
+      "tool_surface": [
+        "get_us_code_section",
+        "search_us_code",
+        "get_public_law",
+        "search_public_laws"
+      ],
+      "merge_gating": false,
+      "groups": [
+        "C"
+      ],
+      "env": {
+        "USCODE_MCP_BANNER_CARRIERS": "content"
+      },
+      "budget_usd": 1.0,
+      "notes": "E22 arm `content`: identical to loop-isolation except the server env USCODE_MCP_BANNER_CARRIERS=content (40-tools.md, experimental switch; WO-12 part F). Scored for E22 only, never as a suite result."
+    },
+    "e17-deepinfra": {
+      "driver": "loop",
+      "endpoint": "openrouter",
+      "model": "openai/gpt-oss-120b",
+      "provider": "deepinfra/bf16",
+      "scaffold": "loop-scaffold@1",
+      "knobs": {
+        "reasoning": {
+          "effort": "low"
+        },
+        "max_tokens": 4096
+      },
+      "role": "isolation",
+      "context": "fresh",
+      "tool_surface": [
+        "get_us_code_section",
+        "search_us_code",
+        "get_public_law",
+        "search_public_laws"
+      ],
+      "merge_gating": false,
+      "groups": [
+        "C"
+      ],
+      "prompts": [
+        "C1"
+      ],
+      "budget_usd": 1.0,
+      "notes": "E17 DeepInfra arm: knobs identical to the O51 baseline cell (no sampling knobs, max_tokens 4096) so before/after is one change. Ten invocations; count distinct answers."
+    },
+    "e17-akashml": {
+      "driver": "loop",
+      "endpoint": "openrouter",
+      "model": "openai/gpt-oss-120b",
+      "provider": "akashml/bf16",
+      "scaffold": "loop-scaffold@1",
+      "knobs": {
+        "reasoning": {
+          "effort": "low"
+        },
+        "max_tokens": 4096
+      },
+      "role": "isolation",
+      "context": "fresh",
+      "tool_surface": [
+        "get_us_code_section",
+        "search_us_code",
+        "get_public_law",
+        "search_public_laws"
+      ],
+      "merge_gating": false,
+      "groups": [
+        "C"
+      ],
+      "prompts": [
+        "C1"
+      ],
+      "budget_usd": 1.0,
+      "notes": "E17 second pinned provider (confound arm). Tag read from the endpoint listing 2026-09-21: bf16, tools advertised. Ten invocations; count distinct answers."
     }
   },
   "checks": [
