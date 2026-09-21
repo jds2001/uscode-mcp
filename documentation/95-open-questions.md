@@ -56,6 +56,8 @@ Q17 — **S18: what to do about the default window, and whether to trim the desc
 
 ## Implementation queue
 
+**WO-12 CLOSED 2026-09-21 (`ea84893`, `8c3e481`, O66). Queue empty on the server side. Owed now, by the maintainer: the loop run of manifest version 4 — eight cells, ten invocations of C1 in the six E22 cells and the two E17 cells — after which this session scores the complete run, E22 and E17 from the artifacts.** The paragraphs below are earlier states.
+
 **Order of events from here (2026-09-21):** WO-12 is handed to the implementation session (parts A, B, D, E, F); this session verifies it by re-running E21's arms 1–3 and a three-mode probe of the switch; then the maintainer runs manifest version 4's eight loop cells, which is at once the first complete loop-driver run, E22 and E17; this session scores from the artifacts. Nothing is owed by the maintainer before the build.
 
 **WO-12 DRAFTED 2026-09-20, not yet issued to the implementation session** — served-string fixes from S18 as measured by E21 (O64): spec codes out, source indentation out, one window convention, the small locating call taught. Part C (`text.banner` dropped) was withdrawn before issue (S19, O65). Q17 is ruled (R20). Q18 (which banner carrier, if either) is open and WO-12 does not wait on it. The paragraphs below are earlier states.
