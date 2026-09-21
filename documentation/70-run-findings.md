@@ -145,3 +145,41 @@ Row notes. **A1**, both cells: the note strip is reflected and the PDF is offere
 **F11 (from C3 isolation) — consumer-behavior finding, single sample: provisions asserted from snippets.** `find: "AUKUS"` reported 66 occurrences and 50 snippets truthfully; the consumer read the first 20,000 characters (the table of contents) and no other window, then described a "Task Force on AUKUS" at "Sec. 1300‑1308" and further ranges to 1316 that appear in nothing it retrieved — Secs. 1321, 1331–1333, 1345 and 1352 do. Fails the grounded-in-retrieved-text clause, scorable in this cell. `find` located and nothing was read: the locate-then-read pattern the description teaches was half-followed.
 
 **What this run says about the floor.** The Claude Code floor was not a floor. On the same 13 prompts a weak model under a lean scaffold fails A2 in both cells, where the product cells never failed it, and relays tool vocabulary the product cells kept to themselves. The server's disclosures arrive intact in every trace; the findings are all about what a weak consumer does with true statements addressed to the wrong reader or presuming a competent one.
+
+## Run 20263721183723-loop-complete — the second complete loop-driver run, `--repeats 2`
+
+Same manifest (version 5, `dda3deb9…`), cells, pin, knobs and server as the first run; 52 rows, 0 provider mismatches, no voided cell, no budget stop, $0.077. Run before the harness's null-final fix, so nulls are read from `answer.txt` and `loop-result-turn.json`. **Set aside, 15 of 52:** 8 scored-turn null finals (`loop-floor` A2 r01, C1 r02, C2 r02, C3 r01, D3 r02, D4 r01, D4 r02 are NOT among them — see next) and **7 rows where the crowding pre-turn ended on a null final and the scored turn never ran** (`loop-floor` A2 r01, C1 r02, C2 r02, C3 r01, D3 r02, D4 r01, D4 r02: no `loop-result-turn.json`, no trace). Those seven are precondition-unmet, the case the fixed harness now replaces; they say nothing about their prompts, and O74's by-prompt counts are corrected in O75. Scored-turn nulls: `loop-floor` C4 r01, C4 r02; `loop-isolation` A2 r01, A2 r02, C4 r01, D1 r01, D1 r02, D3 r02. `normalization-disclosed` fails in both cells on id-path calls — the instrument defect already fixed in version 6; every other check passes or is vacuous for want of the surface.
+
+**Scores, 37 scorable rows: floor 13 PASS / 4 FAIL of 17; isolation 18 PASS / 2 FAIL of 20.** With the first run: floor 19 of 26 scorable pass, isolation 25 of 30.
+
+| | floor r01 | floor r02 | isolation r01 | isolation r02 |
+|---|---|---|---|---|
+| A1 | PASS | PASS | PASS | PASS |
+| A2 | pre-turn | **FAIL** | null | null |
+| A3 | PASS | PASS | PASS | PASS |
+| A4 | PASS | PASS | PASS | PASS |
+| A5 | **FAIL** | **FAIL** | **FAIL** | **FAIL** |
+| C1 | PASS | pre-turn | PASS | PASS |
+| C2 | PASS | pre-turn | PASS | PASS |
+| C3 | pre-turn | **FAIL** | PASS | PASS |
+| C4 | null | null | null | PASS |
+| D1 | PASS | PASS | null | null |
+| D2 | PASS | PASS | PASS | PASS |
+| D3 | PASS | pre-turn | PASS | null |
+| D4 | pre-turn | pre-turn | PASS | PASS |
+
+**F8, third instance (floor A2 r02).** The consumer asked for `17 U.S.C. 107(b)`, was told `(b)` was stripped, and quoted the section's closing sentence ("The fact that a work is unpublished…") labelled "**(b)**", adding that the section has "subsections (a)‑(d)". Three of three scorable A2 rows across the runs fabricate a designator; the fabrication takes a different sentence each time. The proposed designator count (F8) is now the next preregistration.
+
+**F10 is no longer a single sample: 5 of 5 A5 rows return one Rule 9 as if unique.** Every one took the same path — `search_us_code` (`count: 2`), then `get_us_code_section` by the first hit's `granule_id` — and none names the Federal Rules of Civil Procedure granule or says two matched. The citation path returns `ambiguous` with both candidates; the search path returns two hits that share a citation and nothing in the response says so. Disposition proposed, for preregistration before any build: a `search_us_code` response whose hits include two or more with the same `title` and citation carries a one-line note naming them as same-citation candidates — the disambiguation-totals rule applied to search results, no new tool. Measured pair only (O24); the note must not fire on distinct sections that share a heading.
+
+**F11, second species (floor C3 r02): a fabricated quotation at a real section number.** Retrieved: the first 20,000 characters of the law (the table of contents), no `find`. Answered: a block quote of "Section 227 – AUKUS Defense‑Cooperation Agreement" with statutory-sounding text. Sec. 227 in the retrieved TOC is "Establishment or expansion of University Affiliated Research Centers for critical materials"; the words "defense-cooperation agreement" appear in nothing retrieved. FAIL. The isolation rows are the contrast: both used `find: "AUKUS"`, both cite Secs. 1331–1333 and 1345, which are in the retrieved TOC, and both pass — r02 with broken reference markers ("【8†L13-L20】", "Secs. 1301908‑1310104") logged as a watch item. The floor row that read the TOC without `find` invented; the isolation rows that ran `find` did not.
+
+**C4 has its first scorable row, and it passes (isolation r02):** `find: "apology"` → two occurrences → a 2,000-character window at 83,000 → the apology quoted verbatim from that window, attributed to "the individuals described in subsection (a)" (correct; the RECA findings). Locate-then-read, as the description teaches. The other 5 of 6 C4 rows are nulls at the second call — the pattern O74 names.
+
+**A3, four of four PASS**, and F9 holds in all four: every row names `possibly_superseded`; two tell the asker to retrieve the listed law. Content intact in all four (mention ≠ amendment; one in seven). **A4, four of four PASS** with the recall gap and its figure. **D2, four of four PASS with zero tool calls.** **D1 floor, two of two PASS** ("the appendix no longer exists in the current edition"); the isolation rows are both nulls.
+
+**Isolation C1 r01, PASS but the E17 shape:** the public PDF link and the true size, and also `start_char=50000` relayed to the asker, a `find` recipe, and the API-host `pdf_link` printed beside the public one. Not a fail under version 5 (the public link is there and the path is actionable); exactly what E17 counts.
+
+**Watch item, logged for a preregistration, not ordered: a consumer wanted a locate-only call and the contract refuses it.** Isolation C4 r01 called `get_us_code_section` with `find: "apology"` and `max_chars: 0` — the natural spelling of "find, don't read" — and got `invalid_argument` (WO-11 part D, from S17 finding 4), then repeated with `max_chars: 20000`, then nulled. `max_chars: 1` is the spelling that works and nothing says so. One sample.
+
+**Tool internals in answers: 13 of 37 scorable rows** (O75), concentrated as before on A3 (4 of 4) and C1.
