@@ -2,7 +2,7 @@
   "suite": {
     "name": "uscode-mcp-e2e",
     "spec": "documentation/",
-    "manifest_version": "4"
+    "manifest_version": "5"
   },
   "server": {
     "name": "uscode_mcp",
@@ -64,6 +64,21 @@
       "_evidence": "O24, O28"
     }
   },
+  "measurements": [
+    {
+      "name": "answer_coverage",
+      "measure": "answer-coverage@1",
+      "applies_to": {
+        "tool": [
+          "get_us_code_section",
+          "get_public_law"
+        ]
+      },
+      "reference": "/response/structuredContent/text/content",
+      "floor": 64,
+      "_note": "A recorded number, never a score (60-e2e-harness.md). The reference is text.content, which opens with the banner line in every mode but E22's `field`; this suite subtracts the banner itself (R13c), and a matched span inside the banner line is parroting, which E22 counts separately as M3."
+    }
+  ],
   "cells": {
     "floor": {
       "driver": "claude-code",
@@ -150,7 +165,7 @@
         "D"
       ],
       "budget_usd": 1.0,
-      "notes": "The real floor (2026-09-21): a weak open-weight model under the harness's lean scaffold, crowded, full surface. Never pooled with the claude-code cells. Doubles as E22's `both` arm at the floor. Not gating until one complete run has been scored from artifacts."
+      "notes": "The real floor (R21): a weak open-weight model under the harness's lean scaffold, crowded, full surface. The complete-run cell. Never pooled with the claude-code cells. Non-gating until one complete run has been scored from artifacts. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs."
     },
     "loop-isolation": {
       "driver": "loop",
@@ -180,9 +195,39 @@
         "D"
       ],
       "budget_usd": 1.0,
-      "notes": "Loop-driver attribution cell; E22's `both` arm in isolation. Not gating until one complete run has been scored."
+      "notes": "Loop-driver attribution cell for the complete run. Non-gating until one complete run has been scored from artifacts. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs."
     },
-    "loop-floor-banner-field": {
+    "e22-floor-both": {
+      "driver": "loop",
+      "endpoint": "openrouter",
+      "model": "openai/gpt-oss-120b",
+      "provider": "deepinfra/bf16",
+      "scaffold": "loop-scaffold@1",
+      "knobs": {
+        "reasoning": {
+          "effort": "low"
+        },
+        "temperature": 1.0,
+        "max_tokens": 8192
+      },
+      "role": "floor",
+      "context": "crowded",
+      "crowding": {
+        "procedure": "neutral-file-triage@2",
+        "collision_review": "2026-08-31, spec session: uscode-mcp's domain is US statutory-law search and retrieval (US Code sections, public laws, legal citations); disjoint from office notes-triage content"
+      },
+      "tool_surface": "full",
+      "merge_gating": false,
+      "groups": [
+        "C"
+      ],
+      "env": {
+        "USCODE_MCP_BANNER_CARRIERS": "both"
+      },
+      "budget_usd": 1.0,
+      "notes": "E22 arm `both`, floor: loop-floor over group C with the server env USCODE_MCP_BANNER_CARRIERS=both, set in every arm so none depends on the server default. Preregistration: documentation/95-open-questions.md, E22. Scored for E22 only, never as a suite result. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs."
+    },
+    "e22-floor-field": {
       "driver": "loop",
       "endpoint": "openrouter",
       "model": "openai/gpt-oss-120b",
@@ -210,9 +255,9 @@
         "USCODE_MCP_BANNER_CARRIERS": "field"
       },
       "budget_usd": 1.0,
-      "notes": "E22 arm `field`: identical to loop-floor except the server env USCODE_MCP_BANNER_CARRIERS=field (40-tools.md, experimental switch; WO-12 part F). Scored for E22 only, never as a suite result."
+      "notes": "E22 arm `field`, floor: loop-floor over group C with the server env USCODE_MCP_BANNER_CARRIERS=field, set in every arm so none depends on the server default. Preregistration: documentation/95-open-questions.md, E22. Scored for E22 only, never as a suite result. Fails the banner-leads-truncated-content check on every truncated record by construction: the arm's signature, not a finding. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs."
     },
-    "loop-floor-banner-content": {
+    "e22-floor-content": {
       "driver": "loop",
       "endpoint": "openrouter",
       "model": "openai/gpt-oss-120b",
@@ -240,9 +285,40 @@
         "USCODE_MCP_BANNER_CARRIERS": "content"
       },
       "budget_usd": 1.0,
-      "notes": "E22 arm `content`: identical to loop-floor except the server env USCODE_MCP_BANNER_CARRIERS=content (40-tools.md, experimental switch; WO-12 part F). Scored for E22 only, never as a suite result."
+      "notes": "E22 arm `content`, floor: loop-floor over group C with the server env USCODE_MCP_BANNER_CARRIERS=content, set in every arm so none depends on the server default. Preregistration: documentation/95-open-questions.md, E22. Scored for E22 only, never as a suite result. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs."
     },
-    "loop-isolation-banner-field": {
+    "e22-isolation-both": {
+      "driver": "loop",
+      "endpoint": "openrouter",
+      "model": "openai/gpt-oss-120b",
+      "provider": "deepinfra/bf16",
+      "scaffold": "loop-scaffold@1",
+      "knobs": {
+        "reasoning": {
+          "effort": "low"
+        },
+        "temperature": 1.0,
+        "max_tokens": 8192
+      },
+      "role": "isolation",
+      "context": "fresh",
+      "tool_surface": [
+        "get_us_code_section",
+        "search_us_code",
+        "get_public_law",
+        "search_public_laws"
+      ],
+      "merge_gating": false,
+      "groups": [
+        "C"
+      ],
+      "env": {
+        "USCODE_MCP_BANNER_CARRIERS": "both"
+      },
+      "budget_usd": 1.0,
+      "notes": "E22 arm `both`, isolation: loop-isolation over group C with the server env USCODE_MCP_BANNER_CARRIERS=both, set in every arm so none depends on the server default. Preregistration: documentation/95-open-questions.md, E22. Scored for E22 only, never as a suite result. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs."
+    },
+    "e22-isolation-field": {
       "driver": "loop",
       "endpoint": "openrouter",
       "model": "openai/gpt-oss-120b",
@@ -271,9 +347,9 @@
         "USCODE_MCP_BANNER_CARRIERS": "field"
       },
       "budget_usd": 1.0,
-      "notes": "E22 arm `field`: identical to loop-isolation except the server env USCODE_MCP_BANNER_CARRIERS=field (40-tools.md, experimental switch; WO-12 part F). Scored for E22 only, never as a suite result."
+      "notes": "E22 arm `field`, isolation: loop-isolation over group C with the server env USCODE_MCP_BANNER_CARRIERS=field, set in every arm so none depends on the server default. Preregistration: documentation/95-open-questions.md, E22. Scored for E22 only, never as a suite result. Fails the banner-leads-truncated-content check on every truncated record by construction: the arm's signature, not a finding. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs."
     },
-    "loop-isolation-banner-content": {
+    "e22-isolation-content": {
       "driver": "loop",
       "endpoint": "openrouter",
       "model": "openai/gpt-oss-120b",
@@ -302,7 +378,7 @@
         "USCODE_MCP_BANNER_CARRIERS": "content"
       },
       "budget_usd": 1.0,
-      "notes": "E22 arm `content`: identical to loop-isolation except the server env USCODE_MCP_BANNER_CARRIERS=content (40-tools.md, experimental switch; WO-12 part F). Scored for E22 only, never as a suite result."
+      "notes": "E22 arm `content`, isolation: loop-isolation over group C with the server env USCODE_MCP_BANNER_CARRIERS=content, set in every arm so none depends on the server default. Preregistration: documentation/95-open-questions.md, E22. Scored for E22 only, never as a suite result. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs."
     },
     "e17-deepinfra": {
       "driver": "loop",
