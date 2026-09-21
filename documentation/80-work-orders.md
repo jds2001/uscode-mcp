@@ -218,9 +218,9 @@ Measured basis (O44d): the field carries this form (`"50 U.S.C. App. 2012"` → 
 
 **A note on the tests, as on WO-8's:** parts B, C and E will be tested by fixtures written from the same reading of this order as the fix. They prove the two agree. Parts A and D are the ones real upstream can contradict, which is why their artifacts are replays of inputs GovInfo authored — the 60 pairs — and not examples chosen here.
 
-## WO-12 — served strings: no spec codes, no source indentation, no `text.banner`, one window convention, and the description teaches the small locating call (S18; contract in `40-tools.md`, "Served strings are written for the consumer", "No silent truncation", "Locating content in large payloads"; measured basis O64)
+## WO-12 — served strings: no spec codes, no source indentation, one window convention, and the description teaches the small locating call (S18; contract in `40-tools.md`, "Served strings are written for the consumer", "No silent truncation", "Locating content in large payloads"; measured basis O64)
 
-**Status:** ISSUED 2026-09-20. Five parts, all wording or shape, no upstream behavior involved. One commit is fine. None of it waits on Q17.
+**Status:** DRAFTED 2026-09-20, not yet issued; amended in place the same day (S19, O65): part C withdrawn. Four live parts — A, B, D, E — all wording, no upstream behavior involved. One commit is fine. Q17 is ruled (R20) and changes nothing here; Q18 is open and nothing here waits on it.
 
 **Part A — remove spec-internal identifiers from every served string.** Measured at `b9d9185` (O64b), exactly these: `(O43b)` and `(O21)` in the `none_indexed` `possibly_superseded.caveat`; `(O36)` in `structure.note`; `O21, O17/O18` in the `search_public_laws` description. Delete the identifier and its parentheses or dash-clause and nothing else — the figures and the sentences stay. The `none_indexed` caveat was copied from WO-1's table, where this session wrote its citations inside the sentence; that is this spec's error and the wording as it should be served is:
 
@@ -230,7 +230,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 **Part B — descriptions served without source indentation.** Every continuation line of all four tool descriptions is served with eight or more leading spaces, 760 characters in all (O64a). Serve the paragraphs and list items with their line breaks and no layout indentation. Test: no served description contains a run of two or more spaces.
 
-**Part C — drop `text.banner`.** The field repeats the banner line that already opens `text.content`; no contract or check asks for it (O64d). Remove it from both text tools. `text.content`'s banner line and `text.message` are unchanged in role. If anything in the repository reads `text.banner`, say so in the report instead of removing it — this session can see only that the spec and the manifest do not.
+**Part C — WITHDRAWN before issue.** It ordered `text.banner` dropped as the unspecified copy. The maintainer and the consumer asked why that one and not the line in `text.content`, and the traces show no run has ever served one without the other (O65), so there is no evidence for dropping either. Leave both carriers exactly as served. The letter is kept so parts D and E keep their names.
 
 **Part D — `text.message` states the window the way the banner does.** Served: "returned chars 0-6000" beside a banner reading "chars 0–5,999". The banner is pinned character-exact (O37), so the message takes the banner's inclusive bounds. The rest of the message — the continuation, the coordinate disclosure, the audience sentence with `public_pdf_link` — is unchanged.
 
