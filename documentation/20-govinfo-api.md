@@ -18,7 +18,7 @@ Rate limit, measured on a registered key: `x-ratelimit-limit: 36000` per hour (O
 | `GET /packages/{packageId}/granules/{granuleId}/htm` | Section text incl. notes (HTML payload) | O5, O15 |
 | Download links (`pdfLink`, `modsLink`, `uslmLink`, …) | Taken verbatim from summaries/search results, never constructed | O4 |
 
-The `/collections`, `/published`, and `/related` endpoints exist but no v1 tool depends on them; `/collections` was used only as an instrument (O1).
+The `/collections`, `/published`, and `/related` endpoints exist but no v1 tool depends on them; `/collections` was used only as an instrument (O1). `/related` is measured not to be a law↔section bridge (E23, O70): a PLAW package relates only to BILLS, HOB, CRPT and CPD, no relationship to or from USCODE is defined, and a USCODE granule id draws a 500. It signals absence with a 404, where `/search` uses a 200 with `count: 0`.
 
 GovInfo publishes an OpenAPI 3.0.1 description at `https://api.govinfo.gov/api-docs` (S20, O69), keyless. It is a description, not evidence: the table above still rests on the O-measurements, and where the two disagree the measurement governs. Three things about it bear on this file — it lists no content-download path, so the `/htm` row is documented nowhere upstream (O69b); it documents only the `api_key` query parameter, so the header transport R7 requires is measured (O22) and not documented (O69c); and its `404` for a search with no results is wrong — a zero-hit is HTTP 200 with `count: 0` and a null `offsetMark` (O69e).
 
