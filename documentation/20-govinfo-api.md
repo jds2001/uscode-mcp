@@ -20,6 +20,8 @@ Rate limit, measured on a registered key: `x-ratelimit-limit: 36000` per hour (O
 
 The `/collections`, `/published`, and `/related` endpoints exist but no v1 tool depends on them; `/collections` was used only as an instrument (O1).
 
+GovInfo publishes an OpenAPI 3.0.1 description at `https://api.govinfo.gov/api-docs` (S20, O69), keyless. It is a description, not evidence: the table above still rests on the O-measurements, and where the two disagree the measurement governs. Three things about it bear on this file — it lists no content-download path, so the `/htm` row is documented nowhere upstream (O69b); it documents only the `api_key` query parameter, so the header transport R7 requires is measured (O22) and not documented (O69c); and its `404` for a search with no results is wrong — a zero-hit is HTTP 200 with `count: 0` and a null `offsetMark` (O69e).
+
 A PLAW package summary carries a `references` array enumerating the US Code citations the law touches, by title and section (O18); its entries carry only the labels `Stat.` and `U.S.C` and bare section strings — nothing marks a citation as a note (O43a), and 39 of the 119th Congress's first 102 public laws carry no U.S.C. entry at all (O43a, corroborating R2). No v1 tool reads it, but it is the measured higher-recall alternative to the `uscodecitation` search field (O17 vs O18) and the designated v2 bridge source (Q6, E9). Measured limit: the array omits appendix citations that the same package's MODS carries as `USC citation` identifiers (`50 U.S.C. App. 2012` on PLAW-119publ75, O44d) — so it under-counts a law's Code footprint for appendix material, and any ground truth built from it inherits that.
 
 ## Formats, per collection — measured 2026-08-29
