@@ -79,7 +79,7 @@ CAVEAT_NONE_INDEXED = (
     "THIS IS NOT A CURRENCY CHECK. No public law published after this edition's currentthrough date is "
     "indexed against this section in GovInfo's uscodecitation field — but absence of a match is not "
     "evidence the text is current: the index misses about one in seven listed (law, section) pairs "
-    "(O43b) and one in four in an earlier sample (O21). A law that amended this section may exist and "
+    "and one in four in an earlier sample. A law that amended this section may exist and "
     "simply not be indexed against it."
 )
 
@@ -297,7 +297,7 @@ def note_statement(parent_citation: str) -> str:
     """The in-band statement carried when the lookup stripped a trailing 'note'."""
     return (
         f"This check ran against the parent section {parent_citation}, not the note. Note-codified "
-        "material is where the index is measured weakest (O17/O18, O43b): a law affecting only the "
+        "material is where the index is measured weakest: a law affecting only the "
         "note may be indexed against neither citation, so neither state here speaks to the note."
     )
 

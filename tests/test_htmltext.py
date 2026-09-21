@@ -369,6 +369,11 @@ class TestAudienceSentence:
     PDF = "https://www.govinfo.gov/content/pkg/PLAW-118publ31/pdf/PLAW-118publ31.pdf"
     DETAILS = "https://www.govinfo.gov/app/details/PLAW-118publ31"
 
+    def test_window_message_uses_inclusive_bounds_like_the_banner(self):
+        window = window_text("abcdefghij", start_char=2, max_chars=4)
+        assert "returned chars 2-5" in window["message"]
+        assert "[WINDOW chars 2–5 of 10" in window["banner"]
+
     def test_sentence_names_both_audiences_and_carries_the_url_inline(self):
         s = audience_sentence(self.PDF)
         assert "tool caller" in s

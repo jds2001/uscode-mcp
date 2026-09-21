@@ -2,12 +2,15 @@
 spec-mandated caveats, and calls route through to the tool layer."""
 
 import json
+import re
 
 import fx
 import httpx
 
 from uscode_mcp.govinfo import UpstreamResponse
 from uscode_mcp.server import create_server
+
+INTERNAL_IDENTIFIER = re.compile(r"\b[OREFSQ]\d{1,3}[a-z]?\b|WO-\d+")
 
 EXPECTED_TOOLS = {"get_us_code_section", "search_us_code", "get_public_law", "search_public_laws"}
 
@@ -50,6 +53,32 @@ async def test_exactly_four_tools_registered():
     server = create_server()
     listed = await server.list_tools()
     assert {t.name for t in listed} == EXPECTED_TOOLS
+
+
+async def test_served_surface_has_no_internal_identifiers_or_source_indentation():
+    from uscode_mcp.server import SERVER_INSTRUCTIONS
+
+    listed = await create_server().list_tools()
+    served_strings = [SERVER_INSTRUCTIONS]
+    for tool in listed:
+        served_strings.append(tool.description or "")
+        served_strings.extend(_strings(tool.input_schema))
+        served_strings.extend(_strings(tool.output_schema))
+
+    assert not [value for value in served_strings if INTERNAL_IDENTIFIER.search(value)]
+    assert all("  " not in (tool.description or "") for tool in listed)
+
+
+def _strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield from _strings(key)
+            yield from _strings(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _strings(item)
 
 
 async def test_search_public_laws_description_carries_recipe_and_recall_caveat():

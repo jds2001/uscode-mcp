@@ -178,7 +178,7 @@ def html_to_text(html: str) -> str:
 
 _MARKERLESS_NOTE = (
     "Structure is derived only from the payload's upstream field-start/field-end markers "
-    "(O36), never guessed from headings — so it is omitted rather than approximated. The "
+    "and never guessed from headings — so it is omitted rather than approximated. The "
     "text itself is unaffected; use `find` to locate content by substring."
 )
 
@@ -268,7 +268,7 @@ def html_to_text_with_structure(html: str) -> tuple[str, dict[str, Any]]:
         "omitted": False,
         "fields": fields,
         "note": (
-            "Field boundaries come from the payload's own upstream markers (O36). `start_char` and "
+            "Field boundaries come from the payload's own upstream markers. `start_char` and "
             "`end_char` (exclusive) share the coordinate system of total_chars/start_char, so a "
             "field can be read by re-requesting with its start_char and max_chars = end_char - "
             "start_char. Fields nest: a container like `notes` spans its typed children. HEADINGS "
@@ -322,7 +322,7 @@ def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dic
         result["banner"] = banner
         result["content"] = f"{banner}\n{content}"
         result["message"] = (
-            f"Payload is {total} chars; returned chars {start_char}-{end}. "
+            f"Payload is {total} chars; returned chars {start_char}-{end - 1}. "
             f"Continue with start_char={end}. The same disclosure leads `content` as a banner "
             f"line, which is NOT part of the payload: content offsets start at start_char after it."
         )

@@ -5,6 +5,7 @@ notably the reverse-lookup recipe and its recall caveat on search_public_laws)."
 
 from __future__ import annotations
 
+import inspect
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -90,7 +91,16 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
             owned_client = True
         return state["client"]
 
-    @mcp.tool()
+    def consumer_tool():
+        """Register a tool with source indentation removed from its description."""
+
+        def decorator(fn):
+            description = "\n".join(" ".join(line.split()) for line in inspect.cleandoc(fn.__doc__ or "").splitlines())
+            return mcp.tool(description=description)(fn)
+
+        return decorator
+
+    @consumer_tool()
     async def get_us_code_section(
         citation: str | None = None,
         title: str | None = None,
@@ -138,6 +148,9 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         a structured redirect to search_us_code.
 
         DON'T GUESS OFFSETS in a big section — one call locates, one call reads:
+        The statutory text is the first field after a short header, so `max_chars` around 6,000 usually returns
+        the statute and source credit whole along with `structure`. When a section's size is unknown, a very small
+        `max_chars` returns `structure` alone for only a few thousand characters of response envelope.
         - `structure` comes back on the LOCATING call (`start_char` 0 or omitted): the payload's
           fields in order (`statute`, `sourcecredit`, and each typed note with its heading), each
           with a `start_char` and an exclusive `end_char`. To read one, re-request with that
@@ -167,7 +180,7 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
             package_id=package_id,
         )
 
-    @mcp.tool()
+    @consumer_tool()
     async def search_us_code(
         query: str,
         page_size: int = tools.DEFAULT_PAGE_SIZE,
@@ -190,7 +203,7 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
             _client(), query, page_size=page_size, offset_mark=offset_mark, historical=historical
         )
 
-    @mcp.tool()
+    @consumer_tool()
     async def get_public_law(
         congress: int | None = None,
         law_number: int | None = None,
@@ -232,7 +245,7 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
             find=find,
         )
 
-    @mcp.tool()
+    @consumer_tool()
     async def search_public_laws(
         query: str,
         page_size: int = tools.DEFAULT_PAGE_SIZE,
@@ -243,7 +256,7 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         `collection:PLAW` clause is accepted; any other collection clause is refused before
         searching.
 
-        CAVEAT (measured, structural — O21, O17/O18): the uscodecitation field's recall gap is
+        CAVEAT (measured and structural): the uscodecitation field's recall gap is
         25/33 on sampled membership tests, with misses in every congress sampled from the 115th on,
         varying per (law, section) — not a recency artifact. Absence of a law from these results is
         never evidence it doesn't touch the section, and this result set must never be presented as

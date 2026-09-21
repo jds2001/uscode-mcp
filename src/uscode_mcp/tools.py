@@ -500,15 +500,15 @@ class _Detector:
             out = superseded.not_checked(
                 "no_citation_for_detector",
                 "the lookup was by granule_id and no citation was supplied; the detector needs a "
-                "'{title} U.S.C. {section}' form and the granule summary's usCodeCitation is null (O9). "
+                "'{title} U.S.C. {section}' form and the granule summary's usCodeCitation is null. "
                 "Pass `citation` alongside `granule_id` to get the staleness check.",
                 **common,
             )
         elif citation is None:
             out = superseded.not_checked(
                 "no_measured_citation_form",
-                "appendix rules and bare appendix citations have no measured uscodecitation form (O44d: "
-                "0 hits for '28 U.S.C. App.' and '28 U.S.C. App. Rule 9'); only numbered appendix sections "
+                "appendix rules and bare appendix citations have no measured uscodecitation form: "
+                "0 hits for '28 U.S.C. App.' and '28 U.S.C. App. Rule 9'; only numbered appendix sections "
                 "have one, so the detector was not run.",
                 **common,
             )
@@ -596,7 +596,7 @@ async def _resolve_granule(
                 "year": year,
                 "message": (
                     "The appendix citation resolved to zero granules — real for appendix material that no "
-                    "longer exists in the current edition (e.g. the eliminated title 50 Appendix, O24). "
+                    "longer exists in the current edition (e.g. the eliminated title 50 Appendix). "
                     "Appendix granules are full-text indexed, so retry with search_us_code and the "
                     "suggested query."
                 ),
@@ -1040,7 +1040,7 @@ async def search_us_code(
 # measured field gap when the query uses uscodecitation:, and otherwise the
 # measured full-text gap (O49c) — so no result set here reads as complete.
 RECALL_CAVEAT_USCODECITATION = (
-    "The uscodecitation field's recall gap is measured and structural (O21, O17/O18): 25/33 sampled "
+    "The uscodecitation field's recall gap is measured and structural: 25/33 sampled "
     "recall against packages' own references arrays, with misses in every congress sampled from the "
     "115th on, varying per (law, section). Absence of a law from these results is never evidence it "
     "doesn't touch the section; this result set must not be presented as complete."
@@ -1106,7 +1106,7 @@ async def get_public_law(
                 "outcome": "out_of_scope_private_law",
                 "citation": citation.strip(),
                 "message": (
-                    "Private laws are out of scope for this server (R6): this is a scope boundary, not a "
+                    "Private laws are out of scope for this server: this is a scope boundary, not a "
                     "failed lookup. Only public laws are served."
                 ),
             }
@@ -1198,7 +1198,7 @@ async def get_public_law(
                 "available_formats": sorted(download.keys()),
                 "message": (
                     "This package offers no uslmLink. USLM has a measured boundary in the PLAW collection "
-                    "(O25): absent for congresses 104-112, present from the 113th (2013) on — so absence is "
+                    "— absent for congresses 104-112, present from the 113th (2013) on — so absence is "
                     "an expected, reportable outcome for early congresses, not an error. Retry with "
                     "format='text' or use one of the available formats' links."
                 ),

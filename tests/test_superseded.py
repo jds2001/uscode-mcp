@@ -133,6 +133,15 @@ class TestHelpers:
             "index misses about one in seven listed (law, section) pairs."
         )
 
+    def test_none_indexed_caveat_is_consumer_facing(self):
+        assert superseded.CAVEAT_NONE_INDEXED == (
+            "THIS IS NOT A CURRENCY CHECK. No public law published after this edition's currentthrough date is "
+            "indexed against this section in GovInfo's uscodecitation field — but absence of a match is not "
+            "evidence the text is current: the index misses about one in seven listed (law, section) pairs "
+            "and one in four in an earlier sample. A law that amended this section may exist and "
+            "simply not be indexed against it."
+        )
+
 
 # ---------------------------------------------------------------------------
 # The three states
