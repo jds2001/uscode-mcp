@@ -25,6 +25,7 @@ Contracts from documentation/40-tools.md:
 
 from __future__ import annotations
 
+import os
 import re
 from bisect import bisect_left
 from html.parser import HTMLParser
@@ -38,6 +39,8 @@ _FIELD_MARKER_RE = re.compile(r"^\s*field-(start|end)\s*:\s*(\S+?)\s*$", re.IGNO
 
 FIND_MAX_OCCURRENCES = 50
 FIND_SNIPPET_CONTEXT = 80
+BANNER_CARRIERS_ENV_VAR = "USCODE_MCP_BANNER_CARRIERS"
+VALID_BANNER_CARRIERS = frozenset({"both", "field", "content"})
 
 # Tags that imply a line break when converting to plain text.
 _BLOCK_TAGS = {
@@ -287,7 +290,24 @@ def truncation_banner(start_char: int, end: int, total: int) -> str:
     )
 
 
-def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dict[str, Any]:
+def banner_carriers_from_env() -> str:
+    """Read and validate the experimental truncation-banner carrier switch."""
+    value = os.environ.get(BANNER_CARRIERS_ENV_VAR)
+    if value is None:
+        return "both"
+    if value not in VALID_BANNER_CARRIERS:
+        expected = ", ".join(sorted(VALID_BANNER_CARRIERS))
+        raise RuntimeError(f"{BANNER_CARRIERS_ENV_VAR} must be one of {expected}; got {value!r}")
+    return value
+
+
+def window_text(
+    text: str,
+    start_char: int = 0,
+    max_chars: int = 100_000,
+    *,
+    banner_carriers: str = "both",
+) -> dict[str, Any]:
     """Return a window of text with explicit truncation markers (never silent).
 
     When the window is truncated, ``content`` leads with the banner line (E12); the
@@ -305,6 +325,8 @@ def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dic
         raise ValueError(f"start_char must be >= 0, got {start_char}")
     if max_chars <= 0:
         raise ValueError(f"max_chars must be > 0, got {max_chars}")
+    if banner_carriers not in VALID_BANNER_CARRIERS:
+        raise ValueError(f"banner_carriers must be one of {', '.join(sorted(VALID_BANNER_CARRIERS))}")
     total = len(text)
     end = min(start_char + max_chars, total)
     content = text[start_char:end]
@@ -319,13 +341,17 @@ def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dic
     }
     if truncated:
         banner = truncation_banner(start_char, end, total)
-        result["banner"] = banner
-        result["content"] = f"{banner}\n{content}"
-        result["message"] = (
-            f"Payload is {total} chars; returned chars {start_char}-{end - 1}. "
-            f"Continue with start_char={end}. The same disclosure leads `content` as a banner "
-            f"line, which is NOT part of the payload: content offsets start at start_char after it."
-        )
+        if banner_carriers in ("both", "field"):
+            result["banner"] = banner
+        if banner_carriers in ("both", "content"):
+            result["content"] = f"{banner}\n{content}"
+        message = f"Payload is {total} chars; returned chars {start_char}-{end - 1}. Continue with start_char={end}."
+        if banner_carriers in ("both", "content"):
+            message += (
+                " The same disclosure leads `content` as a banner line, which is NOT part of the payload: "
+                "content offsets start at start_char after it."
+            )
+        result["message"] = message
     return result
 
 

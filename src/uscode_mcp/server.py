@@ -16,6 +16,7 @@ from mcp.server.mcpserver import MCPServer
 from . import tools
 from ._version import __version__
 from .govinfo import GovInfoClient, client_from_env
+from .htmltext import banner_carriers_from_env
 from .trace import Tracer, TracingMiddleware, tracer_from_env
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,7 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
     R8 tracing: when no tracer is injected, one is built from USCODE_MCP_TRACE_DIR
     if set — an unusable trace directory raises here, at startup, per the spec's
     instrument rules. Absence of the variable means tracing is off."""
+    banner_carriers = banner_carriers_from_env()
     if tracer is None:
         tracer = tracer_from_env()
     middleware = [TracingMiddleware(tracer)] if tracer is not None else None
@@ -178,6 +180,7 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
             find=find,
             granule_id=granule_id,
             package_id=package_id,
+            banner_carriers=banner_carriers,
         )
 
     @consumer_tool()
@@ -243,6 +246,7 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
             max_chars=max_chars,
             start_char=start_char,
             find=find,
+            banner_carriers=banner_carriers,
         )
 
     @consumer_tool()

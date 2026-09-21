@@ -692,6 +692,7 @@ async def _fetch_and_deliver(
     start_char: int,
     find: str | None,
     head: dict[str, Any],
+    banner_carriers: str,
 ) -> dict[str, Any]:
     """Everything downstream of granule selection, shared by the citation and id
     paths (R16: the id path is the citation path's code, not a copy): fetch the
@@ -739,7 +740,12 @@ async def _fetch_and_deliver(
         # for it and paid ~15x a small window to carry it (O38).
         structure = structure_omitted_for_reading_call(start_char)
     try:
-        window = window_text(text, start_char=start_char, max_chars=max_chars)
+        window = window_text(
+            text,
+            start_char=start_char,
+            max_chars=max_chars,
+            banner_carriers=banner_carriers,
+        )
     except ValueError as exc:
         await detector.abandon()
         return _invalid_argument(str(exc))
@@ -776,6 +782,7 @@ async def _get_section_by_id(
     max_chars: int,
     start_char: int,
     find: str | None,
+    banner_carriers: str,
 ) -> dict[str, Any]:
     """R16 by-id path (40-tools.md, "By-id behavior"): no URL is constructed from the
     id; the granule summary (O9) is fetched and its txtLink used verbatim."""
@@ -913,7 +920,17 @@ async def _get_section_by_id(
         "detailsLink": summary.get("detailsLink"),
     }
     return await _fetch_and_deliver(
-        client, detector, parsed, hit, download, txt_link, max_chars, start_char, find, head
+        client,
+        detector,
+        parsed,
+        hit,
+        download,
+        txt_link,
+        max_chars,
+        start_char,
+        find,
+        head,
+        banner_carriers,
     )
 
 
@@ -928,6 +945,8 @@ async def get_us_code_section(
     find: str | None = None,
     granule_id: str | None = None,
     package_id: str | None = None,
+    *,
+    banner_carriers: str = "both",
 ) -> dict[str, Any]:
     """Resolve a US Code citation (or select a granule by id, R16) and return the
     section's text, notes included."""
@@ -946,7 +965,15 @@ async def get_us_code_section(
             except CitationParseError as exc:
                 return _invalid_argument(str(exc))
         return await _get_section_by_id(
-            client, granule_id, package_id, parsed, year, max_chars, start_char, find
+            client,
+            granule_id,
+            package_id,
+            parsed,
+            year,
+            max_chars,
+            start_char,
+            find,
+            banner_carriers,
         )
     if package_id is not None and package_id.strip():
         return _invalid_argument("package_id is only meaningful alongside granule_id; pass granule_id too.")
@@ -968,7 +995,17 @@ async def get_us_code_section(
     assert hit is not None and download is not None and txt_link is not None
     head = {"citation": parsed.normalized, "normalization": normalization}
     return await _fetch_and_deliver(
-        client, detector, parsed, hit, download, txt_link, max_chars, start_char, find, head
+        client,
+        detector,
+        parsed,
+        hit,
+        download,
+        txt_link,
+        max_chars,
+        start_char,
+        find,
+        head,
+        banner_carriers,
     )
 
 
@@ -1083,6 +1120,8 @@ async def get_public_law(
     max_chars: int = DEFAULT_MAX_CHARS,
     start_char: int = 0,
     find: str | None = None,
+    *,
+    banner_carriers: str = "both",
 ) -> dict[str, Any]:
     """Resolve a public law and return its text (or USLM XML) with provenance."""
     bad_window = _validate_window_arguments(start_char, max_chars)
@@ -1239,7 +1278,12 @@ async def get_public_law(
         return past_end
 
     try:
-        window = window_text(content, start_char=start_char, max_chars=max_chars)
+        window = window_text(
+            content,
+            start_char=start_char,
+            max_chars=max_chars,
+            banner_carriers=banner_carriers,
+        )
     except ValueError as exc:
         return _invalid_argument(str(exc))
     provenance: dict[str, Any] = {
