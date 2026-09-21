@@ -2,7 +2,7 @@
   "suite": {
     "name": "uscode-mcp-e2e",
     "spec": "documentation/",
-    "manifest_version": "5"
+    "manifest_version": "6"
   },
   "server": {
     "name": "uscode_mcp",
@@ -439,6 +439,144 @@
       ],
       "budget_usd": 1.0,
       "notes": "E17 second pinned provider (confound arm). Tag read from the endpoint listing 2026-09-21: bf16, tools advertised. Ten invocations; count distinct answers."
+    },
+    "e25-deepinfra-t1": {
+      "driver": "loop",
+      "endpoint": "openrouter",
+      "model": "openai/gpt-oss-120b",
+      "provider": "deepinfra/bf16",
+      "scaffold": "loop-scaffold@1",
+      "knobs": {
+        "reasoning": {
+          "effort": "low"
+        },
+        "temperature": 1.0,
+        "max_tokens": 8192
+      },
+      "role": "isolation",
+      "context": "fresh",
+      "tool_surface": [
+        "get_us_code_section",
+        "search_us_code",
+        "get_public_law",
+        "search_public_laws"
+      ],
+      "merge_gating": false,
+      "groups": [
+        "A",
+        "C",
+        "D"
+      ],
+      "prompts": [
+        "A2",
+        "C4",
+        "D3"
+      ],
+      "budget_usd": 1.0,
+      "notes": "E25 arm deepinfra/t1: is the contentless final (consumer_limit null_final_content) a property of the pin, of the temperature knob, or of neither? 2x2 of provider x temperature, isolation, prompts A2/C4/D3 (the multi-step prompts with the highest measured null rate). Preregistration: documentation/95-open-questions.md, E25. Scored for E25 only. Sampling: temperature 1.0 set; compare only within the 2x2."
+    },
+    "e25-deepinfra-notemp": {
+      "driver": "loop",
+      "endpoint": "openrouter",
+      "model": "openai/gpt-oss-120b",
+      "provider": "deepinfra/bf16",
+      "scaffold": "loop-scaffold@1",
+      "knobs": {
+        "reasoning": {
+          "effort": "low"
+        },
+        "max_tokens": 8192
+      },
+      "role": "isolation",
+      "context": "fresh",
+      "tool_surface": [
+        "get_us_code_section",
+        "search_us_code",
+        "get_public_law",
+        "search_public_laws"
+      ],
+      "merge_gating": false,
+      "groups": [
+        "A",
+        "C",
+        "D"
+      ],
+      "prompts": [
+        "A2",
+        "C4",
+        "D3"
+      ],
+      "budget_usd": 1.0,
+      "notes": "E25 arm deepinfra/notemp: is the contentless final (consumer_limit null_final_content) a property of the pin, of the temperature knob, or of neither? 2x2 of provider x temperature, isolation, prompts A2/C4/D3 (the multi-step prompts with the highest measured null rate). Preregistration: documentation/95-open-questions.md, E25. Scored for E25 only. No sampling knob: repeats on a pin may replay one draw, so distinct-answer counts are stated beside invocation counts."
+    },
+    "e25-akashml-t1": {
+      "driver": "loop",
+      "endpoint": "openrouter",
+      "model": "openai/gpt-oss-120b",
+      "provider": "akashml/bf16",
+      "scaffold": "loop-scaffold@1",
+      "knobs": {
+        "reasoning": {
+          "effort": "low"
+        },
+        "temperature": 1.0,
+        "max_tokens": 8192
+      },
+      "role": "isolation",
+      "context": "fresh",
+      "tool_surface": [
+        "get_us_code_section",
+        "search_us_code",
+        "get_public_law",
+        "search_public_laws"
+      ],
+      "merge_gating": false,
+      "groups": [
+        "A",
+        "C",
+        "D"
+      ],
+      "prompts": [
+        "A2",
+        "C4",
+        "D3"
+      ],
+      "budget_usd": 1.0,
+      "notes": "E25 arm akashml/t1: is the contentless final (consumer_limit null_final_content) a property of the pin, of the temperature knob, or of neither? 2x2 of provider x temperature, isolation, prompts A2/C4/D3 (the multi-step prompts with the highest measured null rate). Preregistration: documentation/95-open-questions.md, E25. Scored for E25 only. Sampling: temperature 1.0 set; compare only within the 2x2."
+    },
+    "e25-akashml-notemp": {
+      "driver": "loop",
+      "endpoint": "openrouter",
+      "model": "openai/gpt-oss-120b",
+      "provider": "akashml/bf16",
+      "scaffold": "loop-scaffold@1",
+      "knobs": {
+        "reasoning": {
+          "effort": "low"
+        },
+        "max_tokens": 8192
+      },
+      "role": "isolation",
+      "context": "fresh",
+      "tool_surface": [
+        "get_us_code_section",
+        "search_us_code",
+        "get_public_law",
+        "search_public_laws"
+      ],
+      "merge_gating": false,
+      "groups": [
+        "A",
+        "C",
+        "D"
+      ],
+      "prompts": [
+        "A2",
+        "C4",
+        "D3"
+      ],
+      "budget_usd": 1.0,
+      "notes": "E25 arm akashml/notemp: is the contentless final (consumer_limit null_final_content) a property of the pin, of the temperature knob, or of neither? 2x2 of provider x temperature, isolation, prompts A2/C4/D3 (the multi-step prompts with the highest measured null rate). Preregistration: documentation/95-open-questions.md, E25. Scored for E25 only. No sampling knob: repeats on a pin may replay one draw, so distinct-answer counts are stated beside invocation counts."
     }
   },
   "checks": [
@@ -475,13 +613,17 @@
     },
     {
       "id": "normalization-disclosed",
-      "description": "citation resolutions disclose the strips (40-tools.md; O28)",
+      "description": "citation resolutions disclose the strips (40-tools.md; O28); id-path calls are out of scope — with no citation there is nothing to normalize and `normalization` is honestly null (R16; run 2026-09-21T01:13:27, instrument defect)",
       "applies_to": {
         "tool": "get_us_code_section",
         "when": [
           {
             "pointer": "/response/structuredContent/outcome",
             "equals": "success"
+          },
+          {
+            "pointer": "/args/granule_id",
+            "exists": false
           }
         ]
       },
