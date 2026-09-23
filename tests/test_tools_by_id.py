@@ -135,7 +135,9 @@ class TestByIdSuccess:
             make_client(by_id_handler()), granule_id=GID, max_chars=30, find="Effective date"
         )
         assert out["text"]["truncated"] is True
-        assert out["text"]["content"].startswith("[WINDOW")
+        assert out["text"]["banner"].startswith("[WINDOW")
+        assert not out["text"]["content"].startswith("[WINDOW")
+        assert out["text"]["returned_chars"] == len(out["text"]["content"])
         assert out["find"]["total_occurrences"] == 1
 
     async def test_structure_from_markers_on_the_id_path(self, make_client):

@@ -52,7 +52,8 @@ class TestSectionDefault:
         assert text["next_start_char"] == 20_000
         expected = f"[WINDOW chars 0–19,999 of {text['total_chars']:,} — truncated; continue with start_char=20000]"
         assert text["banner"] == expected
-        assert text["content"].startswith(text["banner"] + "\n")
+        assert not text["content"].startswith("[WINDOW")
+        assert len(text["content"]) == text["returned_chars"]
         assert "start_char=20000" in text["message"]
 
     async def test_explicit_larger_max_chars_is_honored(self, make_client):
@@ -91,7 +92,9 @@ class TestPublicLawDefault:
         assert text["returned_chars"] == 20_000
         assert text["truncated"] is True
         assert text["next_start_char"] == 20_000
-        assert text["content"].startswith("[WINDOW chars 0–19,999 of ")
+        assert text["banner"].startswith("[WINDOW chars 0–19,999 of ")
+        assert not text["content"].startswith("[WINDOW")
+        assert len(text["content"]) == text["returned_chars"]
 
     async def test_explicit_larger_max_chars_is_honored(self, make_client):
         out = await tools.get_public_law(plaw_client(make_client), congress=118, law_number=31, max_chars=100_000)

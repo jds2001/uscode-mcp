@@ -12,8 +12,8 @@ Cross-cutting contracts implemented here:
 - Provenance on every text payload: packageId, granuleId (when granule-level),
   edition year, currentthrough, lastModified, canonical PDF link. An unparseable
   currentthrough is stated, never silently omitted.
-- No silent truncation: max_chars/start_char windows with explicit markers, and the
-  same disclosure in-band at the head of the returned text (E12).
+- No silent truncation: max_chars/start_char windows with explicit markers and a
+  separate banner while content remains payload text only.
 - Locating content in large payloads (R12/R13): an optional `find` on both text tools,
   and a marker-derived `structure` block on get_us_code_section successes — carried on
   locating calls (start_char=0) and disclosed as omitted on reading calls.
@@ -347,7 +347,10 @@ def _validate_window_arguments(start_char: Any, max_chars: Any) -> dict[str, Any
     if start_char < 0:
         return _invalid_argument(f"start_char must be >= 0, got {start_char}")
     if max_chars <= 0:
-        return _invalid_argument(f"max_chars must be > 0, got {max_chars}")
+        return _invalid_argument(
+            f"max_chars must be at least 1, got {max_chars}. For a locating call that returns "
+            "`structure` or `find`, pass `max_chars: 1`."
+        )
     return None
 
 
@@ -692,7 +695,6 @@ async def _fetch_and_deliver(
     start_char: int,
     find: str | None,
     head: dict[str, Any],
-    banner_carriers: str,
 ) -> dict[str, Any]:
     """Everything downstream of granule selection, shared by the citation and id
     paths (R16: the id path is the citation path's code, not a copy): fetch the
@@ -740,12 +742,7 @@ async def _fetch_and_deliver(
         # for it and paid ~15x a small window to carry it (O38).
         structure = structure_omitted_for_reading_call(start_char)
     try:
-        window = window_text(
-            text,
-            start_char=start_char,
-            max_chars=max_chars,
-            banner_carriers=banner_carriers,
-        )
+        window = window_text(text, start_char=start_char, max_chars=max_chars)
     except ValueError as exc:
         await detector.abandon()
         return _invalid_argument(str(exc))
@@ -782,7 +779,6 @@ async def _get_section_by_id(
     max_chars: int,
     start_char: int,
     find: str | None,
-    banner_carriers: str,
 ) -> dict[str, Any]:
     """R16 by-id path (40-tools.md, "By-id behavior"): no URL is constructed from the
     id; the granule summary (O9) is fetched and its txtLink used verbatim."""
@@ -930,7 +926,6 @@ async def _get_section_by_id(
         start_char,
         find,
         head,
-        banner_carriers,
     )
 
 
@@ -945,8 +940,6 @@ async def get_us_code_section(
     find: str | None = None,
     granule_id: str | None = None,
     package_id: str | None = None,
-    *,
-    banner_carriers: str = "both",
 ) -> dict[str, Any]:
     """Resolve a US Code citation (or select a granule by id, R16) and return the
     section's text, notes included."""
@@ -973,7 +966,6 @@ async def get_us_code_section(
             max_chars,
             start_char,
             find,
-            banner_carriers,
         )
     if package_id is not None and package_id.strip():
         return _invalid_argument("package_id is only meaningful alongside granule_id; pass granule_id too.")
@@ -1005,7 +997,6 @@ async def get_us_code_section(
         start_char,
         find,
         head,
-        banner_carriers,
     )
 
 
@@ -1120,8 +1111,6 @@ async def get_public_law(
     max_chars: int = DEFAULT_MAX_CHARS,
     start_char: int = 0,
     find: str | None = None,
-    *,
-    banner_carriers: str = "both",
 ) -> dict[str, Any]:
     """Resolve a public law and return its text (or USLM XML) with provenance."""
     bad_window = _validate_window_arguments(start_char, max_chars)
@@ -1278,12 +1267,7 @@ async def get_public_law(
         return past_end
 
     try:
-        window = window_text(
-            content,
-            start_char=start_char,
-            max_chars=max_chars,
-            banner_carriers=banner_carriers,
-        )
+        window = window_text(content, start_char=start_char, max_chars=max_chars)
     except ValueError as exc:
         return _invalid_argument(str(exc))
     provenance: dict[str, Any] = {

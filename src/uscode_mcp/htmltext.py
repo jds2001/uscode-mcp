@@ -9,10 +9,8 @@ Contracts from documentation/40-tools.md:
 - ``currentthrough`` is parsed from the payload's embedded comment (O5, O15) and is
   the non-optional staleness disclosure; callers must state when it cannot be parsed.
 - No silent truncation: windowing always reports total length, the window returned,
-  and the start_char to continue from — and when the payload is truncated the same
-  markers lead ``content`` as a bracketed banner line (E12, from finding F1: a
-  consumer given correct structured fields still presented the window as the whole
-  law, so the disclosure has to sit in the stream the model actually reads).
+  and the start_char to continue from. A truncated response carries the disclosure
+  in ``banner`` while ``content`` contains payload text only.
 - Locating content in large payloads (R12): :func:`find_occurrences` reports the
   true occurrence count with offsets in the same coordinate system as
   ``start_char``/``total_chars``, and :func:`html_to_text_with_structure` derives a
@@ -25,7 +23,6 @@ Contracts from documentation/40-tools.md:
 
 from __future__ import annotations
 
-import os
 import re
 from bisect import bisect_left
 from html.parser import HTMLParser
@@ -39,8 +36,6 @@ _FIELD_MARKER_RE = re.compile(r"^\s*field-(start|end)\s*:\s*(\S+?)\s*$", re.IGNO
 
 FIND_MAX_OCCURRENCES = 50
 FIND_SNIPPET_CONTEXT = 80
-BANNER_CARRIERS_ENV_VAR = "USCODE_MCP_BANNER_CARRIERS"
-VALID_BANNER_CARRIERS = frozenset({"both", "field", "content"})
 
 # Tags that imply a line break when converting to plain text.
 _BLOCK_TAGS = {
@@ -283,50 +278,26 @@ def html_to_text_with_structure(html: str) -> tuple[str, dict[str, Any]]:
 
 
 def truncation_banner(start_char: int, end: int, total: int) -> str:
-    """The E12 in-band banner line: window bounds, true total, continuation offset."""
+    """The banner line: window bounds, true total, and continuation offset."""
     return (
         f"[WINDOW chars {start_char:,}–{end - 1:,} of {total:,} "
         f"— truncated; continue with start_char={end}]"
     )
 
 
-def banner_carriers_from_env() -> str:
-    """Read and validate the experimental truncation-banner carrier switch."""
-    value = os.environ.get(BANNER_CARRIERS_ENV_VAR)
-    if value is None:
-        return "both"
-    if value not in VALID_BANNER_CARRIERS:
-        expected = ", ".join(sorted(VALID_BANNER_CARRIERS))
-        raise RuntimeError(f"{BANNER_CARRIERS_ENV_VAR} must be one of {expected}; got {value!r}")
-    return value
-
-
-def window_text(
-    text: str,
-    start_char: int = 0,
-    max_chars: int = 100_000,
-    *,
-    banner_carriers: str = "both",
-) -> dict[str, Any]:
+def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dict[str, Any]:
     """Return a window of text with explicit truncation markers (never silent).
 
-    When the window is truncated, ``content`` leads with the banner line (E12); the
-    structured fields describe the payload window and are unchanged by it, so
-    ``total_chars``/``start_char``/``next_start_char`` remain the coordinate system
-    that ``find`` offsets and ``structure`` offsets are expressed in. The banner is
-    also returned on its own key so a caller can strip it deterministically.
-
-    R13c: on every bannered response ``message`` must state in-band that the banner is
-    outside the offset coordinate system. It began as an un-specced addition here and
-    was consumer-validated as correctly placed (O38); it is contractual now so it
-    cannot regress away.
+    When the window is truncated, ``content`` contains only the payload window and
+    ``banner`` carries the truncation disclosure separately. Thus ``returned_chars``
+    always equals ``len(content)``, and ``total_chars``/``start_char``/
+    ``next_start_char`` remain the coordinate system used by ``find`` and
+    ``structure`` offsets.
     """
     if start_char < 0:
         raise ValueError(f"start_char must be >= 0, got {start_char}")
     if max_chars <= 0:
         raise ValueError(f"max_chars must be > 0, got {max_chars}")
-    if banner_carriers not in VALID_BANNER_CARRIERS:
-        raise ValueError(f"banner_carriers must be one of {', '.join(sorted(VALID_BANNER_CARRIERS))}")
     total = len(text)
     end = min(start_char + max_chars, total)
     content = text[start_char:end]
@@ -341,17 +312,11 @@ def window_text(
     }
     if truncated:
         banner = truncation_banner(start_char, end, total)
-        if banner_carriers in ("both", "field"):
-            result["banner"] = banner
-        if banner_carriers in ("both", "content"):
-            result["content"] = f"{banner}\n{content}"
-        message = f"Payload is {total} chars; returned chars {start_char}-{end - 1}. Continue with start_char={end}."
-        if banner_carriers in ("both", "content"):
-            message += (
-                " The same disclosure leads `content` as a banner line, which is NOT part of the payload: "
-                "content offsets start at start_char after it."
-            )
-        result["message"] = message
+        result["banner"] = banner
+        result["message"] = (
+            f"Payload is {total} chars; returned chars {start_char}-{end - 1}. "
+            f"Continue with start_char={end}."
+        )
     return result
 
 
@@ -406,9 +371,8 @@ def add_audience_sentence(
 ) -> dict[str, Any]:
     """Append the audience sentence to a truncated window's ``message`` (WO-6).
 
-    The existing continuation sentence stays byte-for-byte first so R13c's
-    banner-outside-the-coordinates statement is intact; the banner itself is untouched.
-    A non-truncated window has no ``message`` and gains none.
+    The existing continuation sentence stays byte-for-byte first and the banner is
+    untouched. A non-truncated window has no ``message`` and gains none.
     """
     if window.get("truncated"):
         window["message"] = f"{window['message']} {audience_sentence(public_pdf, details_link)}"

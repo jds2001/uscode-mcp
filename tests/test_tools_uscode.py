@@ -620,9 +620,9 @@ class TestAudienceSentenceOnTruncatedSection:
         text = out["text"]
         bare = window_text("x" * text["total_chars"], start_char=text["start_char"], max_chars=50)
         assert text["message"].startswith(bare["message"])
-        assert "NOT part of the payload" in bare["message"]
+        assert "NOT part of the payload" not in bare["message"]
         assert text["banner"] == bare["banner"]
-        assert text["content"].split("\n", 1)[0] == bare["banner"]
+        assert len(text["content"]) == text["returned_chars"] == 50
 
     async def test_reading_call_window_also_carries_the_sentence(self, make_client):
         # A continuation window that is itself truncated is still a truncated response.
@@ -664,5 +664,5 @@ class TestAudienceSentenceOnTruncatedSection:
         assert out["provenance"]["details_link"] is None
         message = out["text"]["message"]
         assert "no PDF link is available" in message
-        assert "https://" not in message.split("NOT part of the payload", 1)[1]
+        assert "https://" not in message
         assert "None" not in message

@@ -396,18 +396,18 @@ class TestPublicLawFind:
 
 
 class TestPublicLawTruncationBanner:
-    """E12: a windowed law leads its text with the in-band disclosure (finding F1)."""
+    """A windowed law separates its truncation banner from payload content."""
 
-    async def test_truncated_response_leads_with_the_banner(self, make_client):
+    async def test_truncated_response_carries_a_separate_banner(self, make_client):
         out = await tools.get_public_law(
             make_client(plaw_handler()), congress=118, law_number=31, max_chars=40
         )
         text = out["text"]
         assert text["truncated"] is True
-        first_line = text["content"].split("\n", 1)[0]
-        assert first_line == text["banner"]
-        assert str(text["total_chars"]) in first_line.replace(",", "")
-        assert f"start_char={text['next_start_char']}" in first_line
+        assert not text["content"].startswith("[WINDOW")
+        assert text["returned_chars"] == len(text["content"])
+        assert str(text["total_chars"]) in text["banner"].replace(",", "")
+        assert f"start_char={text['next_start_char']}" in text["banner"]
 
     async def test_untruncated_response_carries_no_banner(self, make_client):
         out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31)
@@ -417,16 +417,15 @@ class TestPublicLawTruncationBanner:
 
 
 class TestBannerCoordinateDisclosure:
-    """R13c: the in-band statement that the banner sits outside the offset coordinate
-    system is contractual on every bannered response, so it cannot regress away."""
+    """Payload-only content uses the offset coordinate system directly."""
 
-    async def test_bannered_response_states_the_banner_is_not_the_payload(self, make_client):
+    async def test_bannered_response_has_no_retired_coordinate_sentence(self, make_client):
         out = await tools.get_public_law(
             make_client(plaw_handler()), congress=118, law_number=31, max_chars=40
         )
         message = out["text"]["message"]
-        assert "banner" in message
-        assert "NOT part of the payload" in message
+        assert "banner" not in message
+        assert "NOT part of the payload" not in message
         assert "start_char" in message
 
     async def test_find_offset_round_trips_through_start_char_under_truncation(self, make_client):
@@ -442,8 +441,7 @@ class TestBannerCoordinateDisclosure:
         read = await tools.get_public_law(
             make_client(plaw_handler()), congress=118, law_number=31, start_char=offset, max_chars=12
         )
-        payload = read["text"]["content"].split("\n", 1)[1] if "banner" in read["text"] else read["text"]["content"]
-        assert payload == "NDAA fixture"
+        assert read["text"]["content"] == "NDAA fixture"
 
     async def test_no_message_claim_when_there_is_no_banner(self, make_client):
         out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31)
@@ -515,9 +513,9 @@ class TestAudienceSentenceOnTruncatedLaw:
         # Reconstruct what the window said before WO-6 from the response's own coordinates.
         bare = window_text("x" * text["total_chars"], start_char=text["start_char"], max_chars=40)
         assert text["message"].startswith(bare["message"])
-        assert "NOT part of the payload" in bare["message"]  # R13c's statement is what stays first
+        assert "NOT part of the payload" not in bare["message"]
         assert text["banner"] == bare["banner"]
-        assert text["content"].split("\n", 1)[0] == bare["banner"]
+        assert len(text["content"]) == text["returned_chars"] == 40
 
     async def test_untruncated_response_has_no_audience_sentence(self, make_client):
         out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31)

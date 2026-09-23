@@ -1,4 +1,4 @@
-"""The experimental truncation-banner carrier switch."""
+"""The single consumer-facing shape for truncated text windows."""
 
 import json
 
@@ -7,7 +7,6 @@ import httpx
 import pytest
 
 from uscode_mcp import tools
-from uscode_mcp.htmltext import BANNER_CARRIERS_ENV_VAR
 from uscode_mcp.server import create_server
 
 
@@ -43,61 +42,48 @@ def _law_handler(request):
         ("get_public_law", {"congress": 118, "law_number": 31, "max_chars": 20}, _law_handler),
     ],
 )
-async def test_all_three_modes_change_only_the_specified_carriers(
-    monkeypatch, make_client, tool_name, arguments, handler
+async def test_truncated_content_is_payload_only_for_both_text_tools(
+    make_client, tool_name, arguments, handler
 ):
-    responses = {}
-    for mode in ("both", "field", "content"):
-        tools.CURRENTTHROUGH_MEMORY.clear()
-        monkeypatch.setenv(BANNER_CARRIERS_ENV_VAR, mode)
-        server = create_server(client=make_client(handler))
-        responses[mode] = _payload(await server.call_tool(tool_name, arguments))
+    response = _payload(await create_server(client=make_client(handler)).call_tool(tool_name, arguments))
+    text = response["text"]
 
-    both = responses["both"]
-    field = responses["field"]
-    content = responses["content"]
-    assert {key: value for key, value in both.items() if key != "text"} == {
-        key: value for key, value in field.items() if key != "text"
-    }
-    assert {key: value for key, value in both.items() if key != "text"} == {
-        key: value for key, value in content.items() if key != "text"
-    }
-
-    both_text = both["text"]
-    field_text = field["text"]
-    content_text = content["text"]
-    common_keys = set(both_text) - {"banner", "content", "message"}
-    assert {key: both_text[key] for key in common_keys} == {key: field_text[key] for key in common_keys}
-    assert {key: both_text[key] for key in common_keys} == {key: content_text[key] for key in common_keys}
-
-    banner, payload = both_text["content"].split("\n", 1)
-    assert both_text["banner"] == banner
-    assert field_text["banner"] == banner
-    assert field_text["content"] == payload
-    assert "banner" not in content_text
-    assert content_text["content"] == both_text["content"]
-    coordinate_sentence = "The same disclosure leads `content` as a banner line"
-    assert coordinate_sentence in both_text["message"]
-    assert coordinate_sentence not in field_text["message"]
-    assert content_text["message"] == both_text["message"]
+    assert text["truncated"] is True
+    assert text["banner"].startswith("[WINDOW ")
+    assert not text["content"].startswith("[WINDOW ")
+    assert text["returned_chars"] == len(text["content"]) == 20
+    assert "Continue with start_char=20." in text["message"]
+    assert "banner" not in text["message"]
+    assert "NOT part of the payload" not in text["message"]
+    assert response["provenance"]["public_pdf_link"] in text["message"]
 
 
-async def test_unset_is_identical_to_both(monkeypatch, make_client):
-    monkeypatch.delenv(BANNER_CARRIERS_ENV_VAR, raising=False)
-    unset = create_server(client=make_client(_law_handler))
-    unset_payload = _payload(
-        await unset.call_tool("get_public_law", {"congress": 118, "law_number": 31, "max_chars": 20})
-    )
-    monkeypatch.setenv(BANNER_CARRIERS_ENV_VAR, "both")
-    explicit = create_server(client=make_client(_law_handler))
-    explicit_payload = _payload(
-        await explicit.call_tool("get_public_law", {"congress": 118, "law_number": 31, "max_chars": 20})
-    )
-    assert unset_payload == explicit_payload
+def test_retired_environment_variable_is_ignored(monkeypatch):
+    monkeypatch.setenv("USCODE_MCP_BANNER_CARRIERS", "invalid")
+    assert create_server() is not None
 
 
-@pytest.mark.parametrize("value", ["", " ", "invalid", "BOTH"])
-def test_invalid_or_blank_value_fails_at_startup_and_names_the_variable(monkeypatch, value):
-    monkeypatch.setenv(BANNER_CARRIERS_ENV_VAR, value)
-    with pytest.raises(RuntimeError, match=BANNER_CARRIERS_ENV_VAR):
-        create_server()
+@pytest.mark.parametrize("tool_name", ["get_us_code_section", "get_public_law"])
+async def test_zero_max_chars_teaches_the_locating_call(make_client, tool_name):
+    seen = []
+
+    def must_not_run(request):
+        seen.append(request)
+        raise AssertionError(f"unexpected request: {request.url}")
+
+    if tool_name == "get_us_code_section":
+        response = await tools.get_us_code_section(
+            make_client(must_not_run), citation="17 U.S.C. 107", max_chars=0
+        )
+    else:
+        response = await tools.get_public_law(
+            make_client(must_not_run), congress=118, law_number=31, max_chars=0
+        )
+
+    assert response["outcome"] == "invalid_argument"
+    assert "at least 1" in response["detail"]
+    assert "locating call" in response["detail"]
+    assert "`structure`" in response["detail"]
+    assert "`find`" in response["detail"]
+    assert "`max_chars: 1`" in response["detail"]
+    assert seen == []
