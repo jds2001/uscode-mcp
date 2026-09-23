@@ -219,3 +219,22 @@ Manifest version 6, server `8c3e481`, 18 rows, 0 provider mismatches. This read 
 **C4: null in 6 of 6 arms; 11 of 12 across the four runs.** The `floor-both` row is the sharpest instance: five calls — search, a 20,000-character read, `find: "apology"`, then windows at 81,700 and 82,400 that contain the apology — and then a contentless final. The consumer had the answer in hand and lost it at the sixth step. E25's question (pin, knob, or the model) is the right one; nothing in these rows implicates the server, whose every response was correct.
 
 **Locate-only, second instance:** `floor-field` C3 called `get_public_law` with `find: "AUKUS"` and `max_chars: 0`, was refused (`max_chars must be > 0, got 0`), and retried with `max_chars: 1` successfully. Two consumers in two runs have spelled "find, don't read" as `max_chars: 0` (O75 was the first). Decided as technical judgment (below, `40-tools.md`): the refusal stays and its message teaches the spelling that works.
+
+## Run 20260923T021835Z-e25 — E25: is the contentless final the pin, the knob, or the model?
+
+Manifest version 6, server `8c3e481`, four isolation cells × A2/C4/D3 × 10 repeats = 120 rows, $0.083, no voided cell, no pre-turn (isolation). **Set aside as instrument, 5 rows:** HTTP 429 from the endpoint on three consecutive requests — `e25-akashml-t1` A2 r03, C4 r05, C4 r08, D3 r03 and `e25-deepinfra-t1` C4 r08 — recorded in the row's `error_responses`, answer empty, no `consumer_limit` cause; a rate limit is not a consumer outcome. (Note for the harness: an empty answer with `consumer_limit: null` reads as a null final unless `error_responses` is checked; a cause of its own would be cleaner.) Provider verified on every request that carried a provider name; 0 mismatches. The two `notemp` arms did not replay: 10 distinct answers of 10 on every prompt in `akashml-notemp`, and in `deepinfra-notemp` 9 of 9 non-null on D3.
+
+**Null finals (`consumer_limit.cause: null_final_content`), by arm, over rows that were not rate-limited:**
+
+| arm | A2 | C4 | D3 | total |
+|---|---|---|---|---|
+| `deepinfra/bf16`, temperature 1.0 | 5/10 | 6/9 | 1/10 | **12 of 29** |
+| `deepinfra/bf16`, no temperature | 5/10 | 9/10 | 0/10 | **14 of 30** |
+| `akashml/bf16`, temperature 1.0 | 0/9 | 0/8 | 0/9 | **0 of 26** |
+| `akashml/bf16`, no temperature | 0/10 | 0/10 | 0/10 | **0 of 30** |
+
+**Decision, by the rule pinned in E25: (i) fires — a provider effect, and only a provider effect.** Each AkashML arm is at least 8 rows below its DeepInfra partner (14 and 12 below); the temperature arms differ from their partners by 2 and 0, ties. `deepinfra-t1` at 12 of 29 reproduces O74/O75 (the falsifier of the instrument did not fire). **This session's expectation — that temperature would matter more than the pin — is falsified**; the pin is the whole effect, on this model, this scaffold and these prompts. The mechanism reading from O74 (position in the turn) survives in a sharper form: on DeepInfra the rows that nulled are the ones that reached a second or third call (18 of 25 nulls with a recorded step at step 3, 7 at step 2, none at step 1), and on AkashML the same prompts went to 2–5 calls and finished — C4 answered in 18 of 18 non-limited rows, 17 of them quoting the apology verbatim from a retrieved window. The lost call is lost between the model and the caller on one provider's serving stack; the wire lines cannot say which layer, as preregistered.
+
+**Consequence: repinning is now a question with a measured answer behind it — Q20.** The cost is as S23 stated: a new `cell_id`, so rows on a new pin do not pool with the two complete runs, E22, E17 or O51. The benefit is measured here: on multi-step prompts the DeepInfra pin loses 40–90% of rows, the AkashML pin lost none in 56, and C4 — null in 11 of 12 rows across every earlier run — passes 17 of 18 on AkashML by locate-then-read.
+
+**C4 scored in passing, since the rows exist:** 21 of 22 non-null C4 rows across the four arms quote the apology verbatim from a retrieved window after a `find` (the one that does not is `akashml-t1` C4 r02, a single call with no `find`, not scored here). The prompt is not hard for this model; it was hard for this pin.
