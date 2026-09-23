@@ -242,7 +242,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-13 — the banner leaves `text.content`; the switch goes (E22 outcome, O76; contract in `40-tools.md`, "No silent truncation" and "Locating content in large payloads")
 
-**Status:** ISSUED 2026-09-21. One change with three parts; one commit. E25 does not wait on it and may run on either build.
+**Status:** CLOSED 2026-09-23 — built at `0436218` (one commit, parts A–D), verified O79 by an independent fresh-process probe: payload-only `text.content` on every truncated call with `text.banner` beside it and `returned_chars` equal to the content length, byte-equal to O66's `field` mode; the R13c sentence gone with the continuation and audience sentences unchanged; the variable ignored at every former value, valid or not; the ≤ 0 refusal teaching `max_chars: 1` on both tools with no upstream request. One unordered change accepted: the `get_public_law` description's banner clause now describes the new shape (O79e). Manifest version 7 follows (`60-e2e-harness.md`). History: ISSUED 2026-09-21 as three parts, one commit; part D added 2026-09-22 before pick-up; E25 ran before it landed, as allowed.
 
 **Part A — `text.content` is the payload only.** On every truncated response of both text tools, `text.content` begins at the window's first character; the banner line is not prepended. `text.banner` (the banner line verbatim, present exactly when `truncated` is true) and `text.message` are unchanged except as part B says. `returned_chars` equals `len(text.content)` — it already does under the `field` mode (O66f), and this is that mode made the only one.
 
