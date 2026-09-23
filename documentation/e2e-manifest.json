@@ -2,7 +2,7 @@
   "suite": {
     "name": "uscode-mcp-e2e",
     "spec": "documentation/",
-    "manifest_version": "6"
+    "manifest_version": "7"
   },
   "server": {
     "name": "uscode_mcp",
@@ -76,7 +76,7 @@
       },
       "reference": "/response/structuredContent/text/content",
       "floor": 64,
-      "_note": "A recorded number, never a score (60-e2e-harness.md). The reference is text.content, which opens with the banner line in every mode but E22's `field`; this suite subtracts the banner itself (R13c), and a matched span inside the banner line is parroting, which E22 counts separately as M3."
+      "_note": "A recorded number, never a score (60-e2e-harness.md). The reference is text.content, which from WO-13 (O79, manifest version 7) is the window's payload and nothing else; the banner subtraction the version-5 note described is a no-op on that shape, and a matched span inside the banner can no longer occur in the reference."
     }
   ],
   "cells": {
@@ -142,7 +142,7 @@
       "driver": "loop",
       "endpoint": "openrouter",
       "model": "openai/gpt-oss-120b",
-      "provider": "deepinfra/bf16",
+      "provider": "akashml/bf16",
       "scaffold": "loop-scaffold@1",
       "knobs": {
         "reasoning": {
@@ -165,13 +165,13 @@
         "D"
       ],
       "budget_usd": 1.0,
-      "notes": "The real floor (R21): a weak open-weight model under the harness's lean scaffold, crowded, full surface. The complete-run cell. Never pooled with the claude-code cells. Non-gating until one complete run has been scored from artifacts. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs."
+      "notes": "The real floor (R21): a weak open-weight model under the harness's lean scaffold, crowded, full surface. The complete-run cell. Never pooled with the claude-code cells. Non-gating until one complete run has been scored from artifacts. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs. Pin: akashml/bf16 from manifest version 7 (R22, E25/O78: 0 contentless finals in 56 rows against 12 of 29 and 14 of 30 on deepinfra/bf16); rows on this cell_id never pool with runs on the DeepInfra pin. Rate limits: the AkashML endpoint answered 429 on 4 of 30 requests in one E25 arm (O78); a 429 row has an empty answer and no consumer_limit cause and is set aside as instrument, never scored — top up with --repeats to the preregistered count."
     },
     "loop-isolation": {
       "driver": "loop",
       "endpoint": "openrouter",
       "model": "openai/gpt-oss-120b",
-      "provider": "deepinfra/bf16",
+      "provider": "akashml/bf16",
       "scaffold": "loop-scaffold@1",
       "knobs": {
         "reasoning": {
@@ -195,13 +195,13 @@
         "D"
       ],
       "budget_usd": 1.0,
-      "notes": "Loop-driver attribution cell for the complete run. Non-gating until one complete run has been scored from artifacts. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs."
+      "notes": "Loop-driver attribution cell for the complete run. Non-gating until one complete run has been scored from artifacts. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs. Pin: akashml/bf16 from manifest version 7 (R22, E25/O78: 0 contentless finals in 56 rows against 12 of 29 and 14 of 30 on deepinfra/bf16); rows on this cell_id never pool with runs on the DeepInfra pin. Rate limits: the AkashML endpoint answered 429 on 4 of 30 requests in one E25 arm (O78); a 429 row has an empty answer and no consumer_limit cause and is set aside as instrument, never scored — top up with --repeats to the preregistered count."
     },
-    "e22-floor-both": {
+    "loop-floor-deepseek": {
       "driver": "loop",
       "endpoint": "openrouter",
-      "model": "openai/gpt-oss-120b",
-      "provider": "deepinfra/bf16",
+      "model": "deepseek/deepseek-v4-flash",
+      "provider": "gmicloud/fp8",
       "scaffold": "loop-scaffold@1",
       "knobs": {
         "reasoning": {
@@ -219,196 +219,12 @@
       "tool_surface": "full",
       "merge_gating": false,
       "groups": [
-        "C"
-      ],
-      "env": {
-        "USCODE_MCP_BANNER_CARRIERS": "both"
-      },
-      "budget_usd": 1.0,
-      "notes": "E22 arm `both`, floor: loop-floor over group C with the server env USCODE_MCP_BANNER_CARRIERS=both, set in every arm so none depends on the server default. Preregistration: documentation/95-open-questions.md, E22. Scored for E22 only, never as a suite result. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs."
-    },
-    "e22-floor-field": {
-      "driver": "loop",
-      "endpoint": "openrouter",
-      "model": "openai/gpt-oss-120b",
-      "provider": "deepinfra/bf16",
-      "scaffold": "loop-scaffold@1",
-      "knobs": {
-        "reasoning": {
-          "effort": "low"
-        },
-        "temperature": 1.0,
-        "max_tokens": 8192
-      },
-      "role": "floor",
-      "context": "crowded",
-      "crowding": {
-        "procedure": "neutral-file-triage@2",
-        "collision_review": "2026-08-31, spec session: uscode-mcp's domain is US statutory-law search and retrieval (US Code sections, public laws, legal citations); disjoint from office notes-triage content"
-      },
-      "tool_surface": "full",
-      "merge_gating": false,
-      "groups": [
-        "C"
-      ],
-      "env": {
-        "USCODE_MCP_BANNER_CARRIERS": "field"
-      },
-      "budget_usd": 1.0,
-      "notes": "E22 arm `field`, floor: loop-floor over group C with the server env USCODE_MCP_BANNER_CARRIERS=field, set in every arm so none depends on the server default. Preregistration: documentation/95-open-questions.md, E22. Scored for E22 only, never as a suite result. Fails the banner-leads-truncated-content check on every truncated record by construction: the arm's signature, not a finding. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs."
-    },
-    "e22-floor-content": {
-      "driver": "loop",
-      "endpoint": "openrouter",
-      "model": "openai/gpt-oss-120b",
-      "provider": "deepinfra/bf16",
-      "scaffold": "loop-scaffold@1",
-      "knobs": {
-        "reasoning": {
-          "effort": "low"
-        },
-        "temperature": 1.0,
-        "max_tokens": 8192
-      },
-      "role": "floor",
-      "context": "crowded",
-      "crowding": {
-        "procedure": "neutral-file-triage@2",
-        "collision_review": "2026-08-31, spec session: uscode-mcp's domain is US statutory-law search and retrieval (US Code sections, public laws, legal citations); disjoint from office notes-triage content"
-      },
-      "tool_surface": "full",
-      "merge_gating": false,
-      "groups": [
-        "C"
-      ],
-      "env": {
-        "USCODE_MCP_BANNER_CARRIERS": "content"
-      },
-      "budget_usd": 1.0,
-      "notes": "E22 arm `content`, floor: loop-floor over group C with the server env USCODE_MCP_BANNER_CARRIERS=content, set in every arm so none depends on the server default. Preregistration: documentation/95-open-questions.md, E22. Scored for E22 only, never as a suite result. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs."
-    },
-    "e22-isolation-both": {
-      "driver": "loop",
-      "endpoint": "openrouter",
-      "model": "openai/gpt-oss-120b",
-      "provider": "deepinfra/bf16",
-      "scaffold": "loop-scaffold@1",
-      "knobs": {
-        "reasoning": {
-          "effort": "low"
-        },
-        "temperature": 1.0,
-        "max_tokens": 8192
-      },
-      "role": "isolation",
-      "context": "fresh",
-      "tool_surface": [
-        "get_us_code_section",
-        "search_us_code",
-        "get_public_law",
-        "search_public_laws"
-      ],
-      "merge_gating": false,
-      "groups": [
-        "C"
-      ],
-      "env": {
-        "USCODE_MCP_BANNER_CARRIERS": "both"
-      },
-      "budget_usd": 1.0,
-      "notes": "E22 arm `both`, isolation: loop-isolation over group C with the server env USCODE_MCP_BANNER_CARRIERS=both, set in every arm so none depends on the server default. Preregistration: documentation/95-open-questions.md, E22. Scored for E22 only, never as a suite result. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs."
-    },
-    "e22-isolation-field": {
-      "driver": "loop",
-      "endpoint": "openrouter",
-      "model": "openai/gpt-oss-120b",
-      "provider": "deepinfra/bf16",
-      "scaffold": "loop-scaffold@1",
-      "knobs": {
-        "reasoning": {
-          "effort": "low"
-        },
-        "temperature": 1.0,
-        "max_tokens": 8192
-      },
-      "role": "isolation",
-      "context": "fresh",
-      "tool_surface": [
-        "get_us_code_section",
-        "search_us_code",
-        "get_public_law",
-        "search_public_laws"
-      ],
-      "merge_gating": false,
-      "groups": [
-        "C"
-      ],
-      "env": {
-        "USCODE_MCP_BANNER_CARRIERS": "field"
-      },
-      "budget_usd": 1.0,
-      "notes": "E22 arm `field`, isolation: loop-isolation over group C with the server env USCODE_MCP_BANNER_CARRIERS=field, set in every arm so none depends on the server default. Preregistration: documentation/95-open-questions.md, E22. Scored for E22 only, never as a suite result. Fails the banner-leads-truncated-content check on every truncated record by construction: the arm's signature, not a finding. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs."
-    },
-    "e22-isolation-content": {
-      "driver": "loop",
-      "endpoint": "openrouter",
-      "model": "openai/gpt-oss-120b",
-      "provider": "deepinfra/bf16",
-      "scaffold": "loop-scaffold@1",
-      "knobs": {
-        "reasoning": {
-          "effort": "low"
-        },
-        "temperature": 1.0,
-        "max_tokens": 8192
-      },
-      "role": "isolation",
-      "context": "fresh",
-      "tool_surface": [
-        "get_us_code_section",
-        "search_us_code",
-        "get_public_law",
-        "search_public_laws"
-      ],
-      "merge_gating": false,
-      "groups": [
-        "C"
-      ],
-      "env": {
-        "USCODE_MCP_BANNER_CARRIERS": "content"
-      },
-      "budget_usd": 1.0,
-      "notes": "E22 arm `content`, isolation: loop-isolation over group C with the server env USCODE_MCP_BANNER_CARRIERS=content, set in every arm so none depends on the server default. Preregistration: documentation/95-open-questions.md, E22. Scored for E22 only, never as a suite result. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs."
-    },
-    "e17-deepinfra": {
-      "driver": "loop",
-      "endpoint": "openrouter",
-      "model": "openai/gpt-oss-120b",
-      "provider": "deepinfra/bf16",
-      "scaffold": "loop-scaffold@1",
-      "knobs": {
-        "reasoning": {
-          "effort": "low"
-        },
-        "max_tokens": 4096
-      },
-      "role": "isolation",
-      "context": "fresh",
-      "tool_surface": [
-        "get_us_code_section",
-        "search_us_code",
-        "get_public_law",
-        "search_public_laws"
-      ],
-      "merge_gating": false,
-      "groups": [
-        "C"
-      ],
-      "prompts": [
-        "C1"
+        "A",
+        "C",
+        "D"
       ],
       "budget_usd": 1.0,
-      "notes": "E17 DeepInfra arm: knobs identical to the O51 baseline cell (no sampling knobs, max_tokens 4096) so before/after is one change. Ten invocations; count distinct answers."
+      "notes": "Second-lineage floor (R22; SUITE-AUTHORING's candidate): a non-OpenAI family under the same scaffold, crowded, full surface, so the floor is not one lineage. Pin read from the endpoint listing 2026-09-23 (runs/2026-09-23-manifest-v7/): gmicloud/fp8, status 0, uptime 99.99%, tools, reasoning, temperature, seed and max_tokens all declared, $0.091/$0.182 per M; chosen over the cheaper baidu/fp8 for a US datacenter and a declared seed, and over deepinfra/fp8 because DeepInfra is the provider E25 implicated. Every endpoint for this model is fp8, so no bf16 pin exists. Knobs mirror the gpt-oss cells; whether reasoning.effort has an effect on this model is unverified (read reasoning-token counts on the wire lines before relying on it). Non-gating until one complete run has been scored from artifacts. Never pooled with the gpt-oss cells. Sampling: temperature 1.0 is set so repeats are draws; compare only with cells carrying the same knobs."
     },
     "e17-akashml": {
       "driver": "loop",
@@ -438,145 +254,7 @@
         "C1"
       ],
       "budget_usd": 1.0,
-      "notes": "E17 second pinned provider (confound arm). Tag read from the endpoint listing 2026-09-21: bf16, tools advertised. Ten invocations; count distinct answers."
-    },
-    "e25-deepinfra-t1": {
-      "driver": "loop",
-      "endpoint": "openrouter",
-      "model": "openai/gpt-oss-120b",
-      "provider": "deepinfra/bf16",
-      "scaffold": "loop-scaffold@1",
-      "knobs": {
-        "reasoning": {
-          "effort": "low"
-        },
-        "temperature": 1.0,
-        "max_tokens": 8192
-      },
-      "role": "isolation",
-      "context": "fresh",
-      "tool_surface": [
-        "get_us_code_section",
-        "search_us_code",
-        "get_public_law",
-        "search_public_laws"
-      ],
-      "merge_gating": false,
-      "groups": [
-        "A",
-        "C",
-        "D"
-      ],
-      "prompts": [
-        "A2",
-        "C4",
-        "D3"
-      ],
-      "budget_usd": 1.0,
-      "notes": "E25 arm deepinfra/t1: is the contentless final (consumer_limit null_final_content) a property of the pin, of the temperature knob, or of neither? 2x2 of provider x temperature, isolation, prompts A2/C4/D3 (the multi-step prompts with the highest measured null rate). Preregistration: documentation/95-open-questions.md, E25. Scored for E25 only. Sampling: temperature 1.0 set; compare only within the 2x2."
-    },
-    "e25-deepinfra-notemp": {
-      "driver": "loop",
-      "endpoint": "openrouter",
-      "model": "openai/gpt-oss-120b",
-      "provider": "deepinfra/bf16",
-      "scaffold": "loop-scaffold@1",
-      "knobs": {
-        "reasoning": {
-          "effort": "low"
-        },
-        "max_tokens": 8192
-      },
-      "role": "isolation",
-      "context": "fresh",
-      "tool_surface": [
-        "get_us_code_section",
-        "search_us_code",
-        "get_public_law",
-        "search_public_laws"
-      ],
-      "merge_gating": false,
-      "groups": [
-        "A",
-        "C",
-        "D"
-      ],
-      "prompts": [
-        "A2",
-        "C4",
-        "D3"
-      ],
-      "budget_usd": 1.0,
-      "notes": "E25 arm deepinfra/notemp: is the contentless final (consumer_limit null_final_content) a property of the pin, of the temperature knob, or of neither? 2x2 of provider x temperature, isolation, prompts A2/C4/D3 (the multi-step prompts with the highest measured null rate). Preregistration: documentation/95-open-questions.md, E25. Scored for E25 only. No sampling knob: repeats on a pin may replay one draw, so distinct-answer counts are stated beside invocation counts."
-    },
-    "e25-akashml-t1": {
-      "driver": "loop",
-      "endpoint": "openrouter",
-      "model": "openai/gpt-oss-120b",
-      "provider": "akashml/bf16",
-      "scaffold": "loop-scaffold@1",
-      "knobs": {
-        "reasoning": {
-          "effort": "low"
-        },
-        "temperature": 1.0,
-        "max_tokens": 8192
-      },
-      "role": "isolation",
-      "context": "fresh",
-      "tool_surface": [
-        "get_us_code_section",
-        "search_us_code",
-        "get_public_law",
-        "search_public_laws"
-      ],
-      "merge_gating": false,
-      "groups": [
-        "A",
-        "C",
-        "D"
-      ],
-      "prompts": [
-        "A2",
-        "C4",
-        "D3"
-      ],
-      "budget_usd": 1.0,
-      "notes": "E25 arm akashml/t1: is the contentless final (consumer_limit null_final_content) a property of the pin, of the temperature knob, or of neither? 2x2 of provider x temperature, isolation, prompts A2/C4/D3 (the multi-step prompts with the highest measured null rate). Preregistration: documentation/95-open-questions.md, E25. Scored for E25 only. Sampling: temperature 1.0 set; compare only within the 2x2."
-    },
-    "e25-akashml-notemp": {
-      "driver": "loop",
-      "endpoint": "openrouter",
-      "model": "openai/gpt-oss-120b",
-      "provider": "akashml/bf16",
-      "scaffold": "loop-scaffold@1",
-      "knobs": {
-        "reasoning": {
-          "effort": "low"
-        },
-        "max_tokens": 8192
-      },
-      "role": "isolation",
-      "context": "fresh",
-      "tool_surface": [
-        "get_us_code_section",
-        "search_us_code",
-        "get_public_law",
-        "search_public_laws"
-      ],
-      "merge_gating": false,
-      "groups": [
-        "A",
-        "C",
-        "D"
-      ],
-      "prompts": [
-        "A2",
-        "C4",
-        "D3"
-      ],
-      "budget_usd": 1.0,
-      "notes": "E25 arm akashml/notemp: is the contentless final (consumer_limit null_final_content) a property of the pin, of the temperature knob, or of neither? 2x2 of provider x temperature, isolation, prompts A2/C4/D3 (the multi-step prompts with the highest measured null rate). Preregistration: documentation/95-open-questions.md, E25. Scored for E25 only. No sampling knob: repeats on a pin may replay one draw, so distinct-answer counts are stated beside invocation counts."
+      "notes": "E17's AkashML arm, kept as the C1 before/after instrument (knobs identical to the O51 baseline: no sampling knob, max_tokens 4096; ten invocations, count distinct answers). E17 closed 2026-09-21 (O76); the DeepInfra arm left the suite at version 7 (R22). Rate limits: the AkashML endpoint answered 429 on 4 of 30 requests in one E25 arm (O78); a 429 row has an empty answer and no consumer_limit cause and is set aside as instrument, never scored — top up with --repeats to the preregistered count."
     }
   },
   "checks": [
@@ -780,7 +458,26 @@
     },
     {
       "id": "banner-leads-truncated-content",
-      "description": "the E12 banner opens text.content whenever truncated (40-tools.md; O37 character-exact)",
+      "description": "the E12 banner line is served as text.banner whenever truncated (40-tools.md 'Two carriers'; WO-13, O79; O37 character-exact). Version 6 and earlier read text.content, where the line lived until WO-13.",
+      "applies_to": {
+        "tool": "*",
+        "when": [
+          {
+            "pointer": "/response/structuredContent/text/truncated",
+            "equals": true
+          }
+        ]
+      },
+      "assert": {
+        "matches": {
+          "pointer": "/response/structuredContent/text/banner",
+          "regex": "^\\[WINDOW chars "
+        }
+      }
+    },
+    {
+      "id": "content-is-payload-only",
+      "description": "text.content begins with the window's first character, never the banner line, whenever truncated (40-tools.md 'Two carriers'; WO-13, O79). The tripwire for the WO-13 shape regressing.",
       "applies_to": {
         "tool": "*",
         "when": [
@@ -793,7 +490,7 @@
       "assert": {
         "matches": {
           "pointer": "/response/structuredContent/text/content",
-          "regex": "^\\[WINDOW chars "
+          "regex": "^(?!\\[WINDOW chars )"
         }
       }
     },
