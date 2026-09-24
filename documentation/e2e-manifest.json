@@ -2,7 +2,7 @@
   "suite": {
     "name": "uscode-mcp-e2e",
     "spec": "documentation/",
-    "manifest_version": "7"
+    "manifest_version": "8"
   },
   "server": {
     "name": "uscode_mcp",
@@ -158,14 +158,14 @@
         "collision_review": "2026-08-31, spec session: uscode-mcp's domain is US statutory-law search and retrieval (US Code sections, public laws, legal citations); disjoint from office notes-triage content"
       },
       "tool_surface": "full",
-      "merge_gating": false,
+      "merge_gating": true,
       "groups": [
         "A",
         "C",
         "D"
       ],
       "budget_usd": 1.0,
-      "notes": "The real floor (R21): a weak open-weight model under the harness's lean scaffold, crowded, full surface. The complete-run cell. Never pooled with the claude-code cells. Non-gating until one complete run has been scored from artifacts. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs. Pin: akashml/bf16 from manifest version 7 (R22, E25/O78: 0 contentless finals in 56 rows against 12 of 29 and 14 of 30 on deepinfra/bf16); rows on this cell_id never pool with runs on the DeepInfra pin. Rate limits: the AkashML endpoint answered 429 on 4 of 30 requests in one E25 arm (O78); a 429 row has an empty answer and no consumer_limit cause and is set aside as instrument, never scored — top up with --repeats to the preregistered count."
+      "notes": "The real floor (R21): a weak open-weight model under the harness's lean scaffold, crowded, full surface. The complete-run cell. Never pooled with the claude-code cells. Gated from version 8 (R24; two complete runs scored on version 5 and one on version 7). Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs. Pin: akashml/bf16 from manifest version 7 (R22, E25/O78: 0 contentless finals in 56 rows against 12 of 29 and 14 of 30 on deepinfra/bf16); rows on this cell_id never pool with runs on the DeepInfra pin. Rate limits: the AkashML endpoint answered 429 on 4 of 30 requests in one E25 arm (O78); a 429 row has an empty answer and no consumer_limit cause and is set aside as instrument, never scored — top up with --repeats to the preregistered count. Gating (R24, manifest version 8): merge_gating is true, scoped by failure class — this cell gates on substantive correctness (a false or unsupported statement about the law) and on any Layer-1 check failing; relayed recipes, field names, misdescribed excerpts and framing are measured diagnostics and do not gate. The classes are fixed per clause in 60-e2e-harness.md, 'Gating by failure class'."
     },
     "loop-isolation": {
       "driver": "loop",
@@ -188,14 +188,14 @@
         "get_public_law",
         "search_public_laws"
       ],
-      "merge_gating": false,
+      "merge_gating": true,
       "groups": [
         "A",
         "C",
         "D"
       ],
       "budget_usd": 1.0,
-      "notes": "Loop-driver attribution cell for the complete run. Non-gating until one complete run has been scored from artifacts. Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs. Pin: akashml/bf16 from manifest version 7 (R22, E25/O78: 0 contentless finals in 56 rows against 12 of 29 and 14 of 30 on deepinfra/bf16); rows on this cell_id never pool with runs on the DeepInfra pin. Rate limits: the AkashML endpoint answered 429 on 4 of 30 requests in one E25 arm (O78); a 429 row has an empty answer and no consumer_limit cause and is set aside as instrument, never scored — top up with --repeats to the preregistered count."
+      "notes": "Loop-driver attribution cell for the complete run. Gated from version 8 (R24; two complete runs scored on version 5 and one on version 7). Sampling: temperature 1.0 is set so repeats are draws, not replays of a near-deterministic pin; compare only with cells carrying the same knobs. Pin: akashml/bf16 from manifest version 7 (R22, E25/O78: 0 contentless finals in 56 rows against 12 of 29 and 14 of 30 on deepinfra/bf16); rows on this cell_id never pool with runs on the DeepInfra pin. Rate limits: the AkashML endpoint answered 429 on 4 of 30 requests in one E25 arm (O78); a 429 row has an empty answer and no consumer_limit cause and is set aside as instrument, never scored — top up with --repeats to the preregistered count. Gating (R24, manifest version 8): merge_gating is true, scoped by failure class — this cell gates on substantive correctness (a false or unsupported statement about the law) and on any Layer-1 check failing; relayed recipes, field names, misdescribed excerpts and framing are measured diagnostics and do not gate. The classes are fixed per clause in 60-e2e-harness.md, 'Gating by failure class'."
     },
     "loop-floor-deepseek": {
       "driver": "loop",
@@ -217,14 +217,14 @@
         "collision_review": "2026-08-31, spec session: uscode-mcp's domain is US statutory-law search and retrieval (US Code sections, public laws, legal citations); disjoint from office notes-triage content"
       },
       "tool_surface": "full",
-      "merge_gating": false,
+      "merge_gating": true,
       "groups": [
         "A",
         "C",
         "D"
       ],
       "budget_usd": 1.0,
-      "notes": "Second-lineage floor (R22; SUITE-AUTHORING's candidate): a non-OpenAI family under the same scaffold, crowded, full surface, so the floor is not one lineage. Pin read from the endpoint listing 2026-09-23 (runs/2026-09-23-manifest-v7/): gmicloud/fp8, status 0, uptime 99.99%, tools, reasoning, temperature, seed and max_tokens all declared, $0.091/$0.182 per M; chosen over the cheaper baidu/fp8 for a US datacenter and a declared seed, and over deepinfra/fp8 because DeepInfra is the provider E25 implicated. Every endpoint for this model is fp8, so no bf16 pin exists. Knobs mirror the gpt-oss cells; whether reasoning.effort has an effect on this model is unverified (read reasoning-token counts on the wire lines before relying on it). Non-gating until one complete run has been scored from artifacts. Never pooled with the gpt-oss cells. Sampling: temperature 1.0 is set so repeats are draws; compare only with cells carrying the same knobs."
+      "notes": "Second-lineage floor (R22; SUITE-AUTHORING's candidate): a non-OpenAI family under the same scaffold, crowded, full surface, so the floor is not one lineage. Pin read from the endpoint listing 2026-09-23 (runs/2026-09-23-manifest-v7/): gmicloud/fp8, status 0, uptime 99.99%, tools, reasoning, temperature, seed and max_tokens all declared, $0.091/$0.182 per M; chosen over the cheaper baidu/fp8 for a US datacenter and a declared seed, and over deepinfra/fp8 because DeepInfra is the provider E25 implicated. Every endpoint for this model is fp8, so no bf16 pin exists. Knobs mirror the gpt-oss cells; whether reasoning.effort has an effect on this model is unverified (read reasoning-token counts on the wire lines before relying on it). Gated from version 8 (R24; two complete runs scored on version 5 and one on version 7). Never pooled with the gpt-oss cells. Sampling: temperature 1.0 is set so repeats are draws; compare only with cells carrying the same knobs. Gating (R24, manifest version 8): merge_gating is true, scoped by failure class — this cell gates on substantive correctness (a false or unsupported statement about the law) and on any Layer-1 check failing; relayed recipes, field names, misdescribed excerpts and framing are measured diagnostics and do not gate. The classes are fixed per clause in 60-e2e-harness.md, 'Gating by failure class'."
     },
     "e17-akashml": {
       "driver": "loop",
