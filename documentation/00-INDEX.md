@@ -18,7 +18,7 @@ This directory is the spec for an MCP server that searches and retrieves the Uni
 | `80-work-orders.md` | Self-contained build orders for the implementation session, with the verification artifacts each one must return |
 | `90-observations.md` | Measurement log — every empirical claim in this spec cites an entry here |
 | `95-open-questions.md` | Maintainer questions and preregistered experiments not yet run |
-| `96-rulings.md` | Maintainer rulings R1–R23 (2026-08-29 → 2026-09-23) with the Q1 source exchange (S5) |
+| `96-rulings.md` | Maintainer rulings R1–R24 (2026-08-29 → 2026-09-23) with the Q1 source exchange (S5) |
 
 ## Conventions — these bind
 
