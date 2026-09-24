@@ -66,6 +66,7 @@ async def test_served_surface_has_no_internal_identifiers_or_source_indentation(
         served_strings.extend(_strings(tool.output_schema))
 
     assert not [value for value in served_strings if INTERNAL_IDENTIFIER.search(value)]
+    assert all("YOU MUST READ" not in value for value in served_strings)
     assert all("  " not in (tool.description or "") for tool in listed)
 
 

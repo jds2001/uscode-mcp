@@ -78,3 +78,10 @@ def test_representative_derived_responses_and_all_detector_states_are_clean():
         htmltext.html_to_text_with_structure("<p>text</p>")[1],
     ]
     _assert_clean(responses)
+
+
+def test_no_served_literal_addresses_the_reader_with_you_must_read():
+    source = Path(__file__).parents[1] / "src" / "uscode_mcp"
+    for path in source.glob("*.py"):
+        for value in _response_literals(path):
+            assert "YOU MUST READ" not in value, f"{path.name}: {value}"

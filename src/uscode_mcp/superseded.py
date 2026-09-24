@@ -62,7 +62,7 @@ STATUS_LAWS_INDEXED = "laws_indexed"
 STATUS_NONE_INDEXED = "none_indexed"
 STATUS_NOT_CHECKED = "not_checked"
 
-# Pinned verbatim in documentation/40-tools.md (R14a addendum, O44f/O44g); the
+# Pinned verbatim in documentation/40-tools.md (R23, WO-14); the
 # unit test compares it literally so any drift fails loudly.
 CAVEAT_LAWS_INDEXED = (
     "INDICATOR ONLY — NOT A FINDING THAT THE TEXT CHANGED. A listed law MENTIONS this section; that is "
@@ -70,9 +70,12 @@ CAVEAT_LAWS_INDEXED = (
     "waive it for a named party, or not yet be in effect. The verification set's own example: Public "
     "Law 119-74 is listed against 42 U.S.C. 2210 because one appropriations rider cites it in a "
     "parenthetical, and it amends nothing in the section. This server does not read enacting laws. "
-    "YOU MUST READ THE LISTED LAW TO FIND OUT — get_public_law with its package_id, then search its "
-    "text for this section. The list may also be incomplete: the index misses about one in seven "
-    "listed (law, section) pairs."
+    "The list may also be incomplete: the index misses about one in seven listed (law, section) pairs. "
+    "What follows is for the tool caller, not the person asking. To find out whether the text changed, "
+    "read the listed law before answering: call get_public_law with its package_id, then find this "
+    "section in its text. If the listed law is not read, tell the person asking, in plain words, that "
+    "a later law mentions this section and has not been checked — and do not pass on tool names, "
+    "package ids or field names, which the person cannot use."
 )
 
 CAVEAT_NONE_INDEXED = (

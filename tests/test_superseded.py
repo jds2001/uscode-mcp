@@ -120,17 +120,20 @@ class TestHelpers:
         )
 
     def test_laws_indexed_caveat_is_the_pinned_wording(self):
-        # Literal comparison against the text pinned in 40-tools.md (R14a addendum,
-        # O44f/O44g): any drift in either direction fails loudly.
+        # Literal comparison against the text pinned in 40-tools.md (R23,
+        # WO-14): any drift in either direction fails loudly.
         assert superseded.CAVEAT_LAWS_INDEXED == (
             "INDICATOR ONLY — NOT A FINDING THAT THE TEXT CHANGED. A listed law MENTIONS this section; "
             "that is all the index records. It may amend the section, amend something else and merely "
             "cite this one, waive it for a named party, or not yet be in effect. The verification set's "
             "own example: Public Law 119-74 is listed against 42 U.S.C. 2210 because one appropriations "
             "rider cites it in a parenthetical, and it amends nothing in the section. This server does "
-            "not read enacting laws. YOU MUST READ THE LISTED LAW TO FIND OUT — get_public_law with its "
-            "package_id, then search its text for this section. The list may also be incomplete: the "
-            "index misses about one in seven listed (law, section) pairs."
+            "not read enacting laws. The list may also be incomplete: the index misses about one in seven "
+            "listed (law, section) pairs. What follows is for the tool caller, not the person asking. "
+            "To find out whether the text changed, read the listed law before answering: call get_public_law "
+            "with its package_id, then find this section in its text. If the listed law is not read, tell "
+            "the person asking, in plain words, that a later law mentions this section and has not been "
+            "checked — and do not pass on tool names, package ids or field names, which the person cannot use."
         )
 
     def test_none_indexed_caveat_is_consumer_facing(self):
@@ -174,7 +177,7 @@ class TestLawsIndexed:
         ps = out["possibly_superseded"]
         assert ps["caveat"] == superseded.CAVEAT_LAWS_INDEXED
         assert "NOT A FINDING THAT THE TEXT CHANGED" in ps["caveat"]
-        assert "YOU MUST READ THE LISTED LAW" in ps["caveat"]
+        assert "read the listed law before answering" in ps["caveat"]
         assert "get_public_law" in ps["caveat"]
         assert "one in seven" in ps["caveat"]
         assert "mentions the section" in ps["message"]
