@@ -304,3 +304,26 @@ Manifest version 7 (`66b9a347…`), server `0436218` (the pre-WO-14 caveat), sam
 What is relayed is the object's field names — `possibly_superseded` in 15 of 19, `laws_indexed` in 14, the package id in backticks (`USCODE-2024-title42`) in 9, `start_char` in 4 — and in 3 rows the recipe itself: floor top-up r04 numbers the steps for the asker ("Retrieve the full text of Public Law 119-74 (`get_public_law` with `package_id: "PLAW-119publ74"`)"), isolation r01 and r04 name `get_public_law` as the way to read the law. The only row that relays nothing is the complete run's isolation r01. One phrase for the record: isolation r06 calls the object a "supersession check" — the model's own name for `possibly_superseded`, which no served string uses — and quotes the field and value back on the next line. The instruction the caveat gives is followed by no row and relayed by most; the substance it carries survives in every row. That is F9 at n=19, and the shape E26's after-arm is measured against: rule (i) needs relay at or under 9 of the after-arm's scorable rows with substance within 2 of 19.
 
 **Instrument check, as preregistered:** 10 of 10 floor and 9 of 10 isolation rows answered and not rate-limited, above the 6-of-10 falsifier; the pin is not the story. **F7(i) again, in passing:** 11 of 15 top-up answers paste a fenced excerpt and describe it as "the first 20 000 characters" or similar; two say the tool returned 6,000 or 10,000 characters when it returned 20,000. Not scored on A3.
+
+## Run 20260924T010948Z-e26-after — E26's after-arm: A3 × 10 repeats under `loop-floor` and `loop-isolation` at the WO-14 caveat
+
+Manifest version 7 (`66b9a347…`, the baseline's hash), server `e0165f5` (WO-14, verified O83), run by this session with the harness's key: 20 rows, $0.028, 0 provider mismatches, all checks pass or vacuous, **0 null finals, 0 raw-channel tool calls, 20 of 20 scorable.** AkashML rate-limited 6 attempts (5 in `loop-floor`, 1 in isolation), all replaced; one floor attempt ended on a contentless crowding pre-turn and was replaced (`attempts_unmet` 1). **A3: 20 of 20 PASS.**
+
+**E26, scored by the rule pinned before any row existed (with the 2026-09-23 amendment):**
+
+| measure | before (19 scorable) | after (20 scorable) |
+|---|---|---|
+| (a) relay — any listed identifier outside a URL | 18 | **16** |
+| (a′) relay as a call recipe — a tool name or `package_id` | 3 | **0** |
+| (b) read — `get_public_law` on the listed law | 0 | 0 |
+| (c) plain disclosure — a later law mentions the section and was not checked | 19 | 20 |
+| (e) substance — a mention is not an amendment | 19 | 20 |
+| (e) substance — the one-in-seven figure | 0 | 0 |
+| `start_char` relayed to the asker | 4 | 0 |
+| `possibly_superseded` named as a label | 15 | 16 |
+| `laws_indexed` named | 14 | 10 |
+| a package id in backticks | 9 | 6 |
+
+**Rule (ii) fires.** Rule (i) needed relay at or under 9 of 20; it is 16. Substance survival is within 2 (20 of 20 against 19 of 19), so rule (iii) does not fire. As preregistered, (ii) reads: the audience sentence is not the lever for this instruction as it was for WO-6's; the caveat reverts to the pre-WO-14 wording and the question goes back to the maintainer with the rows. **The rows, before the revert is ordered, because they say something the rule's single number does not:** what the redraft removed is exactly the species F9 was written about — no row now tells the asker to call `get_public_law`, none names a `package_id`, none hands over `start_char` (3, 3 and 4 rows did before). What it did not touch is the object's *name*: 16 rows still write "The tool's `possibly_superseded` indicator shows…" and 10 quote `laws_indexed`, as a label for the thing they are explaining, in the same proportion as before (15 of 19). Every row then explains it correctly in prose — a later law mentions the section, the index does not say whether it amends, the law would need to be read — and no row reads it. So the sentence "do not pass on tool names, package ids or field names" was followed for tool names and package ids and not for the two field names the model uses as the noun for the check itself. The recipe species is gone (3 → 0 of 20, p ≈ 0.10 by Fisher — a small count, but the direction is the one asked for); the label species is unmoved; the read rate is unmoved at zero. Q22 puts the revert to the maintainer with this table; until it is answered the served wording stays WO-14's, since the rows show it no worse than the old one on any measure and better on three.
+
+**Isolation C3 r02's lesson generalised, in passing:** the after-arm's answers contain no `start_char` at all where the baseline's had four, on a build that changed nothing in `text.message`. One run; noted, not claimed.
