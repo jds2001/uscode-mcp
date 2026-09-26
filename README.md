@@ -12,6 +12,8 @@ Requires Python ≥ 3.11 and [uv](https://docs.astral.sh/uv/). An api.data.gov A
 GOVINFO_API_KEY=...
 ```
 
+The `.env` is a development convenience: the server reads it only when it runs from a repository checkout, and only the file at that checkout's root — it never walks up from the working directory, and an installed copy (a wheel or any layout without the checkout root) reads no `.env` at all, so production configuration is the process environment alone.
+
 ```sh
 uv sync
 ```
@@ -39,7 +41,7 @@ Example Claude Code / Claude Desktop stdio config:
   "mcpServers": {
     "uscode": {
       "command": "uv",
-      "args": ["run", "--directory", "/path/to/uscde-mcp", "uscode-mcp"]
+      "args": ["run", "--directory", "/path/to/uscode-mcp", "uscode-mcp"]
     }
   }
 }
@@ -54,7 +56,7 @@ Example Claude Code / Claude Desktop stdio config:
 
 Text windows default to 20,000 characters (`max_chars`); larger windows were measured not to reach the model inline on the current driver, so a bigger default would spend the first call discovering that. An explicit larger `max_chars` is honored as before.
 
-All tools distinguish three outcomes — success (including explicit zero results), upstream failure (status + body surfaced), and rate-limited (429 with headers passed through) — and window large payloads with explicit truncation markers, never silently: a truncated response repeats those markers as a banner line at the head of the returned text, because structured fields alone were measured insufficient (F1/E12). The API key travels only in the `X-Api-Key` header, never in a URL; absent or blank, the server exits at startup rather than coming up unable to serve anything.
+All tools distinguish three outcomes — success (including explicit zero results), upstream failure (status + body surfaced), and rate-limited (429 with headers passed through) — and window large payloads with explicit truncation markers, never silently: a truncated response carries a bracketed banner line in `text.banner` stating the window bounds, the true total and the continuation offset, while `text.content` is payload text only, so offsets from `find` and `structure` stay in one coordinate system (F1/E12, then R13c). The API key travels only in the `X-Api-Key` header, never in a URL; absent or blank, the server exits at startup rather than coming up unable to serve anything.
 
 ### Staleness indicator (R14)
 
@@ -75,6 +77,7 @@ Set `USCODE_MCP_TRACE_DIR` to a directory to record every handled MCP tool call 
 ```sh
 uv run pytest
 uv run ruff check .
+uv run ruff format --check .
 ```
 
 See `CONTRIBUTING.md` for conventions, including the two-session model for `documentation/`.
