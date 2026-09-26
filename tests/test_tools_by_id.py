@@ -211,6 +211,23 @@ class TestByIdDetector:
         )
         assert "note_statement" in out["possibly_superseded"]
 
+    async def test_stripped_note_disclosure_on_the_id_path_is_the_contract_text(self, make_client):
+        # WO-18 (R29): the by-id path shares the citation path's normalization block, so
+        # the same disclosure is served — with the caller-supplied citation resolved.
+        out = await tools.get_us_code_section(
+            make_client(by_id_handler()), granule_id=GID, citation="17 U.S.C. 107 note"
+        )
+        assert out["normalization"]["stripped_note"] is True
+        assert out["normalization"]["messages"] == [
+            "Trailing 'note' was stripped: the containing section 17 U.S.C. 107 was resolved instead, and ALL of "
+            "its notes are in the returned payload. Notes carry law, not only editorial history: fields headed "
+            "'Statutory Notes and Related Subsidiaries', 'Findings', short-title and effective-date notes are "
+            "enacted provisions Congress placed under the section rather than in it; 'Codification', 'Amendments' "
+            "and 'References in Text' are editorial. A question about the note or notes to a section is about that "
+            "whole body — list it with `structure` (the `notes` field and its typed children, each with its "
+            "heading) and search it with `find`. The 'Codification' note alone is one editorial note, not the notes."
+        ]
+
     async def test_no_citation_is_not_checked_with_its_own_reason(self, make_client):
         seen = []
         out = await tools.get_us_code_section(make_client(by_id_handler(seen=seen)), granule_id=GID)

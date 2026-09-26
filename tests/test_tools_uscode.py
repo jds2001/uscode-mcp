@@ -89,6 +89,44 @@ class TestGetSectionSuccess:
         assert out["normalization"]["stripped_note"] is True
         assert any("note" in m for m in out["normalization"]["messages"])
 
+    async def test_note_strip_disclosure_teaches_that_notes_carry_law_verbatim(self, make_client):
+        # WO-18 (R29): the disclosure is contractual character for character; spelled out
+        # here, not imported, so a drift in either direction fails.
+        hit = fx.usc_hit(
+            package_id="USCODE-2024-title42",
+            granule_id="USCODE-2024-title42-chap23-divsnA-subchapXIII-sec2210",
+        )
+        client = make_client(section_handler(fx.search_response([hit])))
+        out = await tools.get_us_code_section(client, citation="42 U.S.C. 2210 note")
+        assert out["outcome"] == "success"
+        assert out["normalization"]["messages"] == [NOTE_STRIP_DISCLOSURE.format(citation="42 U.S.C. 2210")]
+        assert out["normalization"] == {
+            "normalized_citation": "42 U.S.C. 2210",
+            "citation_basis": "resolved",
+            "stripped_subsection": None,
+            "stripped_note": True,
+            "messages": [NOTE_STRIP_DISCLOSURE.format(citation="42 U.S.C. 2210")],
+        }
+
+    async def test_note_strip_disclosure_names_the_resolved_section_not_the_input(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 USC 107 note")
+        assert out["normalization"]["messages"] == [NOTE_STRIP_DISCLOSURE.format(citation="17 U.S.C. 107")]
+
+    async def test_note_and_subsection_strips_each_get_their_own_disclosure(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107(b) note")
+        messages = out["normalization"]["messages"]
+        assert len(messages) == 2
+        assert messages[0].startswith("Subsection suffix '(b)' was stripped")
+        assert messages[1] == NOTE_STRIP_DISCLOSURE.format(citation="17 U.S.C. 107")
+
+    async def test_no_strip_means_no_messages_key(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        assert "messages" not in out["normalization"]
+        assert out["normalization"]["stripped_note"] is False
+
     async def test_truncation_is_marked_and_resumable(self, make_client):
         client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
         first = await tools.get_us_code_section(client, citation="17 U.S.C. 107", max_chars=50)
@@ -126,6 +164,15 @@ class TestGetSectionYear:
         assert "1980" in out["message"]
 
 
+NOTE_STRIP_DISCLOSURE = (
+    "Trailing 'note' was stripped: the containing section {citation} was resolved instead, and ALL of its notes "
+    "are in the returned payload. Notes carry law, not only editorial history: fields headed 'Statutory Notes and "
+    "Related Subsidiaries', 'Findings', short-title and effective-date notes are enacted provisions Congress placed "
+    "under the section rather than in it; 'Codification', 'Amendments' and 'References in Text' are editorial. A "
+    "question about the note or notes to a section is about that whole body — list it with `structure` (the "
+    "`notes` field and its typed children, each with its heading) and search it with `find`. The 'Codification' "
+    "note alone is one editorial note, not the notes."
+)
 COLLISION_MESSAGE = (
     "{n} DISTINCT PROVISIONS SHARE THIS CITATION — this is not a lookup failure and there is no single answer. "
     "Tell the person asking that {n} provisions match and name each by its title below; if you go on to read one "
@@ -219,6 +266,22 @@ class TestAmbiguousMessageNamesItsReader:
         )
         assert out["capped"] is True
 
+    def _rule9_all_editions(self, per_year: int = 2, years: range = range(1997, 2025)) -> list[dict]:
+        """A `historical: true` page for `28 U.S.C. App. Rule 9`: `per_year` same-citation
+        candidates in each edition year, the measured shape behind O93c's 78."""
+        hits = []
+        for year in years:
+            for i in range(per_year):
+                hits.append(
+                    fx.usc_hit(
+                        package_id=f"USCODE-{year}-title28",
+                        granule_id=f"USCODE-{year}-title28-app-federalru-{'dup1-' if i else ''}rule9",
+                        title="Rule 9. Pleading Special Matters" if i == 0 else "Rule 9. Release in a Criminal Case",
+                        date_issued=f"{year}-01-06",
+                    )
+                )
+        return hits
+
     async def test_a_requested_year_leaves_only_one_edition_so_a_pair_is_a_collision(self, make_client):
         # `year` filters the historical results to that edition first; two survivors share
         # the citation within it, so the collision template is what the caller must see.
@@ -243,11 +306,94 @@ class TestAmbiguousMessageNamesItsReader:
         out = await tools.get_us_code_section(client, citation="28 U.S.C. App. Rule 9", year=2024)
         assert out["outcome"] == "ambiguous"
         assert out["candidates_shown"] == 2
-        # `count` stays upstream's true total across editions (pre-existing envelope behavior,
-        # untouched here), so the shown-of-total sentence follows the collision template.
+        # WO-17 C: `{N}` is the filtered total, not upstream's count across editions.
+        assert out["message"] == COLLISION_MESSAGE.format(n=2)
+        assert out["count"] == 2 and out["count_all_editions"] == 3 and out["capped"] is False
+
+    async def test_year_filtered_pair_states_the_filtered_total_and_discloses_the_all_editions_count(self, make_client):
+        # O93c as measured: upstream counts 78 across every edition since 1997; `year: 2024`
+        # keeps two. The message says 2, `count` is 2, nothing is capped (the page held all
+        # 78), and upstream's figure rides beside as `count_all_editions`.
+        hits = self._rule9_all_editions()
+        assert len(hits) == 56  # 28 editions x 2; padded to the measured 78 below
+        hits += self._rule9_all_editions(per_year=1, years=range(1975, 1997))
+        assert len(hits) == 78
+        client = make_client(section_handler(fx.search_response(hits, count=78)))
+        out = await tools.get_us_code_section(client, citation="28 U.S.C. App. Rule 9", year=2024)
+        assert out["outcome"] == "ambiguous"
+        assert out["message"] == COLLISION_MESSAGE.format(n=2)
+        assert out["count"] == 2
+        assert out["count_all_editions"] == 78
+        assert out["candidates_shown"] == 2
+        assert out["capped"] is False
+        assert out["year"] == 2024
+        assert [c["granule_id"] for c in out["candidates"]] == [
+            "USCODE-2024-title28-app-federalru-rule9",
+            "USCODE-2024-title28-app-federalru-dup1-rule9",
+        ]
+        assert all(c["date_issued"].startswith("2024") for c in out["candidates"])
+
+    async def test_year_filtered_list_from_an_incomplete_page_is_capped_and_says_so(self, make_client):
+        # Upstream holds 251 candidates across editions and served one page of 100; the
+        # year filter ran over that page alone and kept 40. The 40 is a floor, not the
+        # 2024 total, so the list is capped and the capping sentence says why — on the
+        # filtered figures, never "showing 100 of 251".
+        hits = self._rule9_all_editions(per_year=40, years=range(2024, 2025))  # the 40 for 2024
+        hits += self._rule9_all_editions(per_year=30, years=range(2022, 2024))  # 60 for other years
+        assert len(hits) == 100
+        client = make_client(section_handler(fx.search_response(hits, count=251)))
+        out = await tools.get_us_code_section(client, citation="28 U.S.C. App. Rule 9", year=2024)
+        assert out["outcome"] == "ambiguous"
+        assert out["count"] == 40 and out["candidates_shown"] == 40
+        assert out["count_all_editions"] == 251
+        assert out["capped"] is True
         assert out["message"] == (
-            COLLISION_MESSAGE.format(n=3) + " The candidate list is capped at one search page: showing 2 of 3."
+            COLLISION_MESSAGE.format(n=40)
+            + " The candidate list is capped at one search page: showing 40 of at least 40 for 2024 — the year "
+            "filter ran over the first page only, of 251 candidates across all editions."
         )
+        assert len(out["candidates"]) == 40
+
+    async def test_year_filtered_count_is_the_filtered_total_even_when_upstream_count_is_not_an_integer(
+        self, make_client
+    ):
+        hits = self._rule9_all_editions(years=range(2023, 2025))
+        client = make_client(section_handler(fx.search_response(hits, count="4")))
+        out = await tools.get_us_code_section(client, citation="28 U.S.C. App. Rule 9", year=2024)
+        assert out["outcome"] == "ambiguous"
+        assert out["count"] == 2 and out["count_all_editions"] == "4" and out["capped"] is False
+        assert out["message"] == COLLISION_MESSAGE.format(n=2)
+
+    async def test_without_year_the_envelope_carries_no_all_editions_count_and_the_messages_are_unchanged(
+        self, make_client
+    ):
+        # The three O93a inputs served the unfiltered messages byte for byte; WO-17 C
+        # touches only the `year` path, so without `year` nothing moves.
+        client = make_client(section_handler(fx.search_response(self._rule9_pair(), count=2)))
+        out = await tools.get_us_code_section(client, citation="28 U.S.C. App. Rule 9")
+        assert "count_all_editions" not in out
+        assert out["message"] == COLLISION_MESSAGE.format(n=2)
+        assert out["count"] == 2 and out["capped"] is False
+
+        hits = [fx.usc_hit(granule_id=f"USCODE-2024-title28-app-federalru-rule{i}") for i in range(100)]
+        client = make_client(section_handler(fx.search_response(hits, count=251)))
+        out = await tools.get_us_code_section(client, citation="28 U.S.C. App.")
+        assert "count_all_editions" not in out
+        assert out["message"] == (
+            COLLISION_MESSAGE.format(n=251) + " The candidate list is capped at one search page: showing 100 of 251."
+        )
+        assert out["count"] == 251 and out["capped"] is True
+
+    async def test_year_filtered_success_and_not_found_paths_carry_no_all_editions_count(self, make_client):
+        hits = self._rule9_all_editions(per_year=1, years=range(2023, 2025))
+        client = make_client(section_handler(fx.search_response(hits, count=2)))
+        out = await tools.get_us_code_section(client, citation="28 U.S.C. App. Rule 9", year=2024)
+        assert out["outcome"] == "success"
+        assert "count_all_editions" not in out
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()], count=1)))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", year=1980)
+        assert out["outcome"] == "not_found"
+        assert "count_all_editions" not in out
 
     async def test_missing_or_unparseable_date_issued_is_a_collision_not_an_exception(self, make_client):
         # No year to differ by → "all equal" → collision; the outcome is served, never raised.
