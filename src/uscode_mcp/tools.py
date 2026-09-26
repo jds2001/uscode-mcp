@@ -439,6 +439,39 @@ def _disambiguation_fields(count: Any, results: list[dict[str, Any]], message: s
     }
 
 
+def _year_filtered_disambiguation_fields(
+    count_all_editions: Any,
+    page_size: int,
+    year: int,
+    results: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """The ambiguous fields when `year` filtered the candidates (WO-17 C, O93c).
+
+    `count` is the number of candidates after the year filter — upstream's `count`
+    spans every edition (78 for the two 2024 `Rule 9`s) and is not the total of what
+    the filter kept — and rides beside as `count_all_editions`. The filter runs over
+    the one page fetched, so the list is capped exactly when that page was itself
+    incomplete: then the filtered figure is a floor, not a total, and the capping
+    sentence says so. On a complete page the filtered count is the true total and
+    nothing is capped."""
+    count = len(results)
+    message = _uscode_ambiguous_message(count, results)
+    capped = isinstance(count_all_editions, int) and count_all_editions > page_size
+    if capped:
+        message += (
+            f" The candidate list is capped at one search page: showing {count} of at least {count} for {year} — "
+            f"the year filter ran over the first page only, of {count_all_editions} candidates across all editions."
+        )
+    return {
+        "count": count,
+        "count_all_editions": count_all_editions,
+        "candidates_shown": count,
+        "capped": capped,
+        "message": message,
+        "candidates": [_result_pointer(r) for r in results],
+    }
+
+
 # ---------------------------------------------------------------------------
 # possibly_superseded orchestration (R14, WO-1; contract and states in superseded.py)
 # ---------------------------------------------------------------------------
@@ -649,9 +682,10 @@ async def _resolve_granule(
     if failure is not None:
         return None, None, None, failure
     assert data is not None and search_resp is not None
-    results = data["results"] or []
+    page = data["results"] or []
+    results = page
     if year is not None:
-        results = [r for r in results if str(r.get("dateIssued", "")).startswith(str(year))]
+        results = [r for r in page if str(r.get("dateIssued", "")).startswith(str(year))]
 
     if not results:
         if parsed.appendix:
@@ -693,6 +727,12 @@ async def _resolve_granule(
             },
         )
     if len(results) > 1:
+        if year is not None:
+            fields = _year_filtered_disambiguation_fields(data.get("count"), len(page), year, results)
+        else:
+            fields = _disambiguation_fields(
+                data.get("count"), results, _uscode_ambiguous_message(data.get("count"), results)
+            )
         return (
             None,
             None,
@@ -702,9 +742,7 @@ async def _resolve_granule(
                 "normalized_citation": parsed.normalized,
                 "query": query,
                 "year": year,
-                **_disambiguation_fields(
-                    data.get("count"), results, _uscode_ambiguous_message(data.get("count"), results)
-                ),
+                **fields,
             },
         )
 
