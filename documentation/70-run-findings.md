@@ -416,4 +416,4 @@ Same manifest (version 9, `8d0789dd…`), server, cell and knobs as the first ru
 
 **Tool internals in answers: 7 of 26 rows** (`currentthrough` A3 ×2, D4 r02; `uscodecitation` and package ids A4 ×2; `package_id` C1 r02; granule id D4 r02). No `start_char`, no recipe to the asker.
 
-**Across the two complete runs: 43 PASS / 9 FAIL of 52; class 1 only on A5, 0 of 4.** Everything nano fails on class 1 is the one thing the served `ambiguous` message tells it to do.
+**Across the two complete runs: 43 PASS / 9 FAIL of 52; class 1 only on A5, 0 of 4.** **E30's ten-row A5 baseline (O92) adds 2 PASS / 8 FAIL at the same message: nano is 2 of 14 on A5 across everything measured; F10 stands at gpt-oss 9 of 9 and nano 12 of 14. The two passes are the shapes the redrafted message asks for by name — ask which, or read both and present both — reached unprompted about one row in seven.** Everything nano fails on class 1 is the one thing the served `ambiguous` message tells it to do.
