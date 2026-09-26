@@ -8,12 +8,53 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
+from pathlib import Path
 
-from dotenv import find_dotenv, load_dotenv
+from dotenv import load_dotenv
 
 from .govinfo import API_KEY_ENV_VAR
 from .server import create_server
+
+PACKAGE_FILE = Path(__file__).resolve()
+_PROJECT_NAME_RE = re.compile(r'^name\s*=\s*"uscode-mcp"\s*$', re.MULTILINE)
+
+
+def checkout_root(package_file: Path | None = None) -> Path | None:
+    """The repository checkout this package runs from, or None when it is installed.
+
+    R26 (c), WO-15 G: a `.env` is a development convenience, read only from a
+    checkout's root — never found by walking up from the working directory, never
+    when installed as a package. A checkout is recognised by its layout: this file at
+    ``<root>/src/uscode_mcp/__main__.py`` with ``<root>/pyproject.toml`` naming this
+    project. A wheel or site-packages install has neither, so it reads no `.env`.
+    """
+    if package_file is None:
+        package_file = PACKAGE_FILE
+    package_dir = package_file.parent
+    if package_dir.name != "uscode_mcp" or package_dir.parent.name != "src":
+        return None
+    root = package_dir.parent.parent
+    try:
+        pyproject = (root / "pyproject.toml").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if not _PROJECT_NAME_RE.search(pyproject):
+        return None
+    return root
+
+
+def load_checkout_dotenv() -> Path | None:
+    """Load ``<checkout root>/.env`` when running from a checkout; otherwise nothing.
+    Returns the path consulted, or None. The process environment always wins over
+    the file (python-dotenv's default: no override)."""
+    root = checkout_root()
+    if root is None:
+        return None
+    path = root / ".env"
+    load_dotenv(path)
+    return path
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -31,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=8000, help="bind port for --transport http (default 8000)")
     args = parser.parse_args(argv)
 
-    load_dotenv(find_dotenv(usecwd=True))
+    load_checkout_dotenv()
     # Keyless startup fails fast (96-rulings.md, R10 third amendment, from F31): a
     # server that can serve nothing must be unmistakably down, not up and wearing a
     # misleading per-request error. Blank counts as absent — a whitespace-only value
