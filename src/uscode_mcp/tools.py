@@ -126,33 +126,51 @@ async def _search(
     try:
         data = resp.json()
     except ValueError:
-        return None, _upstream_failure(
-            resp, detail="search response was not valid JSON (response-shape drift; failing loudly per spec)"
-        ), resp
-    if not isinstance(data, dict):
-        return None, _upstream_failure(
+        return (
+            None,
+            _upstream_failure(
+                resp, detail="search response was not valid JSON (response-shape drift; failing loudly per spec)"
+            ),
             resp,
-            detail=f"search response expected a JSON object, got {type(data).__name__}",
-        ), resp
+        )
+    if not isinstance(data, dict):
+        return (
+            None,
+            _upstream_failure(
+                resp,
+                detail=f"search response expected a JSON object, got {type(data).__name__}",
+            ),
+            resp,
+        )
     if "results" not in data:
-        return None, _upstream_failure(
-            resp, detail="search response expected a 'results' field, but it was absent"
-        ), resp
+        return (
+            None,
+            _upstream_failure(resp, detail="search response expected a 'results' field, but it was absent"),
+            resp,
+        )
     results = data["results"]
     if not isinstance(results, list):
-        return None, _upstream_failure(
+        return (
+            None,
+            _upstream_failure(
+                resp,
+                detail=f"search response expected 'results' to be a list of objects, got {type(results).__name__}",
+            ),
             resp,
-            detail=f"search response expected 'results' to be a list of objects, got {type(results).__name__}",
-        ), resp
+        )
     for index, result in enumerate(results):
         if not isinstance(result, dict):
-            return None, _upstream_failure(
-                resp,
-                detail=(
-                    f"search response expected 'results' to be a list of objects, but item {index} "
-                    f"was {type(result).__name__}"
+            return (
+                None,
+                _upstream_failure(
+                    resp,
+                    detail=(
+                        f"search response expected 'results' to be a list of objects, but item {index} "
+                        f"was {type(result).__name__}"
+                    ),
                 ),
-            ), resp
+                resp,
+            )
     return data, None, resp
 
 
@@ -305,9 +323,7 @@ def _scope_query(query: str, collection: str) -> tuple[str | None, dict[str, Any
         )
         if conforms:
             continue
-        suggested_tool = tools_by_collection.get(
-            clause.value.upper() if clause.value is not None else ""
-        )
+        suggested_tool = tools_by_collection.get(clause.value.upper() if clause.value is not None else "")
         out: dict[str, Any] = {
             "outcome": "out_of_scope_collection",
             "offending_clause": clause.text,
@@ -357,10 +373,7 @@ def _validate_window_arguments(start_char: Any, max_chars: Any) -> dict[str, Any
 def _past_end_failure(start_char: int, total_chars: int) -> dict[str, Any] | None:
     if start_char == 0 or start_char < total_chars:
         return None
-    detail = (
-        f"no text exists at start_char={start_char}; the document was retrieved and has "
-        f"total_chars={total_chars}"
-    )
+    detail = f"no text exists at start_char={start_char}; the document was retrieved and has total_chars={total_chars}"
     if total_chars > 0:
         detail += " (the document is not empty)"
     return {"outcome": "invalid_argument", "detail": detail, "total_chars": total_chars}
@@ -370,9 +383,7 @@ USCODE_RE_REQUEST = (
     "Re-request with `granule_id` taken from a candidate below (pass the same `citation` alongside it "
     "to keep the staleness check), or with `year` if the candidates differ by edition."
 )
-PLAW_RE_REQUEST = (
-    "The number did not resolve to one public law; treat the candidates' package_id values as findings."
-)
+PLAW_RE_REQUEST = "The number did not resolve to one public law; treat the candidates' package_id values as findings."
 
 
 def _disambiguation_fields(count: Any, results: list[dict[str, Any]], re_request: str) -> dict[str, Any]:
@@ -518,10 +529,7 @@ class _Detector:
         elif self.currentthrough is None or self._bound_error is not None:
             out = superseded.not_checked(
                 "no_bound",
-                (
-                    self._bound_error
-                    or "currentthrough could not be parsed from the payload"
-                )
+                (self._bound_error or "currentthrough could not be parsed from the payload")
                 + ", so the detector's publishdate bound could not be derived and the query was not sent.",
                 **common,
             )
@@ -592,65 +600,95 @@ async def _resolve_granule(
     if not results:
         if parsed.appendix:
             terms = f' "{parsed.appendix_text}"' if parsed.appendix_text else ""
-            return None, None, None, {
-                "outcome": "appendix_redirect",
-                "citation": parsed.normalized,
+            return (
+                None,
+                None,
+                None,
+                {
+                    "outcome": "appendix_redirect",
+                    "citation": parsed.normalized,
+                    "query": query,
+                    "year": year,
+                    "message": (
+                        "The appendix citation resolved to zero granules — real for appendix material that no "
+                        "longer exists in the current edition (e.g. the eliminated title 50 Appendix). "
+                        "Appendix granules are full-text indexed, so retry with search_us_code and the "
+                        "suggested query."
+                    ),
+                    "suggested_tool": "search_us_code",
+                    "suggested_query": f"collection:USCODE usctitlenum:{parsed.title}{terms}",
+                },
+            )
+        return (
+            None,
+            None,
+            None,
+            {
+                "outcome": "not_found",
+                "normalized_citation": parsed.normalized,
                 "query": query,
                 "year": year,
+                "normalization": normalization,
                 "message": (
-                    "The appendix citation resolved to zero granules — real for appendix material that no "
-                    "longer exists in the current edition (e.g. the eliminated title 50 Appendix). "
-                    "Appendix granules are full-text indexed, so retry with search_us_code and the "
-                    "suggested query."
+                    "The search succeeded but the citation resolved to zero granules"
+                    + (f" for edition year {year}" if year is not None else "")
+                    + ". The exact upstream query is echoed above; retry with search_us_code for full-text discovery."
                 ),
-                "suggested_tool": "search_us_code",
-                "suggested_query": f"collection:USCODE usctitlenum:{parsed.title}{terms}",
-            }
-        return None, None, None, {
-            "outcome": "not_found",
-            "normalized_citation": parsed.normalized,
-            "query": query,
-            "year": year,
-            "normalization": normalization,
-            "message": (
-                "The search succeeded but the citation resolved to zero granules"
-                + (f" for edition year {year}" if year is not None else "")
-                + ". The exact upstream query is echoed above; retry with search_us_code for full-text discovery."
-            ),
-        }
+            },
+        )
     if len(results) > 1:
-        return None, None, None, {
-            "outcome": "ambiguous",
-            "normalized_citation": parsed.normalized,
-            "query": query,
-            "year": year,
-            **_disambiguation_fields(data.get("count"), results, USCODE_RE_REQUEST),
-        }
+        return (
+            None,
+            None,
+            None,
+            {
+                "outcome": "ambiguous",
+                "normalized_citation": parsed.normalized,
+                "query": query,
+                "year": year,
+                **_disambiguation_fields(data.get("count"), results, USCODE_RE_REQUEST),
+            },
+        )
 
     hit = results[0]
     raw_download = hit.get("download")
     if raw_download is not None and not isinstance(raw_download, dict):
-        return None, None, None, _upstream_failure(
-            search_resp,
-            detail=f"search result expected 'download' to be an object, got {type(raw_download).__name__}",
+        return (
+            None,
+            None,
+            None,
+            _upstream_failure(
+                search_resp,
+                detail=f"search result expected 'download' to be an object, got {type(raw_download).__name__}",
+            ),
         )
     download = raw_download or {}
     txt_link = download.get("txtLink")
     if txt_link is not None and not isinstance(txt_link, str):
-        return None, None, None, _upstream_failure(
-            search_resp,
-            detail=f"search result expected 'download.txtLink' to be a string, got {type(txt_link).__name__}",
+        return (
+            None,
+            None,
+            None,
+            _upstream_failure(
+                search_resp,
+                detail=f"search result expected 'download.txtLink' to be a string, got {type(txt_link).__name__}",
+            ),
         )
     if not txt_link:
-        return None, None, None, {
-            "outcome": "upstream_error",
-            "http_status": None,
-            "detail": (
-                "search result carried no txtLink in its download map (response-shape drift; failing loudly "
-                "per spec rather than constructing a URL)"
-            ),
-            "result": _result_pointer(hit),
-        }
+        return (
+            None,
+            None,
+            None,
+            {
+                "outcome": "upstream_error",
+                "http_status": None,
+                "detail": (
+                    "search result carried no txtLink in its download map (response-shape drift; failing loudly "
+                    "per spec rather than constructing a URL)"
+                ),
+                "result": _result_pointer(hit),
+            },
+        )
 
     return hit, download, txt_link, None
 
@@ -805,8 +843,7 @@ async def _get_section_by_id(
     package_title = package_match.group("title")
     if parsed is not None and parsed.title.casefold() != package_title.casefold():
         return _invalid_argument(
-            f"citation title {parsed.title!r} does not match package title {package_title!r}; "
-            "nothing was fetched"
+            f"citation title {parsed.title!r} does not match package title {package_title!r}; nothing was fetched"
         )
 
     head: dict[str, Any] = {

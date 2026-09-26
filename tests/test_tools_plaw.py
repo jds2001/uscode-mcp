@@ -54,13 +54,9 @@ class TestGetPublicLaw:
 
     async def test_citation_path_uses_public_law_filter(self, make_client):
         seen = []
-        out = await tools.get_public_law(
-            make_client(plaw_handler(seen=seen)), citation="Pub. L. 118-31"
-        )
+        out = await tools.get_public_law(make_client(plaw_handler(seen=seen)), citation="Pub. L. 118-31")
         assert out["outcome"] == "success"
-        assert fx.request_body(seen[0])["query"] == (
-            "collection:PLAW lawtype:public congress:118 docnumber:31"
-        )
+        assert fx.request_body(seen[0])["query"] == ("collection:PLAW lawtype:public congress:118 docnumber:31")
 
     async def test_private_law_is_out_of_scope_not_a_failed_lookup(self, make_client):
         out = await tools.get_public_law(make_client(None), citation="Priv. L. 108-1")
@@ -77,9 +73,7 @@ class TestGetPublicLaw:
         ("format", "field"),
         [("text", "txtLink"), ("uslm", "uslmLink")],
     )
-    async def test_foreign_summary_download_link_is_refused_without_fetch(
-        self, make_client, format, field
-    ):
+    async def test_foreign_summary_download_link_is_refused_without_fetch(self, make_client, format, field):
         seen = []
         summary = fx.plaw_summary()
         summary["download"][field] = "https://example.com/law"
@@ -140,9 +134,7 @@ class TestGetPublicLaw:
     )
     async def test_invalid_window_args_are_rejected_before_any_request(self, make_client, window):
         seen = []
-        out = await tools.get_public_law(
-            make_client(plaw_handler(seen=seen)), congress=118, law_number=31, **window
-        )
+        out = await tools.get_public_law(make_client(plaw_handler(seen=seen)), congress=118, law_number=31, **window)
         assert out["outcome"] == "invalid_argument"
         assert seen == []
 
@@ -166,9 +158,7 @@ class TestGetPublicLaw:
         assert out["text"]["returned_chars"] == 1
 
     async def test_empty_payload_at_zero_still_succeeds(self, make_client):
-        out = await tools.get_public_law(
-            make_client(plaw_handler(htm="")), congress=118, law_number=31, start_char=0
-        )
+        out = await tools.get_public_law(make_client(plaw_handler(htm="")), congress=118, law_number=31, start_char=0)
         assert out["outcome"] == "success"
         assert out["text"]["total_chars"] == 0
 
@@ -337,9 +327,7 @@ class TestPublicLawFind:
     field markers upstream (O36), so `find` is the whole location story here."""
 
     async def test_find_reports_offsets_in_the_full_payload(self, make_client):
-        out = await tools.get_public_law(
-            make_client(plaw_handler()), congress=118, law_number=31, find="NDAA fixture"
-        )
+        out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31, find="NDAA fixture")
         found = out["find"]
         assert found["total_occurrences"] == 1
         offset = found["occurrences"][0]["start_char"]
@@ -376,9 +364,7 @@ class TestPublicLawFind:
 
     async def test_blank_find_is_rejected_before_any_upstream_call(self, make_client):
         seen = []
-        out = await tools.get_public_law(
-            make_client(plaw_handler(seen=seen)), congress=118, law_number=31, find=""
-        )
+        out = await tools.get_public_law(make_client(plaw_handler(seen=seen)), congress=118, law_number=31, find="")
         assert out["outcome"] == "invalid_argument"
         assert "find" in out["detail"]
         assert seen == []
@@ -388,9 +374,7 @@ class TestPublicLawFind:
         assert "find" not in out
 
     async def test_find_is_not_attached_to_a_scope_boundary_outcome(self, make_client):
-        out = await tools.get_public_law(
-            make_client(plaw_handler()), citation="Private Law 118-3", find="anything"
-        )
+        out = await tools.get_public_law(make_client(plaw_handler()), citation="Private Law 118-3", find="anything")
         assert out["outcome"] == "out_of_scope_private_law"
         assert "find" not in out
 
@@ -399,9 +383,7 @@ class TestPublicLawTruncationBanner:
     """A windowed law separates its truncation banner from payload content."""
 
     async def test_truncated_response_carries_a_separate_banner(self, make_client):
-        out = await tools.get_public_law(
-            make_client(plaw_handler()), congress=118, law_number=31, max_chars=40
-        )
+        out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31, max_chars=40)
         text = out["text"]
         assert text["truncated"] is True
         assert not text["content"].startswith("[WINDOW")
@@ -420,9 +402,7 @@ class TestBannerCoordinateDisclosure:
     """Payload-only content uses the offset coordinate system directly."""
 
     async def test_bannered_response_has_no_retired_coordinate_sentence(self, make_client):
-        out = await tools.get_public_law(
-            make_client(plaw_handler()), congress=118, law_number=31, max_chars=40
-        )
+        out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31, max_chars=40)
         message = out["text"]["message"]
         assert "banner" not in message
         assert "NOT part of the payload" not in message
@@ -490,9 +470,7 @@ class TestAudienceSentenceOnTruncatedLaw:
     the PUBLIC PDF link inline — the api.govinfo.gov pdf_link answers 401 without a key."""
 
     async def test_message_carries_public_pdf_link_inline_and_not_the_keyed_one(self, make_client):
-        out = await tools.get_public_law(
-            make_client(plaw_handler()), congress=118, law_number=31, max_chars=40
-        )
+        out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31, max_chars=40)
         text = out["text"]
         assert text["truncated"] is True
         prov = out["provenance"]
@@ -506,9 +484,7 @@ class TestAudienceSentenceOnTruncatedLaw:
         assert "provenance" not in message  # the URL itself, never a pointer to the field
 
     async def test_continuation_sentence_and_banner_are_byte_unchanged(self, make_client):
-        out = await tools.get_public_law(
-            make_client(plaw_handler()), congress=118, law_number=31, max_chars=40
-        )
+        out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31, max_chars=40)
         text = out["text"]
         # Reconstruct what the window said before WO-6 from the response's own coordinates.
         bare = window_text("x" * text["total_chars"], start_char=text["start_char"], max_chars=40)

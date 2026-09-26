@@ -105,8 +105,11 @@ class TestGetSectionSuccess:
 class TestGetSectionYear:
     async def test_year_sets_historical_and_filters(self, make_client):
         hits = [
-            fx.usc_hit(package_id="USCODE-1998-title17", granule_id="USCODE-1998-title17-chap1-sec107",
-                       date_issued="1998-01-05"),
+            fx.usc_hit(
+                package_id="USCODE-1998-title17",
+                granule_id="USCODE-1998-title17-chap1-sec107",
+                date_issued="1998-01-05",
+            ),
             fx.usc_hit(date_issued="2025-01-06"),
         ]
         seen = []
@@ -165,9 +168,7 @@ class TestGetSectionNonSuccessOutcomes:
     async def test_capped_disambiguation_states_shown_of_total(self, make_client):
         # The measured bare-appendix case (O24): 251 matches, one page shown —
         # capping must be stated so it never reads as complete.
-        hits = [
-            fx.usc_hit(granule_id=f"USCODE-2024-title28-app-federalru-rule{i}") for i in range(100)
-        ]
+        hits = [fx.usc_hit(granule_id=f"USCODE-2024-title28-app-federalru-rule{i}") for i in range(100)]
         client = make_client(section_handler(fx.search_response(hits, count=251)))
         out = await tools.get_us_code_section(client, citation="28 U.S.C. App.")
         assert out["outcome"] == "ambiguous"
@@ -186,7 +187,8 @@ class TestGetSectionNonSuccessOutcomes:
     async def test_rate_limited_is_distinct_with_headers(self, make_client):
         def handler(request):
             return httpx.Response(
-                429, text="slow down",
+                429,
+                text="slow down",
                 headers={"X-RateLimit-Limit": "36000", "X-RateLimit-Remaining": "0", "Retry-After": "60"},
             )
 
@@ -298,9 +300,7 @@ class TestGetSectionAppendix:
         # The measured O24 case: "28 U.S.C. App. Rule 9" -> federalru-rule9 and federalru-dup1-rule9.
         hits = [
             fx.usc_hit(package_id="USCODE-2024-title28", granule_id="USCODE-2024-title28-app-federalru-rule9"),
-            fx.usc_hit(
-                package_id="USCODE-2024-title28", granule_id="USCODE-2024-title28-app-federalru-dup1-rule9"
-            ),
+            fx.usc_hit(package_id="USCODE-2024-title28", granule_id="USCODE-2024-title28-app-federalru-dup1-rule9"),
         ]
         client = make_client(section_handler(fx.search_response(hits, count=2)))
         out = await tools.get_us_code_section(client, citation="28 U.S.C. App. Rule 9")
@@ -390,9 +390,7 @@ class TestSectionStructure:
     the payload's own field markers or explicitly omitted with a reason."""
 
     async def test_success_carries_the_field_list(self, make_client):
-        client = make_client(
-            section_handler(fx.search_response([fx.usc_hit()]), htm_text=fx.SECTION_HTML_WITH_FIELDS)
-        )
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()]), htm_text=fx.SECTION_HTML_WITH_FIELDS))
         out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
         structure = out["structure"]
         assert structure["omitted"] is False
@@ -400,9 +398,7 @@ class TestSectionStructure:
         assert any(f["heading"] == "Amendments" for f in structure["fields"])
 
     async def test_structure_offsets_are_usable_as_start_char(self, make_client):
-        client = make_client(
-            section_handler(fx.search_response([fx.usc_hit()]), htm_text=fx.SECTION_HTML_WITH_FIELDS)
-        )
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()]), htm_text=fx.SECTION_HTML_WITH_FIELDS))
         out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
         note = next(f for f in out["structure"]["fields"] if f["field"] == "amendment-note")
         jumped = await tools.get_us_code_section(
@@ -443,9 +439,7 @@ class TestSectionFind:
 
     async def test_find_locates_content_outside_the_returned_window(self, make_client):
         client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
-        out = await tools.get_us_code_section(
-            client, citation="17 U.S.C. 107", max_chars=20, find="Effective date"
-        )
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", max_chars=20, find="Effective date")
         assert out["text"]["truncated"] is True
         assert "Effective date" not in out["text"]["content"]
         assert out["find"]["total_occurrences"] == 1
@@ -484,9 +478,7 @@ class TestStructureRidesOnTheLocatingCall:
     """R13a: structure on start_char=0, disclosed omission on a reading call."""
 
     def _client(self, make_client):
-        return make_client(
-            section_handler(fx.search_response([fx.usc_hit()]), htm_text=fx.SECTION_HTML_WITH_FIELDS)
-        )
+        return make_client(section_handler(fx.search_response([fx.usc_hit()]), htm_text=fx.SECTION_HTML_WITH_FIELDS))
 
     async def test_locating_call_carries_the_field_list(self, make_client):
         out = await tools.get_us_code_section(self._client(make_client), citation="17 U.S.C. 107")
@@ -494,15 +486,11 @@ class TestStructureRidesOnTheLocatingCall:
         assert out["structure"]["fields"]
 
     async def test_explicit_zero_start_char_is_still_a_locating_call(self, make_client):
-        out = await tools.get_us_code_section(
-            self._client(make_client), citation="17 U.S.C. 107", start_char=0
-        )
+        out = await tools.get_us_code_section(self._client(make_client), citation="17 U.S.C. 107", start_char=0)
         assert out["structure"]["omitted"] is False
 
     async def test_reading_call_omits_it_and_points_back(self, make_client):
-        out = await tools.get_us_code_section(
-            self._client(make_client), citation="17 U.S.C. 107", start_char=50
-        )
+        out = await tools.get_us_code_section(self._client(make_client), citation="17 U.S.C. 107", start_char=50)
         assert out["outcome"] == "success"
         structure = out["structure"]
         assert structure["omitted"] is True
@@ -520,18 +508,14 @@ class TestStructureRidesOnTheLocatingCall:
     async def test_the_omitted_key_is_present_on_every_success(self, make_client):
         # The harness check reads structure.omitted; it must never be missing.
         for start in (0, 10):
-            out = await tools.get_us_code_section(
-                self._client(make_client), citation="17 U.S.C. 107", start_char=start
-            )
+            out = await tools.get_us_code_section(self._client(make_client), citation="17 U.S.C. 107", start_char=start)
             assert "omitted" in out["structure"]
 
     async def test_a_reading_call_is_much_smaller_than_a_locating_one(self, make_client):
         # The symptom R13a fixes: the invariant block dwarfing a small read (O38).
         import json
 
-        located = await tools.get_us_code_section(
-            self._client(make_client), citation="17 U.S.C. 107", max_chars=40
-        )
+        located = await tools.get_us_code_section(self._client(make_client), citation="17 U.S.C. 107", max_chars=40)
         read = await tools.get_us_code_section(
             self._client(make_client), citation="17 U.S.C. 107", start_char=50, max_chars=40
         )
@@ -540,9 +524,7 @@ class TestStructureRidesOnTheLocatingCall:
 
 class TestSectionFieldExtent:
     async def test_fields_carry_usable_end_char(self, make_client):
-        client = make_client(
-            section_handler(fx.search_response([fx.usc_hit()]), htm_text=fx.SECTION_HTML_WITH_FIELDS)
-        )
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()]), htm_text=fx.SECTION_HTML_WITH_FIELDS))
         out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
         note = next(f for f in out["structure"]["fields"] if f["field"] == "amendment-note")
         read = await tools.get_us_code_section(
@@ -578,8 +560,9 @@ class TestPublicLinksOnSection:
         assert out["provenance"]["details_link"] is None
 
     async def test_public_link_follows_the_resolved_ids_not_the_citation(self, make_client):
-        hit = fx.usc_hit(package_id="USCODE-1998-title17", granule_id="USCODE-1998-title17-chap1-sec107",
-                         date_issued="1998-01-05")
+        hit = fx.usc_hit(
+            package_id="USCODE-1998-title17", granule_id="USCODE-1998-title17-chap1-sec107", date_issued="1998-01-05"
+        )
         client = make_client(section_handler(fx.search_response([hit])))
         out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", year=1998)
         assert out["outcome"] == "success"

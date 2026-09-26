@@ -52,9 +52,7 @@ class TestTracerStartup:
             os.chmod(locked, 0o700)
 
     @pytest.mark.parametrize("process_umask", [0o000, 0o022, 0o077])
-    def test_created_trace_is_owner_only_regardless_of_umask(
-        self, tmp_path, process_umask
-    ):
+    def test_created_trace_is_owner_only_regardless_of_umask(self, tmp_path, process_umask):
         previous_umask = os.umask(process_umask)
         try:
             tracer = Tracer(tmp_path / f"umask-{process_umask:o}")

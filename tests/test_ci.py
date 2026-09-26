@@ -17,6 +17,6 @@ def test_quality_workflow_targets_main_without_secrets():
     assert "push:" in workflow
     assert "pull_request:" in workflow
     assert workflow.count("branches: [main]") == 2
-    assert "python-version: \"3.11\"" in workflow
+    assert 'python-version: "3.11"' in workflow
     assert "secret" not in workflow.casefold()
     assert "GOVINFO_API_KEY" not in workflow

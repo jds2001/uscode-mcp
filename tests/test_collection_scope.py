@@ -56,10 +56,7 @@ class TestConformingCollectionClauses:
         assert fx.request_body(seen[0])["query"] == query
 
     async def test_live_detector_query_is_accepted_unchanged_by_plaw(self, make_client):
-        query = (
-            'collection:PLAW lawtype:public publishdate:range(2025-01-07,) '
-            'uscodecitation:"42 U.S.C. 2210"'
-        )
+        query = 'collection:PLAW lawtype:public publishdate:range(2025-01-07,) uscodecitation:"42 U.S.C. 2210"'
         out, seen = await _run(tools.search_public_laws, make_client, query)
 
         assert out["outcome"] == "success"
@@ -102,10 +99,13 @@ class TestOutOfScopeCollectionClauses:
         out, seen = await _run(search, make_client, f"collection:{other} fair use")
 
         assert seen == []
-        assert out["suggested_tool"] == {
-            "USCODE": "search_us_code",
-            "PLAW": "search_public_laws",
-        }[other]
+        assert (
+            out["suggested_tool"]
+            == {
+                "USCODE": "search_us_code",
+                "PLAW": "search_public_laws",
+            }[other]
+        )
 
     async def test_third_collection_has_no_tool_pointer(self, scoped_search, make_client):
         search, _ = scoped_search

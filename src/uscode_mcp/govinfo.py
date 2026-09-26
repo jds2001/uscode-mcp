@@ -147,9 +147,7 @@ class GovInfoClient:
         return await self._request("POST", f"{self._base_url}/search", source_field="base_url", json_body=body)
 
     async def package_summary(self, package_id: str) -> UpstreamResponse:
-        return await self._request(
-            "GET", f"{self._base_url}/packages/{package_id}/summary", source_field="base_url"
-        )
+        return await self._request("GET", f"{self._base_url}/packages/{package_id}/summary", source_field="base_url")
 
     async def granule_summary(self, package_id: str, granule_id: str) -> UpstreamResponse:
         return await self._request(
@@ -173,7 +171,6 @@ def client_from_env() -> GovInfoClient:
     api_key = os.environ.get(API_KEY_ENV_VAR, "").strip()
     if not api_key:
         raise RuntimeError(
-            f"{API_KEY_ENV_VAR} is not set (or is blank). "
-            "Put it in the repo-root .env (gitignored) or the environment."
+            f"{API_KEY_ENV_VAR} is not set (or is blank). Put it in the repo-root .env (gitignored) or the environment."
         )
     return GovInfoClient(api_key=api_key)

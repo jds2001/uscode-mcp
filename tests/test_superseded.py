@@ -460,8 +460,7 @@ class TestBoundAndCitation:
         assert out["normalization"]["stripped_note"] is True
         ps = out["possibly_superseded"]
         assert ps["query"] == (
-            'collection:PLAW lawtype:public publishdate:range(2025-01-07,) '
-            'uscodecitation:"42 U.S.C. 2210"'
+            'collection:PLAW lawtype:public publishdate:range(2025-01-07,) uscodecitation:"42 U.S.C. 2210"'
         )
         assert ps["checked_citation"] == "42 U.S.C. 2210"
         assert "parent section 42 U.S.C. 2210" in ps["note_statement"]
@@ -480,8 +479,11 @@ class TestBoundAndCitation:
 
     async def test_year_selected_edition_bounds_on_its_own_currentthrough(self, make_client):
         hits = [
-            fx.usc_hit(package_id="USCODE-2023-title17", granule_id="USCODE-2023-title17-chap1-sec107",
-                       date_issued="2023-12-31"),
+            fx.usc_hit(
+                package_id="USCODE-2023-title17",
+                granule_id="USCODE-2023-title17-chap1-sec107",
+                date_issued="2023-12-31",
+            ),
             fx.usc_hit(date_issued="2024-12-31"),
         ]
         html_2023 = fx.SECTION_HTML.replace("currentthrough:20250106", "currentthrough:20240105")
@@ -493,15 +495,15 @@ class TestBoundAndCitation:
         ps = out["possibly_superseded"]
         assert ps["since"] == "2024-01-06"
         assert ps["query"] == (
-            'collection:PLAW lawtype:public publishdate:range(2024-01-06,) '
-            'uscodecitation:"17 U.S.C. 107"'
+            'collection:PLAW lawtype:public publishdate:range(2024-01-06,) uscodecitation:"17 U.S.C. 107"'
         )
         assert fx.request_body(detector_requests(seen)[0])["query"] == ps["query"]
 
     async def test_two_editions_of_one_section_get_different_bounds(self, make_client):
         html_2023 = fx.SECTION_HTML.replace("currentthrough:20250106", "currentthrough:20240105")
-        hit_2023 = fx.usc_hit(package_id="USCODE-2023-title17", granule_id="USCODE-2023-title17-chap1-sec107",
-                              date_issued="2023-12-31")
+        hit_2023 = fx.usc_hit(
+            package_id="USCODE-2023-title17", granule_id="USCODE-2023-title17-chap1-sec107", date_issued="2023-12-31"
+        )
         newest = await tools.get_us_code_section(make_client(make_handler()), citation="17 U.S.C. 107")
         older = await tools.get_us_code_section(
             make_client(make_handler(usc_hits=[hit_2023], htm_text=html_2023)), citation="17 U.S.C. 107", year=2023
@@ -553,8 +555,7 @@ class TestConcurrency:
         assert ps["issued"] == "before_search"
         assert ps["since"] == "2025-01-07"
         assert ps["query"] == (
-            'collection:PLAW lawtype:public publishdate:range(2025-01-07,) '
-            'uscodecitation:"42 U.S.C. 2210"'
+            'collection:PLAW lawtype:public publishdate:range(2025-01-07,) uscodecitation:"42 U.S.C. 2210"'
         )
         assert "prediction_note" not in ps
         assert len(detector_requests(seen)) == 1
@@ -570,8 +571,7 @@ class TestConcurrency:
         ps = out["possibly_superseded"]
         assert ps["since"] == "2025-03-02"
         assert ps["query"] == (
-            'collection:PLAW lawtype:public publishdate:range(2025-03-02,) '
-            'uscodecitation:"17 U.S.C. 107"'
+            'collection:PLAW lawtype:public publishdate:range(2025-03-02,) uscodecitation:"17 U.S.C. 107"'
         )
         assert ps["issued"] == "after_fetch"
         assert "2025-01-06" in ps["prediction_note"] and "2025-03-01" in ps["prediction_note"]
@@ -601,12 +601,14 @@ class TestConcurrency:
         # so the detector must wait for the payload rather than borrow 2024's bound.
         await tools.get_us_code_section(make_client(make_handler()), citation="17 U.S.C. 107")
         html_2023 = fx.SECTION_HTML.replace("currentthrough:20250106", "currentthrough:20240105")
-        hit_2023 = fx.usc_hit(package_id="USCODE-2023-title17", granule_id="USCODE-2023-title17-chap1-sec107",
-                              date_issued="2023-12-31")
+        hit_2023 = fx.usc_hit(
+            package_id="USCODE-2023-title17", granule_id="USCODE-2023-title17-chap1-sec107", date_issued="2023-12-31"
+        )
         seen = []
         out = await tools.get_us_code_section(
             make_client(make_handler(usc_hits=[hit_2023], htm_text=html_2023, seen=seen)),
-            citation="17 U.S.C. 107", year=2023,
+            citation="17 U.S.C. 107",
+            year=2023,
         )
         ps = out["possibly_superseded"]
         assert ps["issued"] == "after_fetch"

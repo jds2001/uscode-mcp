@@ -234,7 +234,7 @@ class TestFindOccurrences:
         assert r["total_occurrences"] == 2
         assert [o["start_char"] for o in r["occurrences"]] == [6, 17]
         for o in r["occurrences"]:
-            assert text[o["start_char"]:].startswith("beta")
+            assert text[o["start_char"] :].startswith("beta")
 
     def test_match_is_case_insensitive_but_offsets_stay_exact(self):
         text = "The BETA and the beta"
@@ -310,7 +310,7 @@ class TestFieldExtent:
     def test_extent_slices_exactly_the_field(self):
         text, structure = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)
         note = next(f for f in structure["fields"] if f["field"] == "amendment-note")
-        body = text[note["start_char"]:note["end_char"]]
+        body = text[note["start_char"] : note["end_char"]]
         assert body.startswith("Amendments")
         assert "Pub. L. 102-492" in body
         # The next field's content must not bleed in, nor the previous field's out.
@@ -320,7 +320,7 @@ class TestFieldExtent:
         text, structure = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)
         note = next(f for f in structure["fields"] if f["field"] == "amendment-note")
         w = window_text(text, start_char=note["start_char"], max_chars=note["end_char"] - note["start_char"])
-        assert w["content"] == text[note["start_char"]:note["end_char"]]
+        assert w["content"] == text[note["start_char"] : note["end_char"]]
 
     def test_final_field_ends_at_total_chars(self):
         text, structure = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)

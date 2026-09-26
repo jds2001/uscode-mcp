@@ -48,9 +48,7 @@ async def _call_search_reader(tool, client):
     "tool",
     ["search_us_code", "search_public_laws", "get_us_code_section", "get_public_law"],
 )
-async def test_wrongly_typed_search_results_are_structured_and_traced(
-    make_client, tmp_path, results, arrived, tool
-):
+async def test_wrongly_typed_search_results_are_structured_and_traced(make_client, tmp_path, results, arrived, tool):
     response = fx.json_response({"count": 1, "results": results})
     client = make_client(lambda request: response)
     arguments = (
@@ -97,6 +95,7 @@ async def test_list_valued_summary_is_structured_and_traced(make_client, tmp_pat
 @pytest.mark.parametrize("tool", ["get_public_law", "get_us_code_section"])
 async def test_wrongly_typed_summary_download_map_is_structured(make_client, tool):
     if tool == "get_public_law":
+
         def handler(request):
             if request.url.path == "/search":
                 return fx.json_response(fx.search_response([fx.plaw_hit()]))

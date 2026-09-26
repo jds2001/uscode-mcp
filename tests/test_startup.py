@@ -70,9 +70,7 @@ class TestKeylessStartup:
         assert spy_server["created"] == 1
         assert spy_server["ran"] == [{"transport": "stdio"}]
 
-    def test_a_key_that_is_only_surrounded_by_whitespace_still_starts(
-        self, isolated_env, spy_server, monkeypatch
-    ):
+    def test_a_key_that_is_only_surrounded_by_whitespace_still_starts(self, isolated_env, spy_server, monkeypatch):
         monkeypatch.setenv("GOVINFO_API_KEY", "  a-key  ")
         assert entry.main([]) == 0
         assert spy_server["created"] == 1

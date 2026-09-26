@@ -39,8 +39,25 @@ FIND_SNIPPET_CONTEXT = 80
 
 # Tags that imply a line break when converting to plain text.
 _BLOCK_TAGS = {
-    "p", "div", "br", "li", "ul", "ol", "table", "tr", "hr", "section", "article",
-    "blockquote", "pre", "h1", "h2", "h3", "h4", "h5", "h6",
+    "p",
+    "div",
+    "br",
+    "li",
+    "ul",
+    "ol",
+    "table",
+    "tr",
+    "hr",
+    "section",
+    "article",
+    "blockquote",
+    "pre",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
 }
 _SKIP_TAGS = {"script", "style"}
 
@@ -279,10 +296,7 @@ def html_to_text_with_structure(html: str) -> tuple[str, dict[str, Any]]:
 
 def truncation_banner(start_char: int, end: int, total: int) -> str:
     """The banner line: window bounds, true total, and continuation offset."""
-    return (
-        f"[WINDOW chars {start_char:,}–{end - 1:,} of {total:,} "
-        f"— truncated; continue with start_char={end}]"
-    )
+    return f"[WINDOW chars {start_char:,}–{end - 1:,} of {total:,} — truncated; continue with start_char={end}]"
 
 
 def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dict[str, Any]:
@@ -314,8 +328,7 @@ def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dic
         banner = truncation_banner(start_char, end, total)
         result["banner"] = banner
         result["message"] = (
-            f"Payload is {total} chars; returned chars {start_char}-{end - 1}. "
-            f"Continue with start_char={end}."
+            f"Payload is {total} chars; returned chars {start_char}-{end - 1}. Continue with start_char={end}."
         )
     return result
 

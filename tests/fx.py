@@ -180,6 +180,4 @@ SECTION_HTML_UNBALANCED_FIELDS = SECTION_HTML_WITH_FIELDS.replace(
 )
 
 # Same payload with a field-start that is never closed.
-SECTION_HTML_UNCLOSED_FIELD = SECTION_HTML_WITH_FIELDS.replace(
-    "<!-- field-end:notes -->\n", ""
-)
+SECTION_HTML_UNCLOSED_FIELD = SECTION_HTML_WITH_FIELDS.replace("<!-- field-end:notes -->\n", "")

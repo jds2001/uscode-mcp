@@ -42,9 +42,7 @@ def _law_handler(request):
         ("get_public_law", {"congress": 118, "law_number": 31, "max_chars": 20}, _law_handler),
     ],
 )
-async def test_truncated_content_is_payload_only_for_both_text_tools(
-    make_client, tool_name, arguments, handler
-):
+async def test_truncated_content_is_payload_only_for_both_text_tools(make_client, tool_name, arguments, handler):
     response = _payload(await create_server(client=make_client(handler)).call_tool(tool_name, arguments))
     text = response["text"]
 
@@ -72,13 +70,9 @@ async def test_zero_max_chars_teaches_the_locating_call(make_client, tool_name):
         raise AssertionError(f"unexpected request: {request.url}")
 
     if tool_name == "get_us_code_section":
-        response = await tools.get_us_code_section(
-            make_client(must_not_run), citation="17 U.S.C. 107", max_chars=0
-        )
+        response = await tools.get_us_code_section(make_client(must_not_run), citation="17 U.S.C. 107", max_chars=0)
     else:
-        response = await tools.get_public_law(
-            make_client(must_not_run), congress=118, law_number=31, max_chars=0
-        )
+        response = await tools.get_public_law(make_client(must_not_run), congress=118, law_number=31, max_chars=0)
 
     assert response["outcome"] == "invalid_argument"
     assert "at least 1" in response["detail"]
