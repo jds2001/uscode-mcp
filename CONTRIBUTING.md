@@ -12,6 +12,8 @@ Code is formatted with `ruff format` and linted with `ruff check` (line length 1
 
 **Dependency versions get a ceiling, not just a floor.** Runtime dependencies with breaking-change potential are constrained on both ends — for the `mcp` SDK that means capping below the next major (e.g. `>=2,<3`), and the same shape applies to any dependency whose majors break APIs. The rule exists because MCP 2.0's breaking changes are what broke congressMCP (documentation/96-rulings.md R9): an uncapped floor turns someone else's release day into this server's outage. Raising a ceiling is a deliberate change — bump it in its own commit with the suite run against the new major, never as a side effect.
 
+**Every dependency bump runs the full unit suite before merge, the trace tests included** (R26 d). `mcp` is pinned exactly (`mcp==2.1.1`, with the reason beside the pin in `pyproject.toml`): the tracer implements a middleware protocol the SDK labels provisional within 2.x, and `tests/test_trace_e2e.py` reaches a private attribute to drive a real session, so a bump of any size can break tracing without touching a public API. Bump it in its own commit, run `uv run pytest` against the new version, and say in the commit message that the trace tests passed.
+
 ## Commit conventions
 
 Commit each logical unit of work as you go, rather than batching unrelated changes into one commit — prefer several small, clear commits over one large one. Wrap commit message bodies at ~80 columns (commit messages are the one place in this repo that *does* get a column wrap, since they're read as fixed-width text by `git log`, not edited later).
