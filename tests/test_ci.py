@@ -10,6 +10,7 @@ def test_quality_workflow_runs_tests_and_lint_from_the_lockfile():
     assert "uv sync --locked --dev" in workflow
     assert "uv run pytest -q" in workflow
     assert "uv run ruff check ." in workflow
+    assert "uv run ruff format --check ." in workflow  # WO-15 F (R26 b): the formatter is enforced
 
 
 def test_quality_workflow_targets_main_without_secrets():

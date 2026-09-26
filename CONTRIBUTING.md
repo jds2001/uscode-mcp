@@ -8,6 +8,8 @@ Markdown in this repo is not hard-wrapped: one line per paragraph, long lines ar
 
 Every piece of built functionality gets unit tests covering failure surfacing, not just the happy path, and the suite stays green.
 
+Code is formatted with `ruff format` and linted with `ruff check` (line length 120, configured in `pyproject.toml`); the quality workflow runs both, so run `uv run ruff format .` before committing.
+
 **Dependency versions get a ceiling, not just a floor.** Runtime dependencies with breaking-change potential are constrained on both ends — for the `mcp` SDK that means capping below the next major (e.g. `>=2,<3`), and the same shape applies to any dependency whose majors break APIs. The rule exists because MCP 2.0's breaking changes are what broke congressMCP (documentation/96-rulings.md R9): an uncapped floor turns someone else's release day into this server's outage. Raising a ceiling is a deliberate change — bump it in its own commit with the suite run against the new major, never as a side effect.
 
 ## Commit conventions
@@ -24,7 +26,7 @@ Git and GitHub both parse this trailer case-insensitively, and GitHub's own squa
 
 This applies to work on this repository specifically — a contributor's own private/global tooling config (e.g. a personal `CLAUDE.md` outside this repo) does not override it for commits that land here.
 
-Commits, just like code, should be wrapped at 80 columns for legibility.
+Commit messages should be wrapped at 80 columns for legibility.
 
 ## The two-session model for `documentation/`
 
