@@ -24,7 +24,7 @@ Contracts from documentation/40-tools.md:
 from __future__ import annotations
 
 import re
-from bisect import bisect_left
+from bisect import bisect_right
 from html.parser import HTMLParser
 from typing import Any
 
@@ -141,49 +141,95 @@ class _TextExtractor(HTMLParser):
         return "".join(self._parts)
 
 
-def _normalize_indexed(raw: str) -> tuple[str, list[int]]:
-    """Normalize whitespace and return (text, src) where ``src[i]`` is the index in
-    ``raw`` of normalized character ``i``.
+# The whitespace normalization, as dropped ranges of the raw text (WO-15 D). Step 1:
+# trailing spaces/tabs at the end of each line and of the string. Step 2: in a run of
+# newlines separated by nothing but such blanks (which step 1 drops), every newline
+# after the second. Step 3 (in _dropped_ranges): strip both ends.
+_TRAILING_BLANKS_RE = re.compile(r"[ \t]+(?=\n|\Z)")
+_NEWLINE_RUN_RE = re.compile(r"\n(?:[ \t]*\n){2,}")
 
-    Every step drops characters and never inserts or rewrites any, so the normalized
-    text is a subsequence of ``raw`` and the mapping is exact. The three steps are
-    the ones :func:`html_to_text` has always applied: trim trailing spaces/tabs per
-    line, collapse runs of 3+ newlines to 2, strip the ends.
-    """
-    # Trailing [ \t]+ at end of each line (and at end of the string).
-    kept: list[int] = []
-    at_line_end = True
-    for i in range(len(raw) - 1, -1, -1):
-        ch = raw[i]
-        if ch == "\n":
-            at_line_end = True
-        elif ch in " \t" and at_line_end:
-            continue
-        else:
-            at_line_end = False
-        kept.append(i)
-    kept.reverse()
 
-    # Runs of 3+ newlines collapse to 2.
-    collapsed: list[int] = []
-    run = 0
-    for i in kept:
-        if raw[i] == "\n":
-            run += 1
-            if run > 2:
-                continue
-        else:
-            run = 0
-        collapsed.append(i)
-
-    # Strip both ends.
-    lo, hi = 0, len(collapsed)
-    while lo < hi and raw[collapsed[lo]].isspace():
+def _dropped_ranges(raw: str) -> list[tuple[int, int]]:
+    """The half-open ``[start, end)`` ranges of ``raw`` that normalization drops,
+    sorted and merged. Normalization only ever drops characters — never inserts or
+    rewrites any — so these ranges describe it completely."""
+    ranges: list[tuple[int, int]] = [(m.start(), m.end()) for m in _TRAILING_BLANKS_RE.finditer(raw)]
+    for m in _NEWLINE_RUN_RE.finditer(raw):
+        seen = 0
+        for i in range(m.start(), m.end()):
+            if raw[i] == "\n":
+                seen += 1
+                if seen > 2:
+                    ranges.append((i, i + 1))
+    # Strip both ends: a non-whitespace character is never dropped by steps 1–2, so
+    # everything before the first one and after the last one goes.
+    lo, hi = 0, len(raw)
+    while lo < hi and raw[lo].isspace():
         lo += 1
-    while hi > lo and raw[collapsed[hi - 1]].isspace():
+    while hi > lo and raw[hi - 1].isspace():
         hi -= 1
-    src = collapsed[lo:hi]
-    return "".join([raw[i] for i in src]), src
+    if lo:
+        ranges.append((0, lo))
+    if hi < len(raw):
+        ranges.append((hi, len(raw)))
+    ranges.sort()
+    merged: list[tuple[int, int]] = []
+    for start, end in ranges:
+        if merged and start <= merged[-1][1]:
+            if end > merged[-1][1]:
+                merged[-1] = (merged[-1][0], end)
+        else:
+            merged.append((start, end))
+    return merged
+
+
+class _OffsetMap:
+    """Maps a raw-text offset to its normalized offset: the raw offset minus the
+    dropped characters before it. Built from the dropped ranges alone, so its size is
+    the number of ranges, not the length of the text (WO-15 D: the per-character
+    index map it replaces cost ~217 MB on a 3.1M-character law, S26 finding 4)."""
+
+    __slots__ = ("_starts", "_ends", "_dropped_through")
+
+    def __init__(self, ranges: list[tuple[int, int]]) -> None:
+        self._starts = [start for start, _ in ranges]
+        self._ends = [end for _, end in ranges]
+        self._dropped_through: list[int] = []
+        total = 0
+        for start, end in ranges:
+            total += end - start
+            self._dropped_through.append(total)
+
+    def __call__(self, raw_offset: int) -> int:
+        i = bisect_right(self._starts, raw_offset)  # ranges that start at or before the offset
+        if i == 0:
+            return raw_offset
+        dropped = self._dropped_through[i - 1]
+        overhang = self._ends[i - 1] - raw_offset  # the part of the last range not before the offset
+        if overhang > 0:
+            dropped -= overhang
+        return raw_offset - dropped
+
+
+def _normalize(raw: str) -> tuple[str, _OffsetMap]:
+    """Normalize whitespace and return ``(text, to_normalized)``, where
+    ``to_normalized(raw_offset)`` is the offset in ``text`` of the first kept
+    character at or after ``raw_offset`` — the coordinate a field marker at that raw
+    position has in the served text.
+
+    The three steps are the ones :func:`html_to_text` has always applied: trim
+    trailing spaces/tabs per line, collapse runs of 3+ newlines to 2, strip the
+    ends. Each drops characters and never inserts or rewrites any, so the text is a
+    subsequence of ``raw`` and the mapping is exact.
+    """
+    ranges = _dropped_ranges(raw)
+    parts: list[str] = []
+    pos = 0
+    for start, end in ranges:
+        parts.append(raw[pos:start])
+        pos = end
+    parts.append(raw[pos:])
+    return "".join(parts), _OffsetMap(ranges)
 
 
 def html_to_text(html: str) -> str:
@@ -232,7 +278,7 @@ def html_to_text_with_structure(html: str) -> tuple[str, dict[str, Any]]:
     extractor = _TextExtractor()
     extractor.feed(html)
     extractor.close()
-    text, src = _normalize_indexed(extractor.raw_text())
+    text, to_normalized = _normalize(extractor.raw_text())
 
     if not extractor.markers:
         return text, _structure_omitted("this payload carries no field-start/field-end markers")
@@ -274,8 +320,8 @@ def html_to_text_with_structure(html: str) -> tuple[str, dict[str, Any]]:
         {
             "field": span["field"],
             "heading": headings.get(idx),
-            "start_char": bisect_left(src, span["raw_start"]),
-            "end_char": bisect_left(src, span["raw_end"]),
+            "start_char": to_normalized(span["raw_start"]),
+            "end_char": to_normalized(span["raw_end"]),
         }
         for idx, span in enumerate(spans)
     ]

@@ -1,6 +1,10 @@
 """Text derivation and windowing contracts (documentation/40-tools.md): no content
 dropped, currentthrough parsed or explicitly absent, no silent truncation."""
 
+import random
+import tracemalloc
+from bisect import bisect_left
+
 import fx
 import pytest
 
@@ -449,3 +453,138 @@ class TestPublicPdfLink:
         assert public_pdf_link(None) is None
         assert public_pdf_link("") is None
         assert public_pdf_link(None, "USCODE-2024-title17-chap1-sec107") is None
+
+
+# ---------------------------------------------------------------------------
+# WO-15 D — the conversion cost: nothing served changes
+# ---------------------------------------------------------------------------
+
+
+def _reference_normalize_indexed(raw: str) -> tuple[str, list[int]]:
+    """The per-character algorithm WO-15 D replaced, kept verbatim as the oracle:
+    ``src[i]`` is the raw index of normalized character ``i``."""
+    kept: list[int] = []
+    at_line_end = True
+    for i in range(len(raw) - 1, -1, -1):
+        ch = raw[i]
+        if ch == "\n":
+            at_line_end = True
+        elif ch in " \t" and at_line_end:
+            continue
+        else:
+            at_line_end = False
+        kept.append(i)
+    kept.reverse()
+    collapsed: list[int] = []
+    run = 0
+    for i in kept:
+        if raw[i] == "\n":
+            run += 1
+            if run > 2:
+                continue
+        else:
+            run = 0
+        collapsed.append(i)
+    lo, hi = 0, len(collapsed)
+    while lo < hi and raw[collapsed[lo]].isspace():
+        lo += 1
+    while hi > lo and raw[collapsed[hi - 1]].isspace():
+        hi -= 1
+    src = collapsed[lo:hi]
+    return "".join([raw[i] for i in src]), src
+
+
+# The fixture's structure block as served before WO-15 D (captured at 40e5168 with
+# the per-character map). The check that matters: identical, offsets included.
+FIXTURE_STRUCTURE_BEFORE_WO15D = [
+    {"field": "head", "heading": None, "start_char": 0, "end_char": 49},
+    {"field": "statute", "heading": None, "start_char": 49, "end_char": 180},
+    {"field": "sourcecredit", "heading": None, "start_char": 180, "end_char": 244},
+    {"field": "notes", "heading": None, "start_char": 244, "end_char": 404},
+    {
+        "field": "historicalandrevision-note",
+        "heading": "Historical and Revision Notes",
+        "start_char": 244,
+        "end_char": 340,
+    },
+    {"field": "amendment-note", "heading": "Amendments", "start_char": 340, "end_char": 404},
+]
+
+
+class TestNormalizationIsUnchangedByTheOffsetMapRewrite:
+    def test_fixture_structure_is_byte_identical_to_the_pre_fix_values(self):
+        text, structure = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)
+        assert len(text) == 404
+        assert structure["fields"] == FIXTURE_STRUCTURE_BEFORE_WO15D
+
+    @pytest.mark.parametrize(
+        "name", ["SECTION_HTML", "SECTION_HTML_WITH_FIELDS", "PLAW_HTML", "SECTION_HTML_NO_CURRENTTHROUGH"]
+    )
+    def test_text_matches_the_reference_algorithm_on_every_fixture(self, name):
+        from uscode_mcp.htmltext import _normalize, _TextExtractor
+
+        extractor = _TextExtractor()
+        extractor.feed(getattr(fx, name))
+        extractor.close()
+        raw = extractor.raw_text()
+        expected_text, src = _reference_normalize_indexed(raw)
+        text, to_normalized = _normalize(raw)
+        assert text == expected_text
+        assert html_to_text(getattr(fx, name)) == expected_text
+        for p in range(len(raw) + 1):
+            assert to_normalized(p) == bisect_left(src, p), p
+
+    def test_offset_map_matches_the_reference_on_random_whitespace_heavy_text(self):
+        # Differential test: every raw offset of every string maps identically, and
+        # the text is identical, across the whitespace shapes normalization touches.
+        from uscode_mcp.htmltext import _normalize
+
+        rng = random.Random(20260926)
+        alphabet = ["a", "b", " ", " ", "\t", "\n", "\n", "\n", "\r", " ", "\x0c", " "]
+        for _ in range(600):
+            raw = "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 40)))
+            expected_text, src = _reference_normalize_indexed(raw)
+            text, to_normalized = _normalize(raw)
+            assert text == expected_text, repr(raw)
+            for p in range(len(raw) + 1):
+                assert to_normalized(p) == bisect_left(src, p), (repr(raw), p)
+
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            "",
+            "   ",
+            "\n\n\n\n",
+            "a",
+            " a ",
+            "a \t\n \t\n\n\n b",
+            "\n \n\n \n\nx\n \n \n \n",
+            "x\r\n\r\n\r\ny",
+            "x\t\r y \n",
+            " x \n ",
+        ],
+    )
+    def test_offset_map_matches_the_reference_on_edge_shapes(self, raw):
+        from uscode_mcp.htmltext import _normalize
+
+        expected_text, src = _reference_normalize_indexed(raw)
+        text, to_normalized = _normalize(raw)
+        assert text == expected_text
+        for p in range(len(raw) + 1):
+            assert to_normalized(p) == bisect_left(src, p), p
+
+    def test_conversion_does_not_allocate_per_character(self):
+        # The regression guard for S26 finding 4: on a ~1M-character marker-less
+        # payload the old map cost ~70 MB; the rewrite must stay within a small
+        # multiple of the text itself.
+        para = "<p>SEC. 1. " + "the quick brown fox jumps over the lazy dog " * 20 + "   </p>\n\n\n"
+        html = "<html><body>" + para * 1100 + "</body></html>"
+        tracemalloc.start()
+        try:
+            text, structure = html_to_text_with_structure(html)
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        assert len(text) > 900_000
+        assert structure["omitted"] is True
+        assert peak < 6 * len(text) * 4, f"peak {peak / 1e6:.0f} MB for {len(text):,} chars"
