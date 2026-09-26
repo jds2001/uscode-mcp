@@ -339,3 +339,13 @@ Then add a unit test that fails if any served string — `instructions`, every t
 **Part A.** On a `not_found` envelope after a subsection strip, `normalization.messages` carries, character for character: "Subsection suffix '{designator}' was stripped and the containing section {citation} was looked up instead; it resolved to zero granules, so nothing was returned or counted." — `{designator}` the stripped suffix with its parentheses, `{citation}` the normalized citation the search ran on. Nothing else on the `not_found` envelope changes (the echoed query, `normalized_citation`, the redirect `message`). Artifacts: a unit test pinning the string on the `not_found` path and the three WO-19 messages unchanged on `success`; a fresh-process probe of `17 U.S.C. 9999(b)` with the served message pasted verbatim.
 
 **Not in this order.** Any change to the `success`-path messages, to `not_found` detection, or to any other served string. Writing under `documentation/`.
+
+## WO-21 — the description tells the consumer to pass the subsection (R31c; contract in `40-tools.md`, "The description reaches the consumer that strips the designator itself"; measured basis O100b; consumer effect preregistered as E33)
+
+**Status:** ISSUED and RELEASED 2026-09-26 to the implementation session. One sentence, one commit. Not to land before E34's gpt-oss runs have finished (they measure WO-19 alone; this session says when).
+
+**What it is.** WO-19's message is served only on a strip. In every 99-row nano arm a few rows remove the "(b)" before their first call and ask for `17 U.S.C. 107` bare — 2, 4 and 5 of 99 — and those rows never see the message and run the old shape; both after-arm class-1 rows are among them (O100b). The description is read on every call and can route them onto the served path.
+
+**Part A.** The `get_us_code_section` description gains, character for character and immediately after "Subsection suffixes are stripped (the whole section is the retrieval unit).": "Pass the citation as the asker gave it, subsection included — the server strips the suffix and reports whether that subsection exists in the statute text." Nothing else in the description or any envelope changes. Artifacts: a unit test pinning the sentence and its position; a fresh-process `list_tools` with the description pasted; the Layer-1 checks still passing on a manifest dry run.
+
+**Not in this order.** Any served message. Any other description sentence (Q17's trim stays open). Writing under `documentation/`.
