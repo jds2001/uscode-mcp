@@ -335,7 +335,10 @@ def html_to_text_with_structure(html: str) -> tuple[str, dict[str, Any]]:
             "start_char. Fields nest: a container like `notes` spans its typed children. HEADINGS "
             "ARE THE UPSTREAM MARKER HEADINGS VERBATIM, and they describe where a field OPENS, not "
             "everything it contains — a field can run far past what its heading suggests, so judge "
-            "a field by its extent and search it with `find` rather than trusting the label."
+            "a field by its extent and search it with `find` rather than trusting the label. Notes "
+            "carry law, not only editorial history: 'Statutory Notes and Related Subsidiaries', "
+            "'Findings', short-title and effective-date fields are enacted provisions; 'Codification', "
+            "'Amendments' and 'References in Text' are editorial."
         ),
     }
 

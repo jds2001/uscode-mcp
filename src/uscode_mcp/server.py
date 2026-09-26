@@ -114,7 +114,9 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
     ) -> dict[str, Any]:
         """Resolve a US Code citation and return the section's full text — statutory text, source
         credits, and statutory notes included (note citations like "42 U.S.C. 2210 note" resolve to
-        the containing section, whose payload contains the notes).
+        the containing section, whose payload contains the notes). Notes are not only editorial —
+        statutory notes are enacted law placed under the section; a question about a section's notes
+        is about all of them, so list them with structure before answering from one.
 
         Pass `citation` (accepts "17 U.S.C. 107", "17 USC 107", "17 U.S.C. § 107(b)",
         "42 U.S.C. 2210 note") or `title` + `section` as separate fields. Subsection suffixes are

@@ -343,6 +343,30 @@ class TestFieldExtent:
         assert "opens" in note
         assert "end_char" in note
 
+    def test_note_is_the_contract_text_and_teaches_that_notes_carry_law(self):
+        # WO-18 (R29): the sentence after the headings sentence is contractual character
+        # for character; the whole note is pinned so nothing before it moves either.
+        _, structure = html_to_text_with_structure(fx.SECTION_HTML_WITH_FIELDS)
+        assert structure["note"] == (
+            "Field boundaries come from the payload's own upstream markers. `start_char` and `end_char` "
+            "(exclusive) share the coordinate system of total_chars/start_char, so a field can be read by "
+            "re-requesting with its start_char and max_chars = end_char - start_char. Fields nest: a container "
+            "like `notes` spans its typed children. HEADINGS ARE THE UPSTREAM MARKER HEADINGS VERBATIM, and they "
+            "describe where a field OPENS, not everything it contains — a field can run far past what its "
+            "heading suggests, so judge a field by its extent and search it with `find` rather than trusting "
+            "the label. Notes carry law, not only editorial history: 'Statutory Notes and Related Subsidiaries', "
+            "'Findings', short-title and effective-date fields are enacted provisions; 'Codification', "
+            "'Amendments' and 'References in Text' are editorial."
+        )
+
+    def test_omitted_structure_notes_do_not_carry_the_headings_sentence_or_its_addition(self):
+        # The addition rides after the headings sentence, which only the derived block has;
+        # the disclosed-omission shapes are unchanged.
+        _, omitted = html_to_text_with_structure("<html><body>no markers</body></html>")
+        assert omitted["omitted"] is True
+        assert "Notes carry law" not in omitted["note"]
+        assert "Notes carry law" not in structure_omitted_for_reading_call(2000)["note"]
+
 
 class TestStructureOmittedForReadingCall:
     """R13a: the invariant block rides only on the locating call."""

@@ -89,6 +89,44 @@ class TestGetSectionSuccess:
         assert out["normalization"]["stripped_note"] is True
         assert any("note" in m for m in out["normalization"]["messages"])
 
+    async def test_note_strip_disclosure_teaches_that_notes_carry_law_verbatim(self, make_client):
+        # WO-18 (R29): the disclosure is contractual character for character; spelled out
+        # here, not imported, so a drift in either direction fails.
+        hit = fx.usc_hit(
+            package_id="USCODE-2024-title42",
+            granule_id="USCODE-2024-title42-chap23-divsnA-subchapXIII-sec2210",
+        )
+        client = make_client(section_handler(fx.search_response([hit])))
+        out = await tools.get_us_code_section(client, citation="42 U.S.C. 2210 note")
+        assert out["outcome"] == "success"
+        assert out["normalization"]["messages"] == [NOTE_STRIP_DISCLOSURE.format(citation="42 U.S.C. 2210")]
+        assert out["normalization"] == {
+            "normalized_citation": "42 U.S.C. 2210",
+            "citation_basis": "resolved",
+            "stripped_subsection": None,
+            "stripped_note": True,
+            "messages": [NOTE_STRIP_DISCLOSURE.format(citation="42 U.S.C. 2210")],
+        }
+
+    async def test_note_strip_disclosure_names_the_resolved_section_not_the_input(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 USC 107 note")
+        assert out["normalization"]["messages"] == [NOTE_STRIP_DISCLOSURE.format(citation="17 U.S.C. 107")]
+
+    async def test_note_and_subsection_strips_each_get_their_own_disclosure(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107(b) note")
+        messages = out["normalization"]["messages"]
+        assert len(messages) == 2
+        assert messages[0].startswith("Subsection suffix '(b)' was stripped")
+        assert messages[1] == NOTE_STRIP_DISCLOSURE.format(citation="17 U.S.C. 107")
+
+    async def test_no_strip_means_no_messages_key(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        assert "messages" not in out["normalization"]
+        assert out["normalization"]["stripped_note"] is False
+
     async def test_truncation_is_marked_and_resumable(self, make_client):
         client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
         first = await tools.get_us_code_section(client, citation="17 U.S.C. 107", max_chars=50)
@@ -126,6 +164,15 @@ class TestGetSectionYear:
         assert "1980" in out["message"]
 
 
+NOTE_STRIP_DISCLOSURE = (
+    "Trailing 'note' was stripped: the containing section {citation} was resolved instead, and ALL of its notes "
+    "are in the returned payload. Notes carry law, not only editorial history: fields headed 'Statutory Notes and "
+    "Related Subsidiaries', 'Findings', short-title and effective-date notes are enacted provisions Congress placed "
+    "under the section rather than in it; 'Codification', 'Amendments' and 'References in Text' are editorial. A "
+    "question about the note or notes to a section is about that whole body — list it with `structure` (the "
+    "`notes` field and its typed children, each with its heading) and search it with `find`. The 'Codification' "
+    "note alone is one editorial note, not the notes."
+)
 COLLISION_MESSAGE = (
     "{n} DISTINCT PROVISIONS SHARE THIS CITATION — this is not a lookup failure and there is no single answer. "
     "Tell the person asking that {n} provisions match and name each by its title below; if you go on to read one "

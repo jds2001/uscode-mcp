@@ -399,6 +399,20 @@ USCODE_EDITIONS_MESSAGE = (
 )
 PLAW_RE_REQUEST = "The number did not resolve to one public law; treat the candidates' package_id values as findings."
 
+# The note-strip disclosure, contractual character for character (40-tools.md, "Notes
+# carry law", WO-18). Its predecessor said the statutory notes were "included in the
+# returned payload" — true, and read by six of six nano rows as license to open the
+# one field headed "Codification" and report it as the notes to 42 U.S.C. 2210.
+NOTE_STRIP_MESSAGE = (
+    "Trailing 'note' was stripped: the containing section {citation} was resolved instead, and ALL of its "
+    "notes are in the returned payload. Notes carry law, not only editorial history: fields headed 'Statutory "
+    "Notes and Related Subsidiaries', 'Findings', short-title and effective-date notes are enacted provisions "
+    "Congress placed under the section rather than in it; 'Codification', 'Amendments' and 'References in "
+    "Text' are editorial. A question about the note or notes to a section is about that whole body — list it "
+    "with `structure` (the `notes` field and its typed children, each with its heading) and search it with "
+    "`find`. The 'Codification' note alone is one editorial note, not the notes."
+)
+
 
 def _edition_year(hit: dict[str, Any]) -> str | None:
     """The four-digit year leading a hit's `dateIssued`, or None when there is none."""
@@ -816,10 +830,7 @@ def _normalization_block(parsed: USCCitation, *, citation_basis: str = "resolved
             f"unit, so the whole containing section {parsed.normalized} is returned; navigate within it."
         )
     if parsed.stripped_note:
-        notes.append(
-            f"Trailing 'note' was stripped: the containing section {parsed.normalized} was resolved instead, "
-            "and its statutory notes are included in the returned payload."
-        )
+        notes.append(NOTE_STRIP_MESSAGE.format(citation=parsed.normalized))
     if notes:
         normalization["messages"] = notes
     return normalization

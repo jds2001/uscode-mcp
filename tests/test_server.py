@@ -155,6 +155,19 @@ async def test_get_us_code_section_description_promises_notes():
     assert "currentthrough" in tool.description
 
 
+async def test_get_us_code_section_description_teaches_that_notes_carry_law():
+    """WO-18 (R29): the notes sentence gains the contract's addition, character for character,
+    right after the sentence promising the notes."""
+    server = create_server()
+    flat = " ".join({t.name: t for t in await server.list_tools()}["get_us_code_section"].description.split())
+    assert (
+        'statutory notes included (note citations like "42 U.S.C. 2210 note" resolve to the containing section, '
+        "whose payload contains the notes). Notes are not only editorial — statutory notes are enacted law placed "
+        "under the section; a question about a section's notes is about all of them, so list them with structure "
+        "before answering from one. Pass `citation`"
+    ) in flat
+
+
 async def test_get_us_code_section_description_states_the_indicator_contract():
     """R14a: the description names all three states and says the indicator certifies nothing."""
     server = create_server()
