@@ -126,6 +126,174 @@ class TestGetSectionYear:
         assert "1980" in out["message"]
 
 
+COLLISION_MESSAGE = (
+    "{n} DISTINCT PROVISIONS SHARE THIS CITATION — this is not a lookup failure and there is no single answer. "
+    "Tell the person asking that {n} provisions match and name each by its title below; if you go on to read one "
+    "or more of them, present each as a distinct provision by its title and say which you did not read. Do not "
+    "present one as the only match. What follows is for the tool caller, not the person asking: to read a "
+    "candidate, re-request with its `granule_id` (pass the same `citation` alongside it to keep the staleness "
+    "check)."
+)
+EDITIONS_MESSAGE = (
+    "{n} EDITIONS OF THIS PROVISION MATCH. Tell the person asking which edition you are quoting; the current "
+    "edition is {year} unless they asked for another. What follows is for the tool caller, not the person "
+    "asking: re-request with `year` to choose an edition, or with a candidate's `granule_id`."
+)
+
+
+class TestAmbiguousMessageNamesItsReader:
+    """The two `ambiguous` templates are contractual character for character (40-tools.md,
+    "The `ambiguous` message names its reader"): the expected strings are spelled out here,
+    not imported from the implementation, so a drift in either direction fails."""
+
+    def _rule9_pair(self):
+        return [
+            fx.usc_hit(
+                package_id="USCODE-2024-title28",
+                granule_id="USCODE-2024-title28-app-federalru-rule9",
+                title="Rule 9. Pleading Special Matters",
+            ),
+            fx.usc_hit(
+                package_id="USCODE-2024-title28",
+                granule_id="USCODE-2024-title28-app-federalru-dup1-rule9",
+                title="Rule 9. Release in a Criminal Case",
+            ),
+        ]
+
+    async def test_same_year_candidates_get_the_collision_message_verbatim(self, make_client):
+        client = make_client(section_handler(fx.search_response(self._rule9_pair(), count=2)))
+        out = await tools.get_us_code_section(client, citation="28 U.S.C. App. Rule 9")
+        assert out["outcome"] == "ambiguous"
+        assert out["message"] == COLLISION_MESSAGE.format(n=2)
+        assert out["count"] == 2 and out["candidates_shown"] == 2 and out["capped"] is False
+        assert [c["title"] for c in out["candidates"]] == [
+            "Rule 9. Pleading Special Matters",
+            "Rule 9. Release in a Criminal Case",
+        ]
+
+    async def test_collision_message_reports_the_true_total_not_the_shown_count(self, make_client):
+        hits = [fx.usc_hit(granule_id=f"USCODE-2024-title28-app-federalru-rule{i}") for i in range(100)]
+        client = make_client(section_handler(fx.search_response(hits, count=251)))
+        out = await tools.get_us_code_section(client, citation="28 U.S.C. App.")
+        assert out["outcome"] == "ambiguous"
+        assert out["message"] == (
+            COLLISION_MESSAGE.format(n=251) + " The candidate list is capped at one search page: showing 100 of 251."
+        )
+        assert out["count"] == 251 and out["candidates_shown"] == 100 and out["capped"] is True
+
+    async def test_candidates_across_years_get_the_editions_message_with_the_newest_year(self, make_client):
+        hits = [
+            fx.usc_hit(
+                package_id="USCODE-2022-title17",
+                granule_id="USCODE-2022-title17-chap1-sec107",
+                date_issued="2023-01-03",
+            ),
+            fx.usc_hit(),  # 2025-01-06: the 2024 edition
+            fx.usc_hit(
+                package_id="USCODE-2023-title17",
+                granule_id="USCODE-2023-title17-chap1-sec107",
+                date_issued="2024-01-08",
+            ),
+        ]
+        client = make_client(section_handler(fx.search_response(hits, count=3)))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        assert out["outcome"] == "ambiguous"
+        assert out["message"] == EDITIONS_MESSAGE.format(n=3, year=2025)
+        assert out["capped"] is False
+
+    async def test_capped_editions_message_appends_the_capping_sentence(self, make_client):
+        hits = [
+            fx.usc_hit(
+                package_id=f"USCODE-{1994 + i}-title17",
+                granule_id=f"USCODE-{1994 + i}-title17-chap1-sec107",
+                date_issued=f"{1995 + i}-01-06",
+            )
+            for i in range(31)
+        ]
+        client = make_client(section_handler(fx.search_response(hits, count=40)))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        assert out["outcome"] == "ambiguous"
+        assert out["message"] == (
+            EDITIONS_MESSAGE.format(n=40, year=2025)
+            + " The candidate list is capped at one search page: showing 31 of 40."
+        )
+        assert out["capped"] is True
+
+    async def test_a_requested_year_leaves_only_one_edition_so_a_pair_is_a_collision(self, make_client):
+        # `year` filters the historical results to that edition first; two survivors share
+        # the citation within it, so the collision template is what the caller must see.
+        hits = [
+            fx.usc_hit(
+                package_id="USCODE-2023-title28",
+                granule_id="USCODE-2023-title28-app-federalru-rule9",
+                date_issued="2024-01-08",
+            ),
+            fx.usc_hit(
+                package_id="USCODE-2023-title28",
+                granule_id="USCODE-2023-title28-app-federalru-dup1-rule9",
+                date_issued="2024-01-08",
+            ),
+            fx.usc_hit(
+                package_id="USCODE-2022-title28",
+                granule_id="USCODE-2022-title28-app-federalru-rule9",
+                date_issued="2023-01-03",
+            ),
+        ]
+        client = make_client(section_handler(fx.search_response(hits, count=3)))
+        out = await tools.get_us_code_section(client, citation="28 U.S.C. App. Rule 9", year=2024)
+        assert out["outcome"] == "ambiguous"
+        assert out["candidates_shown"] == 2
+        # `count` stays upstream's true total across editions (pre-existing envelope behavior,
+        # untouched here), so the shown-of-total sentence follows the collision template.
+        assert out["message"] == (
+            COLLISION_MESSAGE.format(n=3) + " The candidate list is capped at one search page: showing 2 of 3."
+        )
+
+    async def test_missing_or_unparseable_date_issued_is_a_collision_not_an_exception(self, make_client):
+        # No year to differ by → "all equal" → collision; the outcome is served, never raised.
+        hits = [
+            fx.usc_hit(date_issued=""),
+            fx.usc_hit(granule_id="USCODE-2024-title17-chap1-sec107a", date_issued="n/a"),
+        ]
+        del hits[0]["dateIssued"]
+        client = make_client(section_handler(fx.search_response(hits, count=2)))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        assert out["outcome"] == "ambiguous"
+        assert out["message"] == COLLISION_MESSAGE.format(n=2)
+
+    async def test_one_dated_and_one_undated_candidate_reads_as_editions_on_the_dated_year(self, make_client):
+        hits = [fx.usc_hit(), fx.usc_hit(granule_id="USCODE-2024-title17-chap1-sec107a", date_issued=None)]
+        client = make_client(section_handler(fx.search_response(hits, count=2)))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        assert out["outcome"] == "ambiguous"
+        assert out["message"] == EDITIONS_MESSAGE.format(n=2, year=2025)
+
+    async def test_a_non_integer_count_is_echoed_and_never_capped(self, make_client):
+        hits = [fx.usc_hit(), fx.usc_hit(granule_id="USCODE-2024-title17-chap1-sec107a")]
+        client = make_client(section_handler(fx.search_response(hits, count="2")))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        assert out["outcome"] == "ambiguous"
+        assert out["message"] == COLLISION_MESSAGE.format(n="2")
+        assert out["capped"] is False
+
+    async def test_ambiguous_envelope_fields_are_unchanged(self, make_client):
+        client = make_client(section_handler(fx.search_response(self._rule9_pair(), count=2)))
+        out = await tools.get_us_code_section(client, citation="28 U.S.C. App. Rule 9")
+        assert {"count", "candidates_shown", "capped", "candidates", "message"} <= out.keys()
+        for c in out["candidates"]:
+            assert {"package_id", "granule_id", "title", "date_issued"} <= c.keys()
+
+    async def test_public_law_disambiguation_message_is_untouched(self, make_client):
+        hits = [fx.plaw_hit(), fx.plaw_hit(package_id="PLAW-118publ31-duplicate")]
+        client = make_client(lambda request: fx.json_response(fx.search_response(hits, count=2)))
+        out = await tools.get_public_law(client, congress=118, law_number=31)
+        assert out["outcome"] == "ambiguous"
+        assert out["message"] == (
+            "Multiple matches (2 total); not guessing. The number did not resolve to one public law; "
+            "treat the candidates' package_id values as findings."
+        )
+
+
 class TestGetSectionNonSuccessOutcomes:
     async def test_foreign_search_hit_txtlink_is_refused_without_fetch(self, make_client):
         seen = []

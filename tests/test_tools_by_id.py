@@ -417,9 +417,24 @@ class TestDisambiguationMessage:
         assert out["outcome"] == "ambiguous"
         assert "`granule_id`" in out["message"]
         assert "`citation`" in out["message"]
-        assert "`year`" in out["message"]
         assert "by ids" not in out["message"]
         assert all("granule_id" in c and "package_id" in c for c in out["candidates"])
+
+    async def test_editions_ambiguous_message_names_year_and_granule_id(self, make_client):
+        hits = [
+            fx.usc_hit(
+                package_id="USCODE-2023-title17",
+                granule_id="USCODE-2023-title17-chap1-sec107",
+                date_issued="2024-01-08",
+            ),
+            fx.usc_hit(),
+        ]
+        client = make_client(lambda request: fx.json_response(fx.search_response(hits, count=2)))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        assert out["outcome"] == "ambiguous"
+        assert "`year`" in out["message"]
+        assert "`granule_id`" in out["message"]
+        assert "by ids" not in out["message"]
 
     async def test_public_law_ambiguous_message_does_not_promise_granule_id(self, make_client):
         hits = [fx.plaw_hit(), fx.plaw_hit(package_id="PLAW-118publ31-dup")]

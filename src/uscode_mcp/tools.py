@@ -379,22 +379,55 @@ def _past_end_failure(start_char: int, total_chars: int) -> dict[str, Any] | Non
     return {"outcome": "invalid_argument", "detail": detail, "total_chars": total_chars}
 
 
-USCODE_RE_REQUEST = (
-    "Re-request with `granule_id` taken from a candidate below (pass the same `citation` alongside it "
-    "to keep the staleness check), or with `year` if the candidates differ by edition."
+# The two `get_us_code_section` disambiguation templates, contractual character for
+# character (40-tools.md, "The `ambiguous` message names its reader"). Each names its
+# reader first: what to tell the person asking, then — marked as such — what the tool
+# caller does next. Every floor consumer measured on the old caller-only wording read a
+# list of both same-citation provisions and presented one as the answer.
+USCODE_COLLISION_MESSAGE = (
+    "{n} DISTINCT PROVISIONS SHARE THIS CITATION — this is not a lookup failure and there is no single "
+    "answer. Tell the person asking that {n} provisions match and name each by its title below; if you go "
+    "on to read one or more of them, present each as a distinct provision by its title and say which you "
+    "did not read. Do not present one as the only match. What follows is for the tool caller, not the "
+    "person asking: to read a candidate, re-request with its `granule_id` (pass the same `citation` "
+    "alongside it to keep the staleness check)."
+)
+USCODE_EDITIONS_MESSAGE = (
+    "{n} EDITIONS OF THIS PROVISION MATCH. Tell the person asking which edition you are quoting; the "
+    "current edition is {year} unless they asked for another. What follows is for the tool caller, not the "
+    "person asking: re-request with `year` to choose an edition, or with a candidate's `granule_id`."
 )
 PLAW_RE_REQUEST = "The number did not resolve to one public law; treat the candidates' package_id values as findings."
 
 
-def _disambiguation_fields(count: Any, results: list[dict[str, Any]], re_request: str) -> dict[str, Any]:
+def _edition_year(hit: dict[str, Any]) -> str | None:
+    """The four-digit year leading a hit's `dateIssued`, or None when there is none."""
+    date_issued = hit.get("dateIssued")
+    if isinstance(date_issued, str) and len(date_issued) >= 4 and date_issued[:4].isdigit():
+        return date_issued[:4]
+    return None
+
+
+def _uscode_ambiguous_message(count: Any, results: list[dict[str, Any]]) -> str:
+    """Choose between the collision and editions templates by the candidates' edition
+    years: all equal (a same-citation collision within one edition) → collision;
+    otherwise (the same provision across editions) → editions, naming the newest year
+    as the current one. `{n}` is the true upstream total, not the shown count."""
+    years = {_edition_year(r) for r in results}
+    if len(years) <= 1:
+        return USCODE_COLLISION_MESSAGE.format(n=count)
+    current = max(y for y in years if y is not None)
+    return USCODE_EDITIONS_MESSAGE.format(n=count, year=current)
+
+
+def _disambiguation_fields(count: Any, results: list[dict[str, Any]], message: str) -> dict[str, Any]:
     """Shared fields for an ambiguous outcome: the true total from the response's
     `count`, the shown candidates, and — stated, never implied — whether the list is
     capped, so 100 shown of 251 never reads as 100 of 100 (40-tools.md, O24). The
-    message names the real re-request path for the tool (R16, O45c): never an input
-    the tool does not accept."""
+    caller supplies the message, which names the real re-request path for the tool
+    (R16, O45c): never an input the tool does not accept."""
     shown = len(results)
     capped = isinstance(count, int) and count > shown
-    message = f"Multiple matches ({count} total); not guessing. {re_request}"
     if capped:
         message += f" The candidate list is capped at one search page: showing {shown} of {count}."
     return {
@@ -669,7 +702,9 @@ async def _resolve_granule(
                 "normalized_citation": parsed.normalized,
                 "query": query,
                 "year": year,
-                **_disambiguation_fields(data.get("count"), results, USCODE_RE_REQUEST),
+                **_disambiguation_fields(
+                    data.get("count"), results, _uscode_ambiguous_message(data.get("count"), results)
+                ),
             },
         )
 
@@ -1236,7 +1271,11 @@ async def get_public_law(
             "congress": congress,
             "law_number": law_number,
             "query": query,
-            **_disambiguation_fields(data.get("count"), results, PLAW_RE_REQUEST),
+            **_disambiguation_fields(
+                data.get("count"),
+                results,
+                f"Multiple matches ({data.get('count')} total); not guessing. {PLAW_RE_REQUEST}",
+            ),
         }
 
     package_id = results[0].get("packageId")
