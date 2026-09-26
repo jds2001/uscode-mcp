@@ -253,7 +253,7 @@ def render(
         )
     count = data.get("count") if isinstance(data, dict) else None
     results = data.get("results") if isinstance(data, dict) else None
-    if not isinstance(count, int) or not isinstance(results, list):
+    if not isinstance(count, int) or isinstance(count, bool) or not isinstance(results, list):
         return not_checked(
             "malformed_response",
             "the detector response lacked an integer 'count' or a 'results' list (response-shape drift); "
@@ -264,6 +264,21 @@ def render(
             checked_citation=checked_citation,
             response=resp,
         )
+    # WO-15 A (S26 finding 1): every element must be an object before anything reads
+    # it — a well-formed envelope around non-object elements is shape drift too, and
+    # "a detector failure never fails the lookup" binds against every shape.
+    for index, hit in enumerate(results):
+        if not isinstance(hit, dict):
+            return not_checked(
+                "malformed_response",
+                f"the detector response's 'results' item {index} was {type(hit).__name__}, not an object "
+                "(response-shape drift); body carried verbatim.",
+                query=query,
+                since=since,
+                currentthrough=currentthrough,
+                checked_citation=checked_citation,
+                response=resp,
+            )
 
     out = _base(query, since, currentthrough, checked_citation)
     out["count"] = count
@@ -325,8 +340,16 @@ class CurrentthroughMemory:
         return self._by_edition.get(edition_year)
 
     def observe(self, edition_year: int | None, currentthrough: str | None) -> None:
-        if edition_year is not None and currentthrough is not None:
-            self._by_edition[edition_year] = currentthrough
+        """Remember a currentthrough for an edition — only one that parses as a date
+        (WO-15 C): an impossible date can never bound a query, so remembering it
+        would only seed a speculative launch that must fail."""
+        if edition_year is None or currentthrough is None:
+            return
+        try:
+            date.fromisoformat(currentthrough)
+        except ValueError:
+            return
+        self._by_edition[edition_year] = currentthrough
 
     def clear(self) -> None:
         self._by_edition.clear()

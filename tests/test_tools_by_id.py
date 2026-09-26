@@ -502,3 +502,78 @@ class TestPublicLinksById:
         message = out["text"]["message"]
         assert out["provenance"]["public_pdf_link"] in message
         assert out["provenance"]["pdf_link"] not in message
+
+
+class TestGranuleIdGrammar:
+    """WO-15 B (40-tools.md "By-id behavior"): the id is accepted only when it is
+    USCODE-{year}-title{n} followed by hyphen-separated segments of letters and digits
+    — a character class, not a parse — and anything else is refused before any request,
+    so no id can ever reach the summary URL (S26 finding 2)."""
+
+    REFUSED = [
+        "USCODE-2024-title17-x/../../../search?x=1",  # the S26 traversal id
+        "USCODE-2024-title17-chap1.sec107",  # dotted
+        "USCODE-2024-title17-chap1-sec107?api_key=x",  # query-bearing
+        "USCODE-2024-title17-chap1 sec107",  # whitespace inside
+        "USCODE-2024-title17-chap1-sec107#frag",
+        "USCODE-2024-title17-chap1-sec107/",
+        "USCODE-2024-title17-",  # empty trailing segment
+        "USCODE-2024-title17--sec107",  # empty middle segment
+        "USCODE-2024-title17-chap1-sec107\n",
+        "uscode-2024-title17-chap1-sec107",  # the grammar is case-exact, as served
+        "USCODE-24-title17-chap1-sec107",
+        "USCODE-2024-title17",  # a package id is not a granule id
+    ]
+
+    @pytest.mark.parametrize("bad", REFUSED)
+    async def test_refused_ids_make_zero_requests(self, make_client, bad):
+        seen = []
+
+        def must_not_run(request):
+            seen.append(request)
+            raise AssertionError(f"an id reached the network: {request.url}")
+
+        out = await tools.get_us_code_section(make_client(must_not_run), granule_id=bad)
+        assert out["outcome"] == "invalid_argument"
+        assert repr(bad) in out["detail"]  # the id is named, as given
+        assert "nothing was fetched" in out["detail"]
+        assert seen == []
+
+    # Real GovInfo-served ids from the artifacts on record (O86b corpus): appendix,
+    # front matter, deeply nested, and hyphenated-section forms.
+    ACCEPTED = [
+        "USCODE-2024-title17-chap1-sec107",
+        "USCODE-2014-title50-app-warclaim-sec2012",
+        "USCODE-2011-title50-app-tradingwi-sec1",
+        "USCODE-2024-title28-app-federalru-rule9",
+        "USCODE-2023-title5-front",
+        "USCODE-2022-title26-subtitleA-chap1-subchapN-partIII-subpartB-sec911",
+        "USCODE-2022-title34-subtitleII-chap201-subchapIII-sec20144",
+        "USCODE-2012-title42-chap23-divsnA-subchapXIII-sec2210",
+        "USCODE-2024-title42-chap6A-subchapII-partD-sec254c-8",
+        "USCODE-2024-title12-chap13-sec1701z-6",
+        "USCODE-2024-title5a-app-inspector-sec1",
+    ]
+
+    @pytest.mark.parametrize("good", ACCEPTED)
+    async def test_real_id_forms_are_accepted_and_reach_the_summary(self, make_client, good):
+        seen = []
+        package = good.split("-")[0] + "-" + good.split("-")[1] + "-" + good.split("-")[2]
+
+        def handler(request):
+            seen.append(request)
+            if request.url.path.endswith("/summary"):
+                return fx.json_response(fx.granule_summary(package_id=package, granule_id=good))
+            if request.url.path.endswith("/htm"):
+                return httpx.Response(200, text=fx.SECTION_HTML)
+            return fx.json_response(fx.search_response([]))
+
+        out = await tools.get_us_code_section(make_client(handler), granule_id=good)
+        assert out["outcome"] == "success", out
+        assert seen[0].url.path == f"/packages/{package}/granules/{good}/summary"
+
+    def test_grammar_is_a_character_class_not_a_parse(self):
+        # Nothing beyond the leading segments is interpreted: arbitrary segment names pass.
+        assert tools._USCODE_GRANULE_ID_RE.match("USCODE-2024-title17-anything-at-all-9")
+        assert tools._USCODE_GRANULE_ID_RE.match("USCODE-2024-title17-x")
+        assert not tools._USCODE_GRANULE_ID_RE.match("USCODE-2024-title17-x-")

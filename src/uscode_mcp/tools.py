@@ -453,6 +453,10 @@ class _Detector:
         return f"{parsed.title} U.S.C. {parsed.section}"
 
     def _launch(self, currentthrough: str) -> None:
+        # WO-15 C: the bound-error state belongs to one launch. A failure on a
+        # remembered bound must not outlive the launch that follows on the
+        # payload's own date, or `no_bound` would be served beside a sent query.
+        self._bound_error = None
         try:
             self.since = superseded.since_from_currentthrough(currentthrough)
         except ValueError as exc:
@@ -527,12 +531,31 @@ class _Detector:
                 **common,
             )
         elif self.currentthrough is None or self._bound_error is not None:
+            # WO-15 C: `no_bound` says no query was sent on this payload's bound, so
+            # none may be in flight, and no query is echoed. A speculative query on a
+            # remembered bound may have gone out before the search: it is cancelled
+            # here and accounted for in-band, never silently discarded.
+            await self._discard()
             out = superseded.not_checked(
                 "no_bound",
                 (self._bound_error or "currentthrough could not be parsed from the payload")
                 + ", so the detector's publishdate bound could not be derived and the query was not sent.",
-                **common,
+                query=None,
+                since=None,
+                currentthrough=self.currentthrough,
+                checked_citation=citation,
             )
+            if self._discarded_prediction is not None:
+                payload_date = (
+                    f"is {self.currentthrough!r}, which is not a valid date"
+                    if self.currentthrough is not None
+                    else "could not be parsed"
+                )
+                out["prediction_note"] = (
+                    f"a speculative query bounded by a remembered currentthrough of {self._discarded_prediction} "
+                    f"was issued before the citation search, then cancelled because this payload's currentthrough "
+                    f"{payload_date}; no result from it is used."
+                )
         else:
             assert self._task is not None and self.query is not None and self.since is not None
             outcome = await superseded.await_with_budget(self._task, budget)
@@ -693,10 +716,17 @@ async def _resolve_granule(
     return hit, download, txt_link, None
 
 
+# The accepted granule id grammar (40-tools.md "By-id behavior", WO-15 B; O86b: 540 of
+# 540 GovInfo-served ids): the leading USCODE-{year}-title{n} segments, then one or
+# more hyphen-separated segments of letters and digits only. A character class, not
+# a parse — nothing beyond the leading segments is interpreted. Anything else (a
+# slash, dot, query character or whitespace included) is refused before any request,
+# so no id can reach the summary URL (S26 finding 2: `/../` did, and its 404 read as
+# "no package").
 _USCODE_GRANULE_ID_RE = re.compile(
-    r"^(?P<package>USCODE-(?P<year>\d{4})-title(?P<title>\d+[a-z]?))-\S+$", re.IGNORECASE
+    r"^(?P<package>USCODE-(?P<year>\d{4})-title(?P<title>\d+[a-z]?))(?:-[A-Za-z0-9]+)+\Z"
 )
-_USCODE_PACKAGE_ID_RE = re.compile(r"^USCODE-\d{4}-title(?P<title>\d+[a-z]?)$", re.IGNORECASE)
+_USCODE_PACKAGE_ID_RE = re.compile(r"^USCODE-\d{4}-title(?P<title>\d+[a-z]?)\Z")
 
 
 def _normalization_block(parsed: USCCitation, *, citation_basis: str = "resolved") -> dict[str, Any]:
@@ -820,12 +850,15 @@ async def _get_section_by_id(
 ) -> dict[str, Any]:
     """R16 by-id path (40-tools.md, "By-id behavior"): no URL is constructed from the
     id; the granule summary (O9) is fetched and its txtLink used verbatim."""
-    granule_id = granule_id.strip()
+    # The grammar is matched against the id as given: surrounding whitespace is a
+    # character outside the class, not a tolerance (a blank id was already routed
+    # to the citation path by the caller).
     m = _USCODE_GRANULE_ID_RE.match(granule_id)
     if not m:
         return _invalid_argument(
-            f"granule_id {granule_id!r} is not a USCODE granule id (expected the form "
-            "USCODE-{year}-title{n}-..., exactly as a disambiguation list or search_us_code result carried it)."
+            f"granule_id {granule_id!r} is not a USCODE granule id; nothing was fetched. Expected "
+            "USCODE-{year}-title{n} followed by hyphen-separated segments of letters and digits only, "
+            "exactly as a disambiguation list or search_us_code result carried it."
         )
     derived = package_id is None or not package_id.strip()
     if derived:

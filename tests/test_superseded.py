@@ -637,3 +637,166 @@ class TestConcurrency:
     async def test_detector_ms_is_reported(self, make_client):
         out = await tools.get_us_code_section(make_client(make_handler()), citation="17 U.S.C. 107")
         assert isinstance(out["possibly_superseded"]["detector_ms"], int)
+
+
+# ---------------------------------------------------------------------------
+# WO-15 A — a malformed detector body never fails the lookup (S26 finding 1)
+# ---------------------------------------------------------------------------
+
+
+class TestMalformedDetectorElements:
+    """40-tools.md: "A detector failure never fails the lookup" binds against every
+    shape, including a well-formed envelope whose `results` elements are not objects."""
+
+    async def test_reproduction_body_is_not_checked_on_a_success_lookup(self, make_client):
+        # The S26 reproduction's body, verbatim.
+        resp = fx.json_response({"count": 1, "results": ["PLAW-119publ1"]})
+        out = await tools.get_us_code_section(make_client(make_handler(resp)), citation="17 U.S.C. 107")
+        assert out["outcome"] == "success"
+        ps = out["possibly_superseded"]
+        assert ps["status"] == "not_checked"
+        assert ps["reason"] == "malformed_response"
+        assert "item 0" in ps["detail"] and "str" in ps["detail"]
+        assert ps["http_status"] == 200
+        assert "PLAW-119publ1" in ps["body"]
+        assert ps["query"] == DETECTOR_QUERY_107
+
+    @pytest.mark.parametrize("element", [None, 7, ["nested"], True])
+    async def test_every_non_object_element_kind_is_malformed(self, make_client, element):
+        resp = fx.json_response({"count": 2, "results": [plaw_hit(1), element]})
+        out = await tools.get_us_code_section(make_client(make_handler(resp)), citation="17 U.S.C. 107")
+        assert out["outcome"] == "success"
+        ps = out["possibly_superseded"]
+        assert ps["status"] == "not_checked"
+        assert ps["reason"] == "malformed_response"
+        assert "item 1" in ps["detail"]
+
+    async def test_object_missing_every_expected_key_is_indexed_with_null_pointers(self, make_client):
+        # An element that IS an object but carries none of packageId/title/dateIssued:
+        # shape-tolerant like the search path's result pointers — nulls, never a crash.
+        resp = fx.json_response({"count": 1, "results": [{}]})
+        out = await tools.get_us_code_section(make_client(make_handler(resp)), citation="17 U.S.C. 107")
+        assert out["outcome"] == "success"
+        ps = out["possibly_superseded"]
+        assert ps["status"] == "laws_indexed"
+        assert ps["count"] == 1
+        assert ps["laws"] == [{"package_id": None, "title": None, "date_issued": None}]
+
+    async def test_boolean_count_is_malformed_not_a_count(self, make_client):
+        resp = fx.json_response({"count": True, "results": []})
+        out = await tools.get_us_code_section(make_client(make_handler(resp)), citation="17 U.S.C. 107")
+        assert out["outcome"] == "success"
+        assert out["possibly_superseded"]["reason"] == "malformed_response"
+
+    def test_render_guards_the_element_type_directly(self):
+        # The guard lives in render(), so it holds on every path a response takes.
+        resp = httpx.Response(200, json={"count": 1, "results": ["x"]})
+        outcome = superseded.DetectorOutcome(
+            response=__import__("uscode_mcp.govinfo", fromlist=["UpstreamResponse"]).UpstreamResponse(
+                status=200, headers={}, text=resp.text, url="https://api.govinfo.gov/search"
+            )
+        )
+        out = superseded.render(
+            outcome, query="q", since="2025-01-07", currentthrough="2025-01-06", checked_citation="17 U.S.C. 107"
+        )
+        assert out["status"] == "not_checked"
+        assert out["reason"] == "malformed_response"
+
+
+# ---------------------------------------------------------------------------
+# WO-15 C — `no_bound` is true (S26 finding 3)
+# ---------------------------------------------------------------------------
+
+
+class TestNoBoundIsTrue:
+    """40-tools.md: `not_checked` reasons are true statements. `no_bound` with "the
+    query was not sent" is served only when no query was sent on the payload's bound;
+    a bound error does not outlive the launch that follows; a sent query is waited
+    for or cancelled, never sent-and-discarded; an impossible currentthrough is not
+    remembered."""
+
+    def test_memory_does_not_remember_an_impossible_date(self):
+        memory = superseded.CurrentthroughMemory()
+        memory.observe(2024, "2025-13-45")
+        assert memory.predict(2024) is None
+        memory.observe(2024, "not-a-date")
+        assert memory.predict(2024) is None
+        memory.observe(2024, "2025-01-06")
+        assert memory.predict(2024) == "2025-01-06"
+
+    async def test_impossible_then_valid_date_sequence_accounts_for_every_query(self, make_client):
+        # The S26 reproduction's sequence. Lookup 1: the payload's date is impossible.
+        bad_html = fx.SECTION_HTML.replace("currentthrough:20250106", "currentthrough:20251345")
+        seen = []
+        one = await tools.get_us_code_section(
+            make_client(make_handler(htm_text=bad_html, seen=seen)), citation="17 U.S.C. 107"
+        )
+        ps1 = one["possibly_superseded"]
+        assert ps1["status"] == "not_checked" and ps1["reason"] == "no_bound"
+        assert ps1["query"] is None and ps1["since"] is None
+        assert detector_requests(seen) == []
+        assert tools.CURRENTTHROUGH_MEMORY.predict(2024) is None  # not remembered
+
+        # Lookup 2: same edition, a valid date. Before the fix this reported no_bound
+        # ("the query was not sent") while echoing a query that was in fact sent.
+        seen2 = []
+        two = await tools.get_us_code_section(make_client(make_handler(seen=seen2)), citation="17 U.S.C. 107")
+        ps2 = two["possibly_superseded"]
+        assert ps2["status"] == "none_indexed"
+        assert ps2["issued"] == "after_fetch"
+        assert ps2["query"] == DETECTOR_QUERY_107
+        assert "prediction_note" not in ps2
+        sent = [fx.request_body(r)["query"] for r in detector_requests(seen2)]
+        assert sent == [DETECTOR_QUERY_107]  # exactly the one query the response accounts for
+
+    async def test_bound_error_state_is_reset_on_every_launch(self, make_client):
+        detector = tools._Detector(make_client(make_handler()), tools.parse_usc("17 U.S.C. 107"), None)
+        detector._launch("2025-13-45")
+        assert detector._bound_error is not None and detector._task is None
+        detector._launch("2025-01-06")
+        assert detector._bound_error is None and detector._task is not None
+        await detector.abandon()
+
+    async def test_speculative_query_is_cancelled_and_accounted_for_when_the_payload_has_no_bound(self, make_client):
+        # Warm the memory with a valid bound, then serve a payload whose currentthrough
+        # cannot be parsed: the speculative query went out before the search and must
+        # be cancelled and named, and no query may be echoed as the bound's own.
+        await tools.get_us_code_section(make_client(make_handler()), citation="17 U.S.C. 107")
+        seen = []
+        out = await tools.get_us_code_section(
+            make_client(make_handler(htm_text=fx.SECTION_HTML_NO_CURRENTTHROUGH, seen=seen, htm_delay=0.02)),
+            citation="17 U.S.C. 107",
+        )
+        assert out["outcome"] == "success"
+        ps = out["possibly_superseded"]
+        assert ps["status"] == "not_checked" and ps["reason"] == "no_bound"
+        assert ps["query"] is None and ps["since"] is None
+        assert "2025-01-06" in ps["prediction_note"] and "cancelled" in ps["prediction_note"]
+        assert "could not be parsed" in ps["prediction_note"]
+        assert len(detector_requests(seen)) <= 1  # the speculative one at most, and it is accounted for
+
+    async def test_speculative_query_is_cancelled_and_accounted_for_when_the_payload_date_is_impossible(
+        self, make_client
+    ):
+        await tools.get_us_code_section(make_client(make_handler()), citation="17 U.S.C. 107")
+        bad_html = fx.SECTION_HTML.replace("currentthrough:20250106", "currentthrough:20251345")
+        seen = []
+        out = await tools.get_us_code_section(
+            make_client(make_handler(htm_text=bad_html, seen=seen, htm_delay=0.02)), citation="17 U.S.C. 107"
+        )
+        ps = out["possibly_superseded"]
+        assert ps["status"] == "not_checked" and ps["reason"] == "no_bound"
+        assert "2025-13-45" in ps["detail"]
+        assert ps["query"] is None
+        assert "'2025-13-45'" in ps["prediction_note"] and "cancelled" in ps["prediction_note"]
+        assert tools.CURRENTTHROUGH_MEMORY.predict(2024) == "2025-01-06"  # the bad date did not overwrite it
+
+    async def test_no_task_is_left_pending_after_a_no_bound_result(self, make_client):
+        await tools.get_us_code_section(make_client(make_handler()), citation="17 U.S.C. 107")
+        before = {t for t in asyncio.all_tasks() if not t.done()}
+        await tools.get_us_code_section(
+            make_client(make_handler(htm_text=fx.SECTION_HTML_NO_CURRENTTHROUGH, htm_delay=0.02)),
+            citation="17 U.S.C. 107",
+        )
+        leaked = {t for t in asyncio.all_tasks() if not t.done()} - before
+        assert leaked == set()
