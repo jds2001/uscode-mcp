@@ -441,6 +441,13 @@ def add_audience_sentence(
     return window
 
 
+def occurrence_offsets(text: str, needle: str) -> list[int]:
+    """The offsets of every match of `needle` in `text`, the one way this server
+    matches text: literal substring, case-insensitive, non-overlapping. `find` and the
+    subsection-strip count (WO-19) both go through here, so they agree by construction."""
+    return [m.start() for m in re.finditer(re.escape(needle), text, re.IGNORECASE)]
+
+
 def find_occurrences(
     text: str,
     needle: str,
@@ -454,7 +461,7 @@ def find_occurrences(
     true total, stated with the cap — the disambiguation-totals rule. Zero matches is
     an explicit success outcome, never silence.
     """
-    matches = [m.start() for m in re.finditer(re.escape(needle), text, re.IGNORECASE)]
+    matches = occurrence_offsets(text, needle)
     shown = matches[:max_occurrences]
     occurrences = []
     for offset in shown:

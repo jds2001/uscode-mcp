@@ -211,6 +211,29 @@ class TestByIdDetector:
         )
         assert "note_statement" in out["possibly_superseded"]
 
+    async def test_stripped_subsection_on_the_id_path_is_counted_in_the_fetched_granule(self, make_client):
+        # WO-19: the by-id path shares the counting; fx.SECTION_HTML has no markers, so
+        # the statute extent is not located and nonexistence is not asserted.
+        out = await tools.get_us_code_section(make_client(by_id_handler()), granule_id=GID, citation="17 U.S.C. 107(b)")
+        assert out["normalization"]["citation_basis"] == "caller_supplied"
+        assert out["normalization"]["messages"] == [
+            "Subsection suffix '(b)' was stripped and the whole containing section 17 U.S.C. 107 is returned; "
+            "whether the section has a subsection (b) was not checked. What follows is for the tool caller, not "
+            "the person asking: use find with '(b)' to locate it within the returned payload."
+        ]
+
+    async def test_stripped_subsection_on_the_id_path_counts_when_markers_are_present(self, make_client):
+        out = await tools.get_us_code_section(
+            make_client(by_id_handler(htm_text=fx.SECTION_HTML_WITH_FIELDS)),
+            granule_id=GID,
+            citation="17 U.S.C. 107(b)",
+        )
+        assert out["normalization"]["messages"][0].startswith(
+            "Subsection suffix '(b)' was stripped and the whole containing section 17 U.S.C. 107 is returned. "
+            "'(b)' occurs 0 times in the statute text of 17 U.S.C. 107"
+        )
+        assert "The notes under this section contain no such label either." in out["normalization"]["messages"][0]
+
     async def test_stripped_note_disclosure_on_the_id_path_is_the_contract_text(self, make_client):
         # WO-18 (R29): the by-id path shares the citation path's normalization block, so
         # the same disclosure is served — with the caller-supplied citation resolved.

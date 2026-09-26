@@ -140,6 +140,173 @@ class TestGetSectionSuccess:
         assert "must never be dropped" in full
 
 
+SUBSECTION_ZERO = (
+    "Subsection suffix '{d}' was stripped and the whole containing section {c} is returned. '{d}' occurs 0 times "
+    "in the statute text of {c} — {c}{d} does not exist in this edition. Tell the person asking that the section "
+    "has no subsection {d}, and say what the section does contain. Do not answer with other text labelled '{d}'. "
+    "{notes} A request for a provision that does not exist is answered by saying so, not by quoting the nearest "
+    "label. If you quote one of those passages, name its own source and say it is not {c}{d}. What follows is for "
+    "the tool caller, not the person asking: structure lists the section's fields and find locates text within "
+    "the returned payload."
+)
+SUBSECTION_ZERO_NOTES = (
+    "The notes under this section contain {n} such labels, but those are other material, not {c}{d}."
+)
+SUBSECTION_ZERO_NO_NOTES = "The notes under this section contain no such label either."
+SUBSECTION_NONZERO = (
+    "Subsection suffix '{d}' was stripped and the whole containing section {c} is returned; '{d}' occurs {n} "
+    "times in its statute text. What follows is for the tool caller, not the person asking: use find with '{d}' "
+    "to locate it within the returned payload."
+)
+SUBSECTION_NOT_CHECKED = (
+    "Subsection suffix '{d}' was stripped and the whole containing section {c} is returned; whether the section "
+    "has a subsection {d} was not checked. What follows is for the tool caller, not the person asking: use find "
+    "with '{d}' to locate it within the returned payload."
+)
+
+
+def fielded_section(statute: str, notes: str, head: str = "<h3>&sect;107. Fair use</h3>") -> str:
+    """A granule with upstream field markers around the given statute and notes HTML."""
+    return (
+        "<!-- documentid:USCODE-2024-title17-chap1-sec107 currentthrough:20250106 -->\n<html><body>\n"
+        f"<!-- field-start:head -->{head}<!-- field-end:head -->\n"
+        f"<!-- field-start:statute -->{statute}<!-- field-end:statute -->\n"
+        "<!-- field-start:sourcecredit --><p>(Pub. L. 94-553.)</p><!-- field-end:sourcecredit -->\n"
+        f'<!-- field-start:notes --><!-- field-start:miscellaneous-note --><h4 class="note-head">Statutory Notes '
+        f"and Related Subsidiaries</h4>{notes}<!-- field-end:miscellaneous-note --><!-- field-end:notes -->\n"
+        "</body></html>\n"
+    )
+
+
+NO_B_STATUTE = "<p>Notwithstanding sections 106 and 106A, fair use is not an infringement. (a) One label only.</p>"
+GUIDELINES_WITH_B = (
+    "<p>Guidelines. (a) Single copying. (b) Multiple copies. (B) Spontaneity. "
+    "(b) Cumulative effect. (c) Prohibitions.</p>"
+)
+
+
+class TestStripMessageNamesItsReader:
+    """WO-19 (R30): the subsection-strip message is one of three counted messages,
+    contractual character for character — spelled out above, never imported. The
+    count is the designator as a literal inside the `statute` extent and, separately,
+    the `notes` extent, matched the way `find` matches."""
+
+    def _client(self, make_client, html):
+        return make_client(section_handler(fx.search_response([fx.usc_hit()]), htm_text=html))
+
+    async def test_zero_in_statute_with_labels_in_the_notes(self, make_client):
+        # 17 U.S.C. 107(b) as measured (O97): no "(b)" in the statute, labels in the
+        # guidelines under the notes — including a "(B)", which counts, as find counts.
+        out = await tools.get_us_code_section(
+            self._client(make_client, fielded_section(NO_B_STATUTE, GUIDELINES_WITH_B)), citation="17 U.S.C. 107(b)"
+        )
+        assert out["outcome"] == "success"
+        assert out["normalization"]["messages"] == [
+            SUBSECTION_ZERO.format(
+                d="(b)", c="17 U.S.C. 107", notes=SUBSECTION_ZERO_NOTES.format(n=3, c="17 U.S.C. 107", d="(b)")
+            )
+        ]
+
+    async def test_zero_in_statute_and_none_in_the_notes(self, make_client):
+        out = await tools.get_us_code_section(
+            self._client(make_client, fielded_section(NO_B_STATUTE, "<p>An effective date note.</p>")),
+            citation="17 U.S.C. 107(b)",
+        )
+        assert out["normalization"]["messages"] == [
+            SUBSECTION_ZERO.format(d="(b)", c="17 U.S.C. 107", notes=SUBSECTION_ZERO_NO_NOTES)
+        ]
+
+    async def test_nonzero_in_statute_states_the_count_and_nothing_about_which(self, make_client):
+        html = fielded_section("<p>(a) First. (b) Second. (B) Upper. (c) Third.</p>", GUIDELINES_WITH_B)
+        out = await tools.get_us_code_section(self._client(make_client, html), citation="17 U.S.C. 107(b)")
+        assert out["normalization"]["messages"] == [SUBSECTION_NONZERO.format(d="(b)", c="17 U.S.C. 107", n=2)]
+
+    async def test_not_checked_when_structure_is_disclosed_absent(self, make_client):
+        # fx.SECTION_HTML carries no field markers: structure is omitted, so nonexistence
+        # is never asserted — even though the text has no "(b)" anywhere.
+        out = await tools.get_us_code_section(self._client(make_client, fx.SECTION_HTML), citation="17 U.S.C. 107(b)")
+        assert out["structure"]["omitted"] is True
+        assert "(b)" not in out["text"]["content"].lower()
+        assert out["normalization"]["messages"] == [SUBSECTION_NOT_CHECKED.format(d="(b)", c="17 U.S.C. 107")]
+
+    async def test_not_checked_when_the_markers_are_present_but_no_statute_field(self, make_client):
+        html = (
+            fielded_section(NO_B_STATUTE, GUIDELINES_WITH_B)
+            .replace("field-start:statute", "field-start:body")
+            .replace("field-end:statute", "field-end:body")
+        )
+        out = await tools.get_us_code_section(self._client(make_client, html), citation="17 U.S.C. 107(b)")
+        assert out["structure"]["omitted"] is False
+        assert out["normalization"]["messages"] == [SUBSECTION_NOT_CHECKED.format(d="(b)", c="17 U.S.C. 107")]
+
+    async def test_counts_agree_with_find_over_the_same_extents(self, make_client):
+        from uscode_mcp.htmltext import find_occurrences
+
+        html = fielded_section("<p>(a) First. (b) Second. (B) Upper.</p>", GUIDELINES_WITH_B)
+        out = await tools.get_us_code_section(self._client(make_client, html), citation="17 U.S.C. 107(b)", find="(b)")
+        text = out["text"]["content"]
+        by_field = {f["field"]: f for f in out["structure"]["fields"]}
+        in_statute = find_occurrences(text[by_field["statute"]["start_char"] : by_field["statute"]["end_char"]], "(b)")
+        in_notes = find_occurrences(text[by_field["notes"]["start_char"] : by_field["notes"]["end_char"]], "(b)")
+        assert in_statute["total_occurrences"] == 2 and in_notes["total_occurrences"] == 3
+        assert out["find"]["total_occurrences"] == 5
+        assert out["normalization"]["messages"] == [SUBSECTION_NONZERO.format(d="(b)", c="17 U.S.C. 107", n=2)]
+
+    async def test_a_label_in_the_heading_or_source_credit_is_outside_both_extents(self, make_client):
+        html = fielded_section(NO_B_STATUTE, "<p>Nothing here.</p>", head="<h3>&sect;107. Fair use (b)</h3>").replace(
+            "(Pub. L. 94-553.)", "(Pub. L. 94-553, (b).)"
+        )
+        out = await tools.get_us_code_section(self._client(make_client, html), citation="17 U.S.C. 107(b)")
+        assert out["normalization"]["messages"] == [
+            SUBSECTION_ZERO.format(d="(b)", c="17 U.S.C. 107", notes=SUBSECTION_ZERO_NO_NOTES)
+        ]
+
+    async def test_multi_level_designator_is_counted_whole(self, make_client):
+        html = fielded_section("<p>(h)(2)(A) deep. (h)(2)(a) lower. (h)(2) partial.</p>", "<p>(h)(2)(A) in notes.</p>")
+        out = await tools.get_us_code_section(self._client(make_client, html), citation="17 U.S.C. 107(h)(2)(A)")
+        assert out["normalization"]["stripped_subsection"] == "(h)(2)(A)"
+        assert out["normalization"]["messages"] == [SUBSECTION_NONZERO.format(d="(h)(2)(A)", c="17 U.S.C. 107", n=2)]
+
+    async def test_reading_call_still_counts_from_the_derived_structure(self, make_client):
+        html = fielded_section(NO_B_STATUTE, GUIDELINES_WITH_B)
+        out = await tools.get_us_code_section(
+            self._client(make_client, html), citation="17 U.S.C. 107(b)", start_char=10, max_chars=20
+        )
+        assert out["structure"]["omitted"] is True
+        assert out["normalization"]["messages"][0].startswith(
+            "Subsection suffix '(b)' was stripped and the whole containing section 17 U.S.C. 107 is returned. "
+            "'(b)' occurs 0 times"
+        )
+
+    async def test_both_strips_keep_their_order_and_the_envelope_is_unchanged(self, make_client):
+        html = fielded_section(NO_B_STATUTE, GUIDELINES_WITH_B)
+        out = await tools.get_us_code_section(self._client(make_client, html), citation="17 U.S.C. 107(b) note")
+        n = out["normalization"]
+        assert set(n) == {"normalized_citation", "citation_basis", "stripped_subsection", "stripped_note", "messages"}
+        assert n["normalized_citation"] == "17 U.S.C. 107" and n["citation_basis"] == "resolved"
+        assert n["stripped_subsection"] == "(b)" and n["stripped_note"] is True
+        assert len(n["messages"]) == 2
+        assert n["messages"][0].startswith("Subsection suffix '(b)' was stripped and the whole containing section")
+        assert n["messages"][1] == NOTE_STRIP_DISCLOSURE.format(citation="17 U.S.C. 107")
+        assert {"outcome", "provenance", "possibly_superseded", "structure", "text"} <= out.keys()
+
+    async def test_no_strip_means_no_counting_and_no_messages(self, make_client):
+        html = fielded_section("<p>(b) present.</p>", GUIDELINES_WITH_B)
+        out = await tools.get_us_code_section(self._client(make_client, html), citation="17 U.S.C. 107")
+        assert "messages" not in out["normalization"]
+
+    async def test_not_found_has_no_returned_section_so_the_message_is_not_counted(self, make_client):
+        # Nothing was returned to count in, and none of the three messages is true of
+        # an empty result, so the pre-WO-19 wording stands on this envelope.
+        client = make_client(section_handler(fx.search_response([], count=0)))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107(b)")
+        assert out["outcome"] == "not_found"
+        assert out["normalization"]["messages"] == [
+            "Subsection suffix '(b)' was stripped: the granule is the retrieval unit, so the whole containing "
+            "section 17 U.S.C. 107 is returned; navigate within it."
+        ]
+
+
 class TestGetSectionYear:
     async def test_year_sets_historical_and_filters(self, make_client):
         hits = [

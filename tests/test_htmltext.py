@@ -368,6 +368,24 @@ class TestFieldExtent:
         assert "Notes carry law" not in structure_omitted_for_reading_call(2000)["note"]
 
 
+class TestOccurrenceOffsets:
+    """WO-19: `find` and the subsection-strip count share one matcher."""
+
+    def test_literal_case_insensitive_non_overlapping(self):
+        from uscode_mcp.htmltext import occurrence_offsets
+
+        assert occurrence_offsets("(b) x (B) y (b)(b)", "(b)") == [0, 6, 12, 15]
+        assert occurrence_offsets("aaaa", "aa") == [0, 2]
+        assert occurrence_offsets("a.b", ".") == [1]  # literal, not a regex
+        assert occurrence_offsets("", "(b)") == []
+
+    def test_find_occurrences_reports_the_same_count(self):
+        from uscode_mcp.htmltext import find_occurrences, occurrence_offsets
+
+        text = "(b) x (B) y (b)(b) and (c)"
+        assert find_occurrences(text, "(b)")["total_occurrences"] == len(occurrence_offsets(text, "(b)"))
+
+
 class TestStructureOmittedForReadingCall:
     """R13a: the invariant block rides only on the locating call."""
 

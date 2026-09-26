@@ -42,6 +42,7 @@ from .htmltext import (
     extract_currentthrough,
     find_occurrences,
     html_to_text_with_structure,
+    occurrence_offsets,
     public_pdf_link,
     structure_omitted_for_reading_call,
     window_text,
@@ -398,6 +399,71 @@ USCODE_EDITIONS_MESSAGE = (
     "person asking: re-request with `year` to choose an edition, or with a candidate's `granule_id`."
 )
 PLAW_RE_REQUEST = "The number did not resolve to one public law; treat the candidates' package_id values as findings."
+
+# The three subsection-strip messages, contractual character for character (40-tools.md,
+# "The strip message names its reader", WO-19). The stripped designator is counted as a
+# literal inside the `statute` field's extent and, separately, inside the `notes`
+# field's extent, the way `find` counts. Zero in the statute says the subsection does
+# not exist and what to do with that; nonzero states a count and claims nothing about
+# which occurrence is the subsection (F8's rule); an unlocated statute extent asserts
+# nothing — nonexistence is never stated without the mechanical zero. The predecessor
+# ("… navigate within it.") presumed there was something to navigate to; eleven of 111
+# nano rows navigated to a guideline in the notes and returned it as 17 U.S.C. 107(b).
+SUBSECTION_ZERO_MESSAGE = (
+    "Subsection suffix '{designator}' was stripped and the whole containing section {citation} is returned. "
+    "'{designator}' occurs 0 times in the statute text of {citation} — {citation}{designator} does not exist "
+    "in this edition. Tell the person asking that the section has no subsection {designator}, and say what "
+    "the section does contain. Do not answer with other text labelled '{designator}'. {notes_sentence} A "
+    "request for a provision that does not exist is answered by saying so, not by quoting the nearest label. "
+    "If you quote one of those passages, name its own source and say it is not {citation}{designator}. What "
+    "follows is for the tool caller, not the person asking: structure lists the section's fields and find "
+    "locates text within the returned payload."
+)
+SUBSECTION_ZERO_NOTES_SENTENCE = (
+    "The notes under this section contain {n_notes} such labels, but those are other material, not "
+    "{citation}{designator}."
+)
+SUBSECTION_ZERO_NO_NOTES_SENTENCE = "The notes under this section contain no such label either."
+SUBSECTION_NONZERO_MESSAGE = (
+    "Subsection suffix '{designator}' was stripped and the whole containing section {citation} is returned; "
+    "'{designator}' occurs {n_statute} times in its statute text. What follows is for the tool caller, not "
+    "the person asking: use find with '{designator}' to locate it within the returned payload."
+)
+SUBSECTION_NOT_CHECKED_MESSAGE = (
+    "Subsection suffix '{designator}' was stripped and the whole containing section {citation} is returned; "
+    "whether the section has a subsection {designator} was not checked. What follows is for the tool caller, "
+    "not the person asking: use find with '{designator}' to locate it within the returned payload."
+)
+
+
+def _count_in_field(text: str, needle: str, structure: dict[str, Any], field: str) -> int | None:
+    """Occurrences of `needle` inside the extent(s) of `field` per the derived
+    `structure`, matched the way `find` matches; None when the structure is omitted
+    or lists no such field, so the caller can say "not checked" rather than "0"."""
+    if structure.get("omitted") or not isinstance(structure.get("fields"), list):
+        return None
+    spans = [f for f in structure["fields"] if f.get("field") == field]
+    if not spans:
+        return None
+    return sum(len(occurrence_offsets(text[f["start_char"] : f["end_char"]], needle)) for f in spans)
+
+
+def _subsection_strip_message(designator: str, citation: str, text: str, structure: dict[str, Any]) -> str:
+    """Choose among the three strip messages from the counts (WO-19, R30)."""
+    n_statute = _count_in_field(text, designator, structure, "statute")
+    if n_statute is None:
+        return SUBSECTION_NOT_CHECKED_MESSAGE.format(designator=designator, citation=citation)
+    if n_statute > 0:
+        return SUBSECTION_NONZERO_MESSAGE.format(designator=designator, citation=citation, n_statute=n_statute)
+    n_notes = _count_in_field(text, designator, structure, "notes") or 0
+    if n_notes:
+        notes_sentence = SUBSECTION_ZERO_NOTES_SENTENCE.format(
+            designator=designator, citation=citation, n_notes=n_notes
+        )
+    else:
+        notes_sentence = SUBSECTION_ZERO_NO_NOTES_SENTENCE
+    return SUBSECTION_ZERO_MESSAGE.format(designator=designator, citation=citation, notes_sentence=notes_sentence)
+
 
 # The note-strip disclosure, contractual character for character (40-tools.md, "Notes
 # carry law", WO-18). Its predecessor said the statutory notes were "included in the
@@ -816,7 +882,13 @@ _USCODE_GRANULE_ID_RE = re.compile(
 _USCODE_PACKAGE_ID_RE = re.compile(r"^USCODE-\d{4}-title(?P<title>\d+[a-z]?)\Z")
 
 
-def _normalization_block(parsed: USCCitation, *, citation_basis: str = "resolved") -> dict[str, Any]:
+def _normalization_block(
+    parsed: USCCitation, *, citation_basis: str = "resolved", subsection_message: str | None = None
+) -> dict[str, Any]:
+    """The normalization disclosure. On a success the subsection-strip message is one
+    of the three counted messages (WO-19), computed once the text and structure are in
+    hand and passed in; before the fetch, and on a `not_found` where no section is
+    returned to count in, the pre-WO-19 wording stands."""
     normalization: dict[str, Any] = {
         "normalized_citation": parsed.normalized,
         "citation_basis": citation_basis,
@@ -826,7 +898,8 @@ def _normalization_block(parsed: USCCitation, *, citation_basis: str = "resolved
     notes: list[str] = []
     if parsed.stripped_subsection:
         notes.append(
-            f"Subsection suffix {parsed.stripped_subsection!r} was stripped: the granule is the retrieval "
+            subsection_message
+            or f"Subsection suffix {parsed.stripped_subsection!r} was stripped: the granule is the retrieval "
             f"unit, so the whole containing section {parsed.normalized} is returned; navigate within it."
         )
     if parsed.stripped_note:
@@ -885,6 +958,17 @@ async def _fetch_and_deliver(
         )
 
     text, structure = html_to_text_with_structure(html)
+    if parsed is not None and parsed.stripped_subsection and "normalization" in head:
+        # WO-19: the strip message is chosen by counting the designator inside the
+        # statute and notes extents of the section actually returned. The derived
+        # structure is used even on a reading call, where the served block is omitted.
+        head["normalization"] = _normalization_block(
+            parsed,
+            citation_basis=head["normalization"]["citation_basis"],
+            subsection_message=_subsection_strip_message(
+                parsed.stripped_subsection, parsed.normalized, text, structure
+            ),
+        )
     past_end = _past_end_failure(start_char, len(text))
     if past_end is not None:
         await detector.abandon()
