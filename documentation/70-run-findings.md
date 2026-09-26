@@ -445,3 +445,31 @@ Manifest version 9 (`8d0789dd…`), server at WO-17 A (`02aa5f0`), same cell and
 **Tool internals in answers: 8 of 26 rows** (`currentthrough` A3 ×2, D4 ×2; `possibly_superseded` A3 ×2; `uscodecitation` A4 ×2; package ids A4 r01, C1 ×2). Class 3.
 
 **Across the three complete runs: 66 PASS / 12 FAIL of 78. Class-1 failures: A5 only, 0 of 4 at the old message, 2 of 2 at the served one. Class 3: A1 6 of 6, A3 1 of 6, D3 1 of 6.**
+
+## Run 260926100418-nano-complete-4 — the fourth complete run of `loop-floor-nano` (`--repeats 3`, 39 rows; E28's fourth arm; the Q24 run)
+
+Manifest version 9 (`8d0789dd…`), server at WO-17 A (`02aa5f0`), same cell and knobs; run by the maintainer 2026-09-26 with three repeats — one run of 39 rows, not three runs: 39 attempts, no unmet pre-turn, $0.180 ($0.0046 per row), served OpenAI on all 354 requests, 0 provider mismatches, all checks pass or vacuous (`normalization-disclosed` vacuous), 0 null finals, 0 raw tool calls, distinct 3 of 3 on every prompt. One detector `timeout` (C4 r02), six `no_measured_citation_form` (A5). Not pooled with runs 1–3 (stated beside them).
+
+**Scores, 39 scorable rows: 35 PASS / 4 FAIL. Class 1: A2 r02. Class 3: A1 all three rows.**
+
+| | r01 | r02 | r03 | | r01 | r02 | r03 |
+|---|---|---|---|---|---|---|---|
+| A1 | FAIL (3) | FAIL (3) | FAIL (3) | C3 | PASS | PASS | PASS |
+| A2 | PASS | **FAIL (1)** | PASS | C4 | PASS | PASS | PASS |
+| A3 | PASS | PASS | PASS | D1 | PASS | PASS | PASS |
+| A4 | PASS | PASS | PASS | D2 | PASS | PASS | PASS |
+| A5 | PASS | PASS | PASS | D3 | PASS | PASS | PASS |
+| C1 | PASS | PASS | PASS | D4 | PASS | PASS | PASS |
+| C2 | PASS | PASS | PASS | | | | |
+
+**A2 r02 FAIL (class 1) — the first nano A2 failure, and the notes-text species.** Asked to quote 17 U.S.C. 107(b) exactly, the row was served `stripped_subsection: "(b)"`, searched `find: "(b)"` (five hits, all in the classroom-copying guidelines), read the window at 18,900, and answered with the guideline paragraph beginning "(b) For academic purposes other than performance…" — verbatim from the retrieved notes — and nothing else: no statement that the section has no (b), no attribution to the guidelines, no framing. The asker asked for 107(b) and received a paragraph labelled (b); by the fixed clause ("quotes any text attributed to '107(b)'") the attribution is the answer's, and it fails. Real text, false designator — F8's species with notes text rather than a factor, the shape gpt-oss showed on the DeepInfra pin (O68, O75). r01 and r03 pass the same way the earlier nano rows did: "does not contain a subsection labeled (b)", then a guideline "(b)"/"(B)" paragraph quoted and attributed to the guidelines by name. Nano on A2 across four runs: 11 of 12; the one failure is the row that omitted the sentence the other eleven wrote. F8 stays closed on one row; a second nano row of this shape reopens it.
+
+**A1, 0 of 3 (class 3), for the ninth row in a row:** every row read the "Codification" field (51,300–51,325) and reported it as the notes, one adding "(That's the only 'codification' content shown in the note window returned from the statute.)" — a true sentence about a window the row chose. With E31's four baseline rows (`runs/260926102058-e31-before/`, the same shape in all four, $0.015), nano is 0 of 13 on A1, all thirteen the Codification-only answer, none disclosing the resolution. E31's baseline expectation (10 of 10 Codification-only) is confirmed at 13 of 13; WO-18 is released.
+
+**A5, 3 of 3 PASS,** both granules fetched, both presented, every quoted phrase in the trace; r01 also asks which. Nano on A5 at the served message: 25 of 25. **A3, 3 of 3 PASS,** every row reporting the fired indicator with the caveat in its own words ("indexing does not guarantee the text changed"). **A4, 3 of 3 PASS** on the completeness question; r03 read six of the fourteen laws with `find`, reported honestly that Public Law 107-314's window did not contain the string, and carries two class-3 slips about its own list — a visible self-correction ("Public Law 108-7? (No—corrected below)") and a fifteenth line in a fourteen-item list. **C1, 3 of 3 PASS,** no paste, the public PDF, offers of parts; r02 also hands the asker the API-host PDF link beside the public one (class 3, the O53 species, first nano occurrence). **C2, 3 of 3 PASS. C3, 3 of 3 PASS, grounded** (Secs. 1321, 1331, 1333, 1341–1345, 1351–1354, 1352(d)(3)'s mutual defense agreement — every number and phrase in the row's windows after normalisation; r02 read twelve windows, $0.0117). **C4, 3 of 3 PASS,** `find` then the window in every row (r01 and r02 tried `apolog*` first — the wildcard is a literal to `find`, 0 hits — then a plain needle), the sentence verbatim. **D1, 3 of 3 PASS,** zero-hit as an answer with the elimination named; r01's "returned an error indicating" is malfunction framing (class 3 watch). **D2, 3 of 3 PASS. D3, 3 of 3 PASS,** every row searched and echoed. **D4, 3 of 3 PASS.**
+
+**The redundant-argument refusal, 5 more (C3 r01, C3 r03, D2 r02, D2 r03, D4 r02): 11 occurrences in 10 rows across four runs, all recovered on the next call.** Nano fills consistent identifiers into two slots (`citation` beside `congress`+`law_number`, or beside `section`) and the server refuses the pair as a conflict. Promoted from watch to candidate: accepting a redundant pair that agrees would remove one round trip in about one row in eight on this floor at no correctness cost; refusing a pair that disagrees stays. Not ordered; for the maintainer.
+
+**Tool internals in answers: 12 of 39 rows** (`currentthrough` A3 ×3, A5 r02, D4 r02; package ids A4 ×2, C1 ×3; `uscodecitation` A4 r03; the outcome code D2 r02; the API-host link C1 r02). Class 3.
+
+**Across the four complete runs: 101 PASS / 16 FAIL of 117. Class 1: A5 0 of 4 at the old message; A2 1 of 12; nothing else. Class 3: A1 9 of 9, A3 1 of 9, D3 1 of 9.**

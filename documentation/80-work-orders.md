@@ -312,7 +312,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-18 — the notes carry law: three served strings teach it (R29; contract in `40-tools.md`, "Notes carry law"; measured basis A1 6 of 6 nano rows O90/O91/O95; consumer effect preregistered as E31)
 
-**Status:** ISSUED 2026-09-26 and HELD until E31's baseline top-up has run (four more A1 rows on `loop-floor-nano` at the current strings, giving ten with the six complete-run rows). Built earlier, it destroys the baseline it is measured against. One part, one commit.
+**Status:** RELEASED 2026-09-26 to the implementation session: E31's baseline is complete at thirteen rows (nine complete-run rows and the four-row top-up `runs/260926102058-e31-before/`), all Codification-only (O96c). History: ISSUED and HELD the same day pending the top-up. One part, one commit; this session probes the three served strings from a fresh process before E31's after arm runs.
 
 **What it is.** Every nano A1 row so far — six of six across three complete runs — received the note-strip disclosure and a `structure` block naming eighteen note fields, read the one headed "Codification" (255 characters) and reported it as the notes to 42 U.S.C. 2210, whose notes run 65,500 characters and carry enacted law (the RECA findings and apology among them). The strings told the truth and taught nothing; this order makes them teach.
 
