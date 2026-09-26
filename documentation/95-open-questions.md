@@ -76,7 +76,7 @@ Q20 — **Repin the loop cells to `akashml/bf16`? (E25, O78.)** The contentless 
 
 ## Implementation queue
 
-**2026-09-26, latest: WO-15 BUILT and VERIFIED (O87) — closed on A–E, G, H; F's green workflow run is owed on the maintainer's push. Two build decisions ratified into the contract (O87f). Owed by the maintainer: push `main` so the quality workflow runs with the format check; a word on whether the class-1 standing of A2's relabel species stands (unruled since 2026-09-24). Queue empty on the server side; F8 and F10 still await their preregistration by this session. Earlier states follow.**
+**2026-09-26, latest: WO-15 CLOSED in full (O87; the pushed workflow ran green with the format check, O87h). Two build decisions ratified into the contract (O87f). Owed by the maintainer: a word on whether the class-1 standing of A2's relabel species stands (unruled since 2026-09-24). Queue empty on the server side; F8 and F10 still await their preregistration by this session. Earlier states follow.**
 
 **2026-09-25, latest: S26 filed (a read-only code review by the implementation session's own model at c9d2a0d; instrument offline); E27 run and closed as a before set (O86a); the id corpus scanned, 540 of 540 (O86b); WO-15 ISSUED and, after Q23 was ruled R26 the same day, amended to eight parts (F–H: CONTRIBUTING and the formatter in CI, `.env` only in a checkout, the `mcp` pin and the dependency-bump rule) and RELEASED; artifacts named per part. Owed by the implementation session: WO-15. Owed by this session when it lands: the refused-id probe, the E27 after arm, the `structure` byte comparison. F8 and F10 unchanged; the A2 class question still unruled. Earlier states follow.**
 
