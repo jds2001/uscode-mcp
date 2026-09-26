@@ -381,3 +381,39 @@ Manifest version 9 (`8d0789dd…`), server at the WO-15 build (`21bebbb`, spec `
 **Tool internals in answers (O67b's rule): 9 of 26 rows** — `currentthrough` as a word in A3 ×2 and D4 ×2, `uscodecitation` in A4 ×2, `granule_id` in A5 r01, `package_id` in C1 r01, `get_public_law` in D2 r02. No `start_char`, no call recipe. Class 3, measured, not gating.
 
 **Read as an instrument.** 22 of 26; every call count sensible (1–15); every quotation traceable; 0 nulls; the discoverability pattern (locate-then-read on C4, `find` on C3, the caveat's substance on A3) is DeepSeek's, at 2.7× gpt-oss's cost and about 1.7× DeepSeek's. It fails exactly one thing, and it is the thing the served message tells it to do.
+
+## Run 260926004352-nano-complete-1 — the second complete run of `loop-floor-nano` (E28's second arm)
+
+Same manifest (version 9, `8d0789dd…`), server, cell and knobs as the first run; run by the maintainer minutes after it: 26 rows, 26 attempts, no unmet pre-turn, $0.104 (2.1× the gpt-oss floor's version-7 run), served OpenAI on all 216 wire requests, 0 provider mismatches, all checks pass or vacuous (`normalization-disclosed` vacuous again — no citation-path normalization matched the check's pointer; the strips themselves were served, see A1 and A2). Null finals 0, raw tool calls 0, distinct answers 2 of 2 on all 13 prompts. Not pooled with the first run (stated beside it).
+
+**Scores, 26 scorable rows: 21 PASS / 5 FAIL. Class 1: A5, both rows. Class 3: A1 both rows, A3 r02.**
+
+| | r01 | r02 | | r01 | r02 |
+|---|---|---|---|---|---|
+| A1 | FAIL (3) | FAIL (3) | C3 | PASS | PASS |
+| A2 | PASS | PASS | C4 | PASS | PASS |
+| A3 | PASS | FAIL (3) | D1 | PASS | PASS |
+| A4 | PASS | PASS | D2 | PASS | PASS |
+| A5 | **FAIL (1)** | **FAIL (1)** | D3 | PASS | PASS |
+| C1 | PASS | PASS | D4 | PASS | PASS |
+| C2 | PASS | PASS | | | |
+
+**A5, 0 of 2 again — and r01 read both rules before presenting one.** Both rows received `ambiguous` with both candidates. r01 then fetched the appellate granule by id, fetched the civil granule by id, and answered with the civil rule alone under "Rule 9 of the appendix to Title 28 (Federal Rules of Civil Procedure)" — both texts are in its trace, one is in its answer, and the other is not mentioned. r02 fetched the appellate granule twice (6,000 then 12,000 characters) and presented it alone. Across both complete runs nano is 0 of 4 on A5, two civil and two appellate, every row after reading the list of both; the maintainer's read ("all of the A5 looked the same shape") holds. r01 is the sharper specimen for WO-17: the consumer did the extra work the message could have asked for and still had no instruction to tell the asker, so the template's "if you go on to read one" clause is widened to cover reading several (the drafted wording in `40-tools.md`, amended before any build). F10: nano 4 of 4, gpt-oss 9 of 9.
+
+**A3 r02 FAIL (class 3): a fired indicator withheld.** The response carried `laws_indexed` (Public Law 119-74) and the answer, asked "how up to date is what you're showing me", gave the edition, `currentthrough` and `last_modified` and said nothing about any later law — the pass clause's second half unmet; not the class-1 clause, since the currency qualification is present. r01 PASS: the indicator reported with "does not by itself prove the text changed". The same omission shape as A5 in miniature: the tool said it, the answer left it out.
+
+**A1, 0 of 2 (class 3), the first run's shape exactly:** `stripped_note: true` served, the "Codification" field read at 51,300–51,325, one editorial note reported as the note, no disclosure of the whole-section retrieval. 4 of 4 across runs.
+
+**A2, 2 of 2 PASS.** r01: strip served, `find: "(b)"`, one notes occurrence quoted and attributed to the classroom guidelines, an offer to pull whichever "(b)" was meant. r02 called `citation`, `granule_id` and `package_id` together — a consistent triple, accepted — and answered "the statute text itself does not contain a subsection (b)". Nano is 4 of 4 on A2 across runs.
+
+**A4, 2 of 2 PASS.** Both list all 14 hits and answer "No" from the recall caveat; neither reads the laws this time (r02 offers to). r02 lists package ids and names the search field and `get_public_law + find` (class 3 relay, 3 items in one row).
+
+**C1, 2 of 2 PASS,** no paste, public PDF and package page, offers of parts; r02 opens "Here's Public Law 118-31 full text from GovInfo (it's too large to paste in chat in full)" — the O81 shape. r02's first call sent `citation` with `congress`+`law_number` and was refused; recovered.
+
+**C2, 2 of 2 PASS.** **C3, 2 of 2 PASS, grounded:** r01 Secs. 1321, 1331, 1341(a)–(c) with the Taiwan/Ukraine carve-out and 22 U.S.C. 2761, all in the window at 1,315,400; r02 Secs. 1321, 1331(a)–(d) and 1352(a)–(d) — "not more than one additional", "270 days", "one year after", "sale basis" verbatim in the window at 1,336,600, reached by `find: "Submarine Transfer Authorization Act"` (4 hits), the second locate-then-read on this prompt by any floor. **C4, 2 of 2 PASS,** the operative sentence verbatim in both traces; r01 took eight steps to get there — a natural-language `search_public_laws` query (0 hits), a `search_us_code` (1 hit), two refused calls (`section` with `granule_id`; then `citation`, `section` and `granule_id` together), then the section, `find: "apolog"`, the window. The redundant-argument refusal is now 5 occurrences in 4 nano rows across runs (A2 r01, C1 r01 in the first; C1 r02, C4 r01 ×2 here), every one recovered on the next call. Watch item held; see the first run's note.
+
+**D1, 2 of 2 PASS.** r02 went further than any floor row so far: after the zero-hit it searched the phrase, found four hits, read the title 5 appendix granule that cites "[50 U.S.C. App. 1 et seq.]" in Reorganization Plan No. 1 of 1947 §101(b), and quoted that cross-reference — verbatim in its trace — as context, while still reporting that the citation itself resolves to nothing. **D2, 2 of 2 PASS** (r01 from the description without a call, "only supports public laws (and explicitly rejects private-law numbers)"; r02 called and received the scope outcome). **D3, 2 of 2 PASS** (r02 via the citation path's `not_found` then a search; both echo the citation). **D4, 2 of 2 PASS.**
+
+**Tool internals in answers: 7 of 26 rows** (`currentthrough` A3 ×2, D4 r02; `uscodecitation` and package ids A4 ×2; `package_id` C1 r02; granule id D4 r02). No `start_char`, no recipe to the asker.
+
+**Across the two complete runs: 43 PASS / 9 FAIL of 52; class 1 only on A5, 0 of 4.** Everything nano fails on class 1 is the one thing the served `ambiguous` message tells it to do.
