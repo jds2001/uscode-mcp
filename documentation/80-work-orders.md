@@ -288,7 +288,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-16 — the README names the minimum supported model and the failures observed below it (R27d; measured basis O81, O85, O89, E28 pending)
 
-**Status:** FINALISED and RELEASED 2026-09-26 (R31b; figures from O81, O89, O90–O97, O100, O101). Part A below is the sentence to copy, character for character. History: DRAFTED 2026-09-26 and HELD until E28's two complete runs are scored — the sentence names the models that pass, and which those are is what E28 measures. One part; one commit; README only.
+**Status:** LANDED `92352d7`, VERIFIED verbatim (O102c) and CLOSED 2026-09-26. History: FINALISED and RELEASED 2026-09-26 (R31b; figures from O81, O89, O90–O97, O100, O101). Part A below is the sentence to copy, character for character. History: DRAFTED 2026-09-26 and HELD until E28's two complete runs are scored — the sentence names the models that pass, and which those are is what E28 measures. One part; one commit; README only.
 
 **What it is.** A short section in the README, under the configuration material, stating which consumers this server has been measured with and what was observed on the one that fails. It is written from the record and says nothing the record does not: the passing models by id and pin with their run counts, and the failing one by id, pin and reasoning setting with the failure shapes and their row counts. The wording is drafted here and finalised when E28 is scored; the implementation session copies it.
 
@@ -332,7 +332,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-20 — the strip disclosure on a `not_found` envelope stops saying the section was returned (O99; contract in `40-tools.md`, "The strip message names its reader", the ratified cases)
 
-**Status:** ISSUED and RELEASED 2026-09-26 to the implementation session. One string, one commit. No consumer effect is preregistered: no manifest prompt passes a subsection suffix to a citation that resolves to zero granules; the path is reachable (the spec probe reached it with `17 U.S.C. 9999(b)`) and is verified by probe.
+**Status:** LANDED `e17a558` and VERIFIED (O102a); CLOSED 2026-09-26. History: ISSUED and RELEASED 2026-09-26 to the implementation session. One string, one commit. No consumer effect is preregistered: no manifest prompt passes a subsection suffix to a citation that resolves to zero granules; the path is reachable (the spec probe reached it with `17 U.S.C. 9999(b)`) and is verified by probe.
 
 **What it is.** WO-19 left the pre-WO-19 strip wording on `not_found` envelopes because nothing was returned to count in. That wording — "Subsection suffix '(b)' was stripped: the granule is the retrieval unit, so the whole containing section 17 U.S.C. 9999 is returned; navigate within it." — asserts a return beside `outcome: not_found`. The replacement says what happened.
 
@@ -342,7 +342,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-21 — the description tells the consumer to pass the subsection (R31c; contract in `40-tools.md`, "The description reaches the consumer that strips the designator itself"; measured basis O100b; consumer effect preregistered as E33)
 
-**Status:** CLEAR TO LAND 2026-09-26 — E34 has run (O101). History: ISSUED and RELEASED 2026-09-26 to the implementation session, held from landing until E34's gpt-oss runs had finished so they measured WO-19 alone. One sentence, one commit.
+**Status:** LANDED `54f0237` and VERIFIED (O102b); CLOSED 2026-09-26 pending E33's read. History: CLEAR TO LAND 2026-09-26 — E34 has run (O101). History: ISSUED and RELEASED 2026-09-26 to the implementation session, held from landing until E34's gpt-oss runs had finished so they measured WO-19 alone. One sentence, one commit.
 
 **What it is.** WO-19's message is served only on a strip. In every 99-row nano arm a few rows remove the "(b)" before their first call and ask for `17 U.S.C. 107` bare — 2, 4 and 5 of 99 — and those rows never see the message and run the old shape; both after-arm class-1 rows are among them (O100b). The description is read on every call and can route them onto the served path.
 
