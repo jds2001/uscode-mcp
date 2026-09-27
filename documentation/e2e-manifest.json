@@ -2,7 +2,7 @@
   "suite": {
     "name": "uscode-mcp-e2e",
     "spec": "documentation/",
-    "manifest_version": "10"
+    "manifest_version": "11"
   },
   "server": {
     "name": "uscode_mcp",
@@ -631,6 +631,18 @@
       "fixture": "USCODE-2024-title42-chap23-divsnA-subchapXIII-sec2210",
       "sourcing": "measured",
       "grounding": "O16: citation:\"42 U.S.C. 2210 note\" zero-hits; the contract strips the trailing 'note' and resolves the parent (stripped_note field measured in O28). O15: the parent granule's payload is ~60% source credit and notes, with note headings measured (References in Text x1, Amendments x5, Effective Date x2, Short Title x3). Edition-dependent.",
+      "pass": "Resolves to section 2210, reports the note material attached to it, and the note->parent-section normalization is reflected, not silent.",
+      "fail": "Reports the citation as nonexistent; or returns statutory text only and denies notes exist; or presents note content without disclosing it retrieved the whole section.",
+      "watch": "The motivating use case of the project (R4). A truncated-window miss of the notes is a windowing-workflow finding, not a zero-hit finding."
+    },
+    {
+      "id": "A1X",
+      "group": "X",
+      "title": "Note citation, the same question without the word \"codified\" (E36 instrument prompt; never in a cell's groups; run only by name)",
+      "prompt": "Look up 42 U.S.C. 2210 note for me — what kind of provisions are set out there?",
+      "fixture": "USCODE-2024-title42-chap23-divsnA-subchapXIII-sec2210",
+      "sourcing": "measured",
+      "grounding": "O16: citation:\"42 U.S.C. 2210 note\" zero-hits; the contract strips the trailing 'note' and resolves the parent (stripped_note field measured in O28). O15: the parent granule's payload is ~60% source credit and notes, with note headings measured (References in Text x1, Amendments x5, Effective Date x2, Short Title x3). Edition-dependent. E36 (O104): A1's nine Codification-only rows read the field headed \"Codification\" after the prompt's word \"codified\"; this variant asks the same question without the word, everything else byte-identical, to measure whether the word is the pull. Instrument prompt: group X belongs to no cell, so it runs only when named with --prompts, marked outside_cell_groups, and never gates.",
       "pass": "Resolves to section 2210, reports the note material attached to it, and the note->parent-section normalization is reflected, not silent.",
       "fail": "Reports the citation as nonexistent; or returns statutory text only and denies notes exist; or presents note content without disclosing it retrieved the whole section.",
       "watch": "The motivating use case of the project (R4). A truncated-window miss of the notes is a windowing-workflow finding, not a zero-hit finding."
