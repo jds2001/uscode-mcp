@@ -295,15 +295,32 @@ class TestStripMessageNamesItsReader:
         out = await tools.get_us_code_section(self._client(make_client, html), citation="17 U.S.C. 107")
         assert "messages" not in out["normalization"]
 
-    async def test_not_found_has_no_returned_section_so_the_message_is_not_counted(self, make_client):
-        # Nothing was returned to count in, and none of the three messages is true of
-        # an empty result, so the pre-WO-19 wording stands on this envelope.
+    @pytest.mark.parametrize("year", [None, 2024])
+    @pytest.mark.parametrize("suffix", ["(b)", "(h)(2)(A)"])
+    async def test_not_found_strip_says_nothing_was_returned_and_preserves_envelope(self, make_client, year, suffix):
         client = make_client(section_handler(fx.search_response([], count=0)))
-        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107(b)")
+        bare = await tools.get_us_code_section(client, citation="17 U.S.C. 9999", year=year)
+        out = await tools.get_us_code_section(client, citation=f"17 U.S.C. 9999{suffix}", year=year)
         assert out["outcome"] == "not_found"
+        assert out["normalization"] == {
+            **bare["normalization"],
+            "stripped_subsection": suffix,
+            "messages": [
+                f"Subsection suffix '{suffix}' was stripped and the containing section 17 U.S.C. 9999 was "
+                "looked up instead; it resolved to zero granules, so nothing was returned or counted."
+            ],
+        }
+        assert {k: v for k, v in out.items() if k != "normalization"} == {
+            k: v for k, v in bare.items() if k != "normalization"
+        }
+
+    async def test_not_found_subsection_and_note_keep_both_disclosures(self, make_client):
+        client = make_client(section_handler(fx.search_response([], count=0)))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 9999(b) note")
         assert out["normalization"]["messages"] == [
-            "Subsection suffix '(b)' was stripped: the granule is the retrieval unit, so the whole containing "
-            "section 17 U.S.C. 107 is returned; navigate within it."
+            "Subsection suffix '(b)' was stripped and the containing section 17 U.S.C. 9999 was looked up "
+            "instead; it resolved to zero granules, so nothing was returned or counted.",
+            NOTE_STRIP_DISCLOSURE.format(citation="17 U.S.C. 9999"),
         ]
 
 

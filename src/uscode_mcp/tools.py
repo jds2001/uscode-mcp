@@ -789,6 +789,15 @@ async def _resolve_granule(
                     "suggested_query": f"collection:USCODE usctitlenum:{parsed.title}{terms}",
                 },
             )
+        if parsed.stripped_subsection:
+            normalization = _normalization_block(
+                parsed,
+                subsection_message=(
+                    f"Subsection suffix '{parsed.stripped_subsection}' was stripped and the containing section "
+                    f"{parsed.normalized} was looked up instead; it resolved to zero granules, so nothing was "
+                    "returned or counted."
+                ),
+            )
         return (
             None,
             None,
@@ -887,8 +896,8 @@ def _normalization_block(
 ) -> dict[str, Any]:
     """The normalization disclosure. On a success the subsection-strip message is one
     of the three counted messages (WO-19), computed once the text and structure are in
-    hand and passed in; before the fetch, and on a `not_found` where no section is
-    returned to count in, the pre-WO-19 wording stands."""
+    hand and passed in. A `not_found` supplies its own disclosure (WO-20); before
+    resolution, the pre-WO-19 wording stands."""
     normalization: dict[str, Any] = {
         "normalized_citation": parsed.normalized,
         "citation_basis": citation_basis,
