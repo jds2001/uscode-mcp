@@ -583,3 +583,22 @@ Manifest version 10 (`940bfb67…`), server at WO-21 (`54f0237`, which carries W
 **The interview (S28, a claim).** The maintainer resumed r03 in the harness's interview mode with one question, "is there anything about radiation exposure compensation in there?" The model ran `find: "radiation exposure compensation"` (12 hits, the first at 77,209 — inside "Findings"), read 1,200 characters at 80,860, and answered yes: the notes print the Radiation Exposure Compensation Act, "This Act may be cited as…", "SEC. 2. FINDINGS, PURPOSE, AND APOLOGY.", the fallout finding — every quoted string in the interview's own trace. Asked by topic, the model finds enacted law in the notes in two calls; asked what is codified there, it reads the field so named. The capability is present and the served strings do not summon it.
 
 **E31 (O104): falsified.** After-arm (a) and (b) at 0 and 1 of 10, against the falsifier's bar of 5. The preregistered next candidate — the strip disclosure carrying the notes' headings with their sizes and kinds — is Q28.
+
+## Run 260927021624-e36-codified — E36: A1 against A1X, the same question without the word "codified", 10 rows each on `loop-floor-nano`
+
+Manifest version 11 (`9883abc4…`; the instrument prompt `A1X` is its only difference from version 10), server at WO-21 (`54f0237`), `--prompts A1,A1X --repeats 10` in one run so the pinned prompt is the same-time control; run by this session 2026-09-27, preregistered as E36 before the first row on the maintainer's hypothesis that the word "codified" is what pulls the answer to the field headed "Codification". 20 of 20 scored, one crowding mismatch (A1X r04, scored on attempt 2), $0.096, 41 tool calls, every check pass or vacuous, 10 distinct answers per arm. Scored on E31's four measures per row from `answer.txt` against the trace.
+
+| E31 measure | A1 (pinned: "what kind of provisions are codified there?") | A1X ("…are set out there?") |
+|---|---|---|
+| (a) The note described as the section's notes body, the resolution reflected | 3 of 10 | 10 of 10 |
+| (b) A statutory note beyond Codification named | 3 of 10 | 10 of 10 |
+| (c) Codification-only | 7 of 10 | 0 of 10 |
+| (d) Note contents invented from headings | 0 | 0 |
+| Second read at the Codification field (51,300–51,325) | 8 of 10 | 1 of 10 |
+| Second read in the statutory notes (74,000–77,101) | 1 of 10 | 6 of 10 |
+
+**The word is the pull.** Fisher's exact test on (c), 7 of 10 against 0 of 10, one-sided p = 0.0015; the control sits where E31's after arm sat (9 of 10) within draw noise, so the falsifier that would have doubted E31 did not fire. Both arms were served the same first response: the WO-18 disclosure and the eighteen-field `structure`. The A1 rows then read the 255-character Codification field and answered the word; the A1X rows either answered from the `structure` headings (r01, r03, r08, r09 — every heading listed, editorial and enacted sorted correctly, Findings and the Executive Order named; r03 says the tool "resolves [2210] as the container for the '2210 note'") or read the statutory notes and reported them (r02, r04, r05, r06, r07, r10 — the Price-Anderson short title, the 2005 and 1988 effective-date rules, the FEMA transfer, the Findings of Pub. L. 106–245, the affidavit and repealed GAO-report provisions, and in four rows the Radiation Exposure Compensation Act itself with its trust fund and uranium-mining claims). Every content claim checked is in the row's own trace; "FEMA" and "apology" are the model's abbreviation and casing of text it read. A1's three non-Codification rows: r01 and r04 list the headings and still centre the Codification note; r05 read the statutory notes with `find: "Codification"` on the window and reported the Act — the one A1 row of 23 across E31 and E36 to reach it.
+
+**What it means for A1 and for Q28.** The unnamed question — what is in the notes — is answered from the whole body by this floor at the current strings, 10 of 10, with the `structure` headings doing the work in four rows and the text in six. The pinned question, with "codified" in it, is answered from the field so named, 16 of 20 rows across E31's after arm and this control. Q28's listing candidate would be built for that wording. Whether WO-18's strings contribute to A1X's 10 of 10 is unmeasured — no A1X arm exists at the pre-WO-18 strings, and the current build cannot serve them — and is left as a candidate (E37) rather than assumed either way.
+
+**E36 (O105): the hypothesis is confirmed; neither falsifier fired.** Q28 is revised.
