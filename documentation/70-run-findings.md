@@ -546,3 +546,26 @@ Manifest version 9 (`8d0789dd…`), server at WO-19 (`482253b`), `--prompts A2 -
 **The pre-strip fraction is the residual, and it is larger here than on nano.** Never-served rows: 2 of 30 crowded, 9 of 30 fresh (11 of 60, against 9 of 297 nano rows). The fresh context strips more often than the crowded one; whether that is the note-triage pre-turn priming a literal citation or draw noise at n = 30 is not settled here. Every one of those rows is what WO-21's description sentence is for; it is clear to land.
 
 **E34 (O101): expectation confirmed in both cells, beyond its own bar** — served class 1 was to fall below half and fell to 0 of 49; the pre-strip fraction was to exceed nano's and did. Neither falsifier fired: no served row relabelled, none read "0 times" as a malfunction. The E29 shape (section undescribed) did not appear. F15's "honours the asker's premise over the served text" holds for the unserved rows and fails for the served ones: on this model the message is read when it arrives.
+
+## Run 260927010925-e33-after — E33: 99 repetitions of A2 on `loop-floor-nano` at WO-21 (the description tells the caller to pass the subsection)
+
+Manifest version 10 (`940bfb67…`; the gating flag and two `notes` strings are its only differences from version 9 and none is a `cell_id` component), server at WO-21 (`54f0237`), `--prompts A2 --repeats 99`, run by this session 2026-09-27, preregistered as E33 before WO-21 landed. 99 asked, 99 reached, 101 attempts (two crowding mismatches, r44 and r86, scored on attempt 2), $0.299, 855 wire requests served OpenAI, 101 tool calls (98 rows made one), every check pass or vacuous, 99 distinct answers. Scored under O97's rule with O100's served/unserved split.
+
+**Scores: 99 PASS / 0 FAIL. Rows never served the strip message: 1 of 99 (r40), and it passed.**
+
+| | E32 arm 1 | E32 arm 2 | E33 |
+|---|---|---|---|
+| Rows that asked for 107 bare (never served) | 4 | 5 | 1 |
+| Class 1 among them | 1 | 1 | 0 |
+| Class 1 among served rows | 0 of 95 | 0 of 94 | 0 of 98 |
+| Rows writing "107 has no (b)" | 98 | 98 | 99 |
+| Rows naming the factors or quoting the statute | 33 | 39 | 33 |
+| Rows relaying the served count or sentence | 51 | 41 | 61 |
+| Tool calls | 110 | 110 | 101 |
+| Reasoning tokens per row, mean | 120 | 127 | 97 |
+
+**Every row wrote the no-(b) sentence** — "there is no subsection (b)", "subsection (b) does not exist", "17 U.S.C. 107(b) does not exist in this edition" — 61 of them relaying the served count, and 33 went on to name the factors or quote the statute, the rest offering the section. No row quoted a guideline "(b)"; no row relabelled a factor; every blockquoted line is in the row's own trace. r40, the one row that asked for `17 U.S.C. 107` bare, ran `find: "(b)"` twice, read the hits, and answered that the section "does not have a statutory subsection (b)" and that "(b)" appears only as lettered subparts of the guidelines, offering to quote one by name — the pass shape the before arm's r02 and r03 wrote (O97). Its reasoning summary plans "call the tool to get the U.S. code section with the find command using '(b)'" — the description sentence either was not read or was outweighed by the plan; one row cannot say which.
+
+**The pre-strip fraction fell from 9 of 198 to 1 of 99.** That meets the preregistered bar (at most 1 of 99) and misses the falsifier (4 or more), but on its own the drop is not statistically secure: Fisher's exact test, one-sided, gives p = 0.10. What is secure is the combined effect: across the 297 nano A2 draws since WO-19, class 1 is 0 of 287 on the served path and 2 of 10 off it, and WO-21 has now been measured to shrink the off-path count in the expected direction. A second 99-row arm would settle the fraction; it is not owed unless the maintainer wants it. Class 3 unchanged in kind: package ids reach the asker in 17 rows, `currentthrough` in 10, the public PDF link in 3, `start_char` in none, the API-host link in none; four rows tell the asker the suffix was stripped.
+
+**E33 (O103): expectation confirmed on both points; neither falsifier fired.** WO-21 closes. F8 closes on both paths as measured on this floor: 0 class 1 of 99 at the full WO-19 + WO-21 surface.

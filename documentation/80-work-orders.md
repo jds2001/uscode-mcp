@@ -342,7 +342,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-21 — the description tells the consumer to pass the subsection (R31c; contract in `40-tools.md`, "The description reaches the consumer that strips the designator itself"; measured basis O100b; consumer effect preregistered as E33)
 
-**Status:** LANDED `54f0237` and VERIFIED (O102b); CLOSED 2026-09-26 pending E33's read. History: CLEAR TO LAND 2026-09-26 — E34 has run (O101). History: ISSUED and RELEASED 2026-09-26 to the implementation session, held from landing until E34's gpt-oss runs had finished so they measured WO-19 alone. One sentence, one commit.
+**Status:** CLOSED 2026-09-27 — E33 read (O103): unserved rows 1 of 99, class 1 0 of 99. History: LANDED `54f0237` and VERIFIED (O102b) 2026-09-26. History: CLEAR TO LAND 2026-09-26 — E34 has run (O101). History: ISSUED and RELEASED 2026-09-26 to the implementation session, held from landing until E34's gpt-oss runs had finished so they measured WO-19 alone. One sentence, one commit.
 
 **What it is.** WO-19's message is served only on a strip. In every 99-row nano arm a few rows remove the "(b)" before their first call and ask for `17 U.S.C. 107` bare — 2, 4 and 5 of 99 — and those rows never see the message and run the old shape; both after-arm class-1 rows are among them (O100b). The description is read on every call and can route them onto the served path.
 
