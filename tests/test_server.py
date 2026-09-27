@@ -301,3 +301,14 @@ async def test_create_server_fails_at_startup_on_blank_trace_dir(monkeypatch):
 
     with pytest.raises(RuntimeError, match="set but blank"):
         create_server()
+
+
+async def test_section_description_teaches_passing_the_subsection_immediately_after_strip_sentence():
+    listed = await create_server().list_tools()
+    description = next(tool.description for tool in listed if tool.name == "get_us_code_section")
+    assert (
+        "Subsection suffixes are stripped (the whole section is the retrieval unit). "
+        "Pass the citation as the asker gave it, subsection included — the server strips the suffix "
+        "and reports whether that subsection exists in the statute text. "
+        "Optional `year` selects a historical annual edition."
+    ) in " ".join(description.split())

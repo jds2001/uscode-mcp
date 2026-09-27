@@ -120,7 +120,9 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
 
         Pass `citation` (accepts "17 U.S.C. 107", "17 USC 107", "17 U.S.C. § 107(b)",
         "42 U.S.C. 2210 note") or `title` + `section` as separate fields. Subsection suffixes are
-        stripped (the whole section is the retrieval unit). Optional `year` selects a historical
+        stripped (the whole section is the retrieval unit). Pass the citation as the asker gave it,
+        subsection included — the server strips the suffix and reports whether that subsection exists
+        in the statute text. Optional `year` selects a historical
         annual edition. When a citation matches several granules the response is `ambiguous` with a
         candidate list: re-request with `granule_id` taken from that list (exactly as it appears
         there or in a search_us_code result; `package_id` is optional and otherwise derived from the
