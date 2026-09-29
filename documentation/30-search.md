@@ -9,11 +9,13 @@
 | `query` | govinfo query syntax (operators below) | required |
 | `pageSize` | results per page | documented max 1000 (S1), measured honored at 1000 (O43g); the uscode-mcp tools default to 20 and cap at 100 |
 | `offsetMark` | pagination cursor; `*` to start, echo back the returned value | opaque string (O4) |
-| `sorts` | array of `{field, sortOrder}` | fields seen: `score`, `publishdate`; `title`, `lastModified` documented (S1) |
+| `sorts` | array of `{field, sortOrder}` | fields seen: `score`, `publishdate`; `title`, `lastModified` documented (S1). Omitted, the order is string-descending on granule id, not relevance (O109c); `score` with `DESC` is the relevance order and `ASC` on it returns HTTP 400 (O109c) |
 | `historical` | include superseded editions | default false; behavior measured in O7b |
 | `resultLevel` | `package` vs default mixed granule/package | do not use with granule-level fields: silently zero-hits a matching citation query (O23) |
 
 Responses carry exactly three top-level fields — `count`, next `offsetMark`, and `results[]` (O20; result objects carry no `count` of their own) — with `title`, `packageId`, `granuleId`, `dateIssued`, `collectionCode`, `lastModified`, a `download` link map, and a `resultLink` to the granule/package summary (O4). The service self-describes as public preview (S1) — the implementation should treat response-shape drift as a live risk and fail loudly, not coerce.
+
+**Result order (O109, 2026-09-29).** A request that omits `sorts` is answered in string-descending granule-id order — `USCODE-2024-title8…` before `title7…` before `title12…` before `title1…` — which is not relevance: for the asker's words `bank notes as collateral` the one section whose heading matches sat at 73 of 134, and for `fair use factors` 17 U.S.C. 107 sat at 122 of 323. With `sorts: [{"field": "score", "sortOrder": "DESC"}]` both sit at 1, `count` and page membership unchanged. Every search request the two search tools send carries that sort (`40-tools.md`). Unquoted terms are conjunctive — a whole question returns 0 (O109d) — and double quotes match an exact phrase (O49c, O109b).
 
 ## Query operators (S2 — govinfo.gov/help/search-operators, fetched 2026-08-29)
 
@@ -25,7 +27,7 @@ USCODE (S3 — govinfo.gov/help/uscode): `citation`, `usctitlenum`, `uscchnum`, 
 
 PLAW (S4 — govinfo.gov/help/plaw): `congress`, `docnumber`, `lawtype`, `approveddate`, `publishdate`, `billscitation`, `uscodecitation`, `statutecitation`, `title`, `committee`.
 
-Exercised against the live service so far: `citation` (O4, O7a, O10, O11, O16), `congress`+`docnumber` (O12), `uscodecitation` (O17 — including its recall gap), `usctitlenum` (O19), `publishdate` ranges including the open-ended `range(date,)` form, composed with `uscodecitation` (O43f), `lawtype:public` (O43f), and `approveddate` — which works as a single-day value but returns HTTP 500 for every range form tried (O43f), so no contract may use an `approveddate` range. The rest are documented intent until measured; a tool contract may cite them, but a defect against them needs a measurement first.
+Exercised against the live service so far: `citation` (O4, O7a, O10, O11, O16), `title` on USCODE — it matches the section heading (O109b: `title:"bank notes"` returns six sections whose headings contain the phrase), `congress`+`docnumber` (O12), `uscodecitation` (O17 — including its recall gap), `usctitlenum` (O19), `publishdate` ranges including the open-ended `range(date,)` form, composed with `uscodecitation` (O43f), `lawtype:public` (O43f), and `approveddate` — which works as a single-day value but returns HTTP 500 for every range form tried (O43f), so no contract may use an `approveddate` range. The rest are documented intent until measured; a tool contract may cite them, but a defect against them needs a measurement first.
 
 ## Citation resolution — the core recipe
 
