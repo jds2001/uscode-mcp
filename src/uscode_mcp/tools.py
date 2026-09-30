@@ -1252,6 +1252,13 @@ async def get_us_code_section(
 # ---------------------------------------------------------------------------
 
 
+# Result order (40-tools.md): upstream's default order is string-descending by
+# granule id, not relevance, so every request the two search tools send asks for
+# score order. The queries the server builds itself (citation resolution, the
+# staleness detector) select by citation and do not carry it.
+RELEVANCE_SORTS: list[dict[str, str]] = [{"field": "score", "sortOrder": "DESC"}]
+
+
 async def _scoped_search(
     client: GovInfoClient,
     collection: str,
@@ -1274,6 +1281,7 @@ async def _scoped_search(
         "pageSize": effective_page_size,
         "offsetMark": offset_mark or "*",
         "historical": bool(historical),
+        "sorts": [dict(sort) for sort in RELEVANCE_SORTS],
     }
     data, failure, _ = await _search(client, body)
     if failure is not None:

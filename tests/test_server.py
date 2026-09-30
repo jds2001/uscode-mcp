@@ -148,6 +148,32 @@ async def test_search_us_code_description_says_historical_is_an_argument():
     assert "`historical` ARGUMENT (not a query term)" in flat
 
 
+RESULT_ORDER_SENTENCE = (
+    "Results are relevance-ordered. Unquoted terms are all required, so start with the asker's own topical "
+    "words, unquoted; double quotes match an exact phrase; `title:` searches section headings "
+    "(e.g. `title:collateral usctitlenum:12`)."
+)
+
+
+async def test_search_us_code_description_says_how_to_query_in_place():
+    """WO-24 part B: the result-order sentence, character for character, right after the
+    fielded-search examples and before the `historical` sentence."""
+    server = create_server()
+    flat = " ".join({t.name: t for t in await server.list_tools()}["search_us_code"].description.split())
+    assert (
+        'Fielded search is available (e.g. `citation:"17 U.S.C. 107"`, `usctitlenum:28`, `shorttitle:...`). '
+        f"{RESULT_ORDER_SENTENCE} The `historical` ARGUMENT (not a query term) includes superseded annual editions."
+    ) in flat
+    assert flat.count(RESULT_ORDER_SENTENCE) == 1
+
+
+async def test_result_order_sentence_is_on_search_us_code_only():
+    """WO-24 part B changes one description; search_public_laws keeps its own text."""
+    server = create_server()
+    by_name = {t.name: " ".join(t.description.split()) for t in await server.list_tools()}
+    assert [name for name, flat in by_name.items() if "relevance-ordered" in flat] == ["search_us_code"]
+
+
 async def test_get_us_code_section_description_promises_notes():
     server = create_server()
     tool = {t.name: t for t in await server.list_tools()}["get_us_code_section"]

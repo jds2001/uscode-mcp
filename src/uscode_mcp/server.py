@@ -196,12 +196,15 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
         here. `collection:USCODE` is prepended when the query has no collection clause; a clause
         naming USCODE is accepted, and any other collection clause is refused before searching.
         Fielded search is available (e.g. `citation:"17 U.S.C. 107"`, `usctitlenum:28`,
-        `shorttitle:...`); the `historical` ARGUMENT (not a query term) includes superseded annual
-        editions. Within-title section-level search: scope by package, `packageid:USCODE-2024-title17
-        <terms>` — this tests which sections contain the terms, not where in a section; `find` on
-        get_us_code_section locates. Returns result pointers (ids, dates, download links), not
-        text — follow up with get_us_code_section (or pass a result's `granule_id` to it).
-        Pagination via `offset_mark`: pass "*" to start, then echo back the returned value.
+        `shorttitle:...`). Results are relevance-ordered. Unquoted terms are all required, so start
+        with the asker's own topical words, unquoted; double quotes match an exact phrase; `title:`
+        searches section headings (e.g. `title:collateral usctitlenum:12`). The `historical`
+        ARGUMENT (not a query term) includes superseded annual editions. Within-title section-level
+        search: scope by package, `packageid:USCODE-2024-title17 <terms>` — this tests which
+        sections contain the terms, not where in a section; `find` on get_us_code_section locates.
+        Returns result pointers (ids, dates, download links), not text — follow up with
+        get_us_code_section (or pass a result's `granule_id` to it). Pagination via `offset_mark`:
+        pass "*" to start, then echo back the returned value.
         """
         return await tools.search_us_code(
             _client(), query, page_size=page_size, offset_mark=offset_mark, historical=historical
