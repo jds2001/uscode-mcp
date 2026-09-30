@@ -1296,6 +1296,23 @@ async def get_us_code_section(
 # staleness detector) select by citation and do not carry it.
 RELEVANCE_SORTS: list[dict[str, str]] = [{"field": "score", "sortOrder": "DESC"}]
 
+# The two empty-page messages. A first page with no hits is a search that found
+# nothing. A continuation page — any `offset_mark` but "*" — with no hits is the walk
+# reaching the end of a result set whose hits were all served already, and upstream's
+# `count` on it is its value for a page past the end (0 in both orders, O112), not the
+# set's size; the past-the-end sentence is contractual character for character
+# (40-tools.md, "A page past the end is not zero results", WO-27). Without it, a walk
+# of `bank notes as collateral` ended by saying "found nothing" after 134 hits (F19).
+ZERO_RESULTS_MESSAGE = (
+    "Zero results. The search itself succeeded — this is 'found nothing', not a failure; "
+    "the exact query sent upstream is in 'query'."
+)
+PAST_END_MESSAGE = (
+    "No more results: this continuation page is past the end of the result set. The search itself succeeded; "
+    "'count' on this page is upstream's value for a page past the end, not the size of the result set, which "
+    "the first page reported."
+)
+
 
 async def _scoped_search(
     client: GovInfoClient,
@@ -1314,10 +1331,11 @@ async def _scoped_search(
     assert query is not None
 
     effective_page_size = max(1, min(int(page_size), MAX_PAGE_SIZE))
+    offset_mark = offset_mark or "*"
     body = {
         "query": query,
         "pageSize": effective_page_size,
-        "offsetMark": offset_mark or "*",
+        "offsetMark": offset_mark,
         "historical": bool(historical),
         "sorts": [dict(sort) for sort in RELEVANCE_SORTS],
     }
@@ -1337,10 +1355,7 @@ async def _scoped_search(
     if effective_page_size != page_size:
         out["page_size_note"] = f"page_size {page_size} was clamped to {effective_page_size} (allowed range 1-100)."
     if not results:
-        out["message"] = (
-            "Zero results. The search itself succeeded — this is 'found nothing', not a failure; "
-            "the exact query sent upstream is in 'query'."
-        )
+        out["message"] = PAST_END_MESSAGE if offset_mark != "*" else ZERO_RESULTS_MESSAGE
     return out
 
 
