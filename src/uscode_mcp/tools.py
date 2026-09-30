@@ -1314,6 +1314,51 @@ PAST_END_MESSAGE = (
 )
 
 
+# Same-citation families (40-tools.md, "Same-citation families are read from ids";
+# R34a, WO-28; measured E40/O115). Two granules share a citation within an edition
+# exactly when their ids are equal once every `dup{N}` segment is removed:
+# `…-app-federalru-rule9` and `…-app-federalru-dup1-rule9` are one family;
+# `…-dup1-rule8-dup1` is a third member of Rule 8's. The segment marks a repeated
+# rule set inside the appendix, not a collision by itself (145 of its 211 ids are
+# singletons), so the family is the equality, never the segment. A comparison of
+# ids the server already holds: no upstream request.
+_DUP_SEGMENT_RE = re.compile(r"-dup\d+(?=-|$)")
+
+# The search-hit note, contractual character for character. The measured failure
+# shape it answers: both Rule 9 titles on one page, one fetched by id and presented
+# as the only provision — 4 of 5 gpt-oss rows at O107.
+SAME_CITATION_ON_PAGE_NOTE = (
+    "This provision shares its citation with {n} other result(s) on this page: {titles}. The person asking "
+    "should be told which is meant, or shown each as a distinct provision."
+)
+
+
+def normalized_granule_id(granule_id: str) -> str:
+    """The id with every `-dup{N}` segment removed: equal for every member of a
+    same-citation family within an edition and for nothing else."""
+    return _DUP_SEGMENT_RE.sub("", granule_id)
+
+
+def _annotate_same_citation_on_page(pointers: list[dict[str, Any]]) -> None:
+    """Mark every hit whose family has another member on this page (WO-28 A). A
+    family member not on the page is not seen; hits without a granule id are left
+    alone. `others` follow page order."""
+    families: dict[str, list[dict[str, Any]]] = {}
+    for pointer in pointers:
+        granule_id = pointer.get("granule_id")
+        if isinstance(granule_id, str) and granule_id:
+            families.setdefault(normalized_granule_id(granule_id), []).append(pointer)
+    for members in families.values():
+        if len(members) < 2:
+            continue
+        for pointer in members:
+            others = [{"granule_id": m["granule_id"], "title": m["title"]} for m in members if m is not pointer]
+            pointer["same_citation_on_page"] = {"count": len(members), "others": others}
+            pointer["note"] = SAME_CITATION_ON_PAGE_NOTE.format(
+                n=len(others), titles="; ".join(str(o["title"]) for o in others)
+            )
+
+
 async def _scoped_search(
     client: GovInfoClient,
     collection: str,
@@ -1352,6 +1397,8 @@ async def _scoped_search(
         "page_size": effective_page_size,
         "results": [_result_pointer(r) for r in results],
     }
+    if collection == "USCODE":
+        _annotate_same_citation_on_page(out["results"])
     if effective_page_size != page_size:
         out["page_size_note"] = f"page_size {page_size} was clamped to {effective_page_size} (allowed range 1-100)."
     if not results:
