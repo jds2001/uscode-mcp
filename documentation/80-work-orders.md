@@ -354,7 +354,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-24 — search results are relevance-ordered, and the description says how to query (contract in `40-tools.md`, "Result order", and `30-search.md`, "Result order"; measured basis O109; consumer effect preregistered as E38)
 
-**Status:** LANDED `f89f850` and VERIFIED (O111a, b), CLOSED 2026-09-29: both ranks served at 1, the PLAW default order on the record, the description differing from the pre-WO-24 served text by the sentence and its joining alone. Paging under the sort measured as E39 (O112): boundary repeats are upstream's, none added by the server. History: ISSUED 2026-09-29. Two changes, one commit.
+**Status:** LANDED `f89f850` and VERIFIED (O111a, b), CLOSED 2026-09-29: both ranks served at 1, the PLAW default order on the record, the description differing from the pre-WO-24 served text by the sentence and its joining alone. Paging under the sort measured as E39 (O112): boundary repeats are upstream's, none added by the server. Consumer effect measured as E38 (O114): the Claude Code floor finds § 582 in 5 of 5 rows against 2 of 5 before, first query at rank 1 in every after row. History: ISSUED 2026-09-29. Two changes, one commit.
 
 **What it is.** The served `search_us_code` sends no `sorts`, and upstream's default order is string-descending on granule id (O109c). For the asker's words `bank notes as collateral` the one heading match, 12 U.S.C. 582, is at 73 of 134 — page 4 at the default `page_size` — and a Sonnet 5.5 consumer in the field read one page of a narrower query and answered from 12 U.S.C. 412 (S31). Under `score DESC` § 582 is at 1 of 134 and 17 U.S.C. 107 is at 1 of 323 for `fair use factors`, with `count` and page membership unchanged.
 
