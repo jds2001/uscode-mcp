@@ -2,7 +2,7 @@
   "suite": {
     "name": "uscode-mcp-e2e",
     "spec": "documentation/",
-    "manifest_version": "12"
+    "manifest_version": "13"
   },
   "server": {
     "name": "uscode_mcp",
@@ -62,6 +62,16 @@
       "package_id": "USCODE-2024-title28",
       "edition_year": 2024,
       "_evidence": "O24, O28"
+    },
+    "USCODE-2024-title12-chap5-subchapI-sec582": {
+      "package_id": "USCODE-2024-title12",
+      "granule_id": "USCODE-2024-title12-chap5-subchapI-sec582",
+      "edition_year": 2024,
+      "currentthrough": "2025-01-06",
+      "raw_htm_bytes": 2680,
+      "server_text_total_chars": 1329,
+      "content_hash_sha256_16": "6ccd880bd4f1e9e2",
+      "_evidence": "O109a; hash and sizes measured 2026-09-29 (runs/2026-09-29-manifest-v13/fixture582.json), method checked by re-hashing the 17 U.S.C. 107 fixture to its recorded value"
     }
   },
   "measurements": [
@@ -786,6 +796,18 @@
       "pass": "Resolves via the disclosed note strip, locates the apology region with find and/or structure (the trace shows a locating call, not blind offset guessing), and quotes apology content grounded in a retrieved window.",
       "fail": "Fabricated or unretrieved quote; claiming no apology exists; or locating only by blind offset guessing with find/structure available — that last is E14's preregistered falsifier and routes to a facility-discoverability finding (tool-description wording), not consumer blame.",
       "watch": "Per S8's caution this must not become note-specific machinery validation: C3's next run (flat PLAW payload, no structure block) doubles as the non-note instrument — compare its call count against the 9-call pre-find baseline."
+    },
+    {
+      "id": "X2",
+      "group": "X",
+      "title": "The asker's own words for a topical search (E38 instrument prompt; S31's question verbatim; never in a cell's groups; run only by name)",
+      "prompt": "what does the us code say about bank notes as collateral, and where does it say it?",
+      "fixture": "USCODE-2024-title12-chap5-subchapI-sec582",
+      "sourcing": "measured",
+      "grounding": "S31: the maintainer's own question in a Claude Desktop session, verbatim; the consumer answered from 12 U.S.C. 412. O109a: 12 U.S.C. 582 resolves, heading \"Receipt of United States or bank notes as collateral\", and forbids a national banking association to receive United States notes or national-bank notes as security for a loan. O109b/c: the unquoted words bank notes as collateral return 134 hits with section 582 at 73 of 134 in upstream's default order and at 1 under score DESC; the quoted phrase returns 1. O111a: served at 1 of 134 from WO-24 (f89f850). O109d: the whole question sent as a query returns 0. Edition-dependent (2024, currentthrough 2025-01-06). Instrument prompt: group X belongs to no cell, so it runs only when named with --prompts, marked outside_cell_groups, and never gates.",
+      "pass": "Names 12 U.S.C. 582 and quotes or paraphrases its prohibition from retrieved text.",
+      "fail": "Answers from another provision (12 U.S.C. 412 is the S31 shape), or answers without section 582 in any trace record.",
+      "watch": "Record per row every search_us_code query sent, whether any is the asker's topical words unquoted, and the rank of ...sec582 in each response (E38). A row that sends bank notes and sees section 582 on the first page yet answers from another provision is a reading failure, not a search one."
     }
   ],
   "_group_f_caveat": "Group F is EMPTY on purpose. It requires 8-12 verbatim-original questions from real research sessions (sourcing: verbatim-original), authored by no one who knows the internals — the spec session is disqualified by construction. Until the maintainer supplies originals (Q8), no Group F finding exists to record."
