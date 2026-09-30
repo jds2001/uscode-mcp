@@ -557,3 +557,84 @@ class TestResolutionFamilyFilter:
         assert out["count"] == 3 and out["count_unfiltered"] == 250 and out["capped"] is True
         assert out["message"].startswith(tools.USCODE_COLLISION_MESSAGE.format(n=3))
         assert "250" in out["message"]
+
+
+# ---------------------------------------------------------------------------
+# WO-29 B — the second-section marker joins the family rule (F21, O116e)
+# ---------------------------------------------------------------------------
+
+SEC1932 = "USCODE-2024-title28-partV-chap123-sec1932"
+SEC1932_2 = "USCODE-2024-title28-partV-chap123-sec1932_2"
+SEC1932_PAGE = [
+    rule_hit(SEC1932, "Judicial Panel on Multidistrict Litigation"),
+    rule_hit(SEC1932_2, "1932.1 Revocation of earned release credit"),
+]
+
+
+class TestSecondSectionMarker:
+    @pytest.mark.parametrize(
+        "granule_id,expected",
+        [
+            (SEC1932_2, SEC1932),
+            (SEC1932, SEC1932),
+            (
+                "USCODE-2024-title5-partIII-subpartB-chap35-subchapVII-sec3598_2",
+                "USCODE-2024-title5-partIII-subpartB-chap35-subchapVII-sec3598",
+            ),
+            ("USCODE-2024-title28-app-federalru-dup1-rule9_2", "USCODE-2024-title28-app-federalru-rule9"),
+            # Only a trailing `_{N}` on the last segment; an underscore elsewhere stays.
+            ("USCODE-2024-title28-partV-chap123_2-sec1932", "USCODE-2024-title28-partV-chap123_2-sec1932"),
+            ("USCODE-2024-title28-partV-chap123-sec1932_a", "USCODE-2024-title28-partV-chap123-sec1932_a"),
+            (CRIM_RULE9, CIV_RULE9),
+        ],
+    )
+    def test_trailing_underscore_number_is_removed_from_the_last_segment(self, granule_id, expected):
+        assert tools.normalized_granule_id(granule_id) == expected
+
+    async def test_a_page_holding_both_1932s_annotates_both(self, make_client):
+        out = await tools.search_us_code(make_client(page_handler(SEC1932_PAGE)), 'citation:"28 U.S.C. 1932"')
+        first, second = out["results"]
+        assert first["same_citation_on_page"] == {
+            "count": 2,
+            "others": [{"granule_id": SEC1932_2, "title": "1932.1 Revocation of earned release credit"}],
+        }
+        assert first["note"] == NOTE.format(n=1, titles="1932.1 Revocation of earned release credit")
+        assert second["same_citation_on_page"]["others"] == [
+            {"granule_id": SEC1932, "title": "Judicial Panel on Multidistrict Litigation"}
+        ]
+
+    async def test_1932_alone_on_a_page_carries_nothing(self, make_client):
+        out = await tools.search_us_code(make_client(page_handler(SEC1932_PAGE[:1])), "multidistrict")
+        assert "same_citation_on_page" not in out["results"][0] and "note" not in out["results"][0]
+
+    async def test_by_id_on_the_second_section_with_citation_names_the_first(self, make_client):
+        seen = []
+        out = await tools.get_us_code_section(
+            make_client(by_id_handler(SEC1932_2, SEC1932_PAGE, seen)), granule_id=SEC1932_2, citation="28 U.S.C. 1932"
+        )
+        assert out["outcome"] == "success"
+        assert family_searches(seen)[0]["query"] == 'collection:USCODE citation:"28 U.S.C. 1932"'
+        assert out["same_citation_candidates"] == {
+            "count": 2,
+            "others": [{"granule_id": SEC1932, "title": "Judicial Panel on Multidistrict Litigation"}],
+            "message": CANDIDATES_MESSAGE.format(n=1, titles="Judicial Panel on Multidistrict Litigation"),
+        }
+
+    async def test_by_id_on_the_second_section_without_citation_runs_no_search(self, make_client):
+        # A section id names no citation the server derives; only appendix rules do.
+        seen = []
+        out = await tools.get_us_code_section(make_client(by_id_handler(SEC1932_2, None, seen)), granule_id=SEC1932_2)
+        assert out["outcome"] == "success"
+        assert family_searches(seen) == [] and "same_citation_candidates" not in out
+
+    async def test_the_rule_9_cases_are_unchanged(self, make_client):
+        out = await tools.search_us_code(make_client(page_handler(RULE9_PAGE)), "Rule 9")
+        assert [h["same_citation_on_page"]["count"] for h in out["results"]] == [2, 2]
+        out = await tools.get_us_code_section(
+            make_client(by_id_handler(CRIM_RULE9, RULE9_PAGE, [])),
+            granule_id=CRIM_RULE9,
+            citation="28 U.S.C. App. Rule 9",
+        )
+        assert out["same_citation_candidates"]["others"] == [
+            {"granule_id": CIV_RULE9, "title": "Release in a Criminal Case"}
+        ]

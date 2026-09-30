@@ -1551,6 +1551,10 @@ PAST_END_MESSAGE = (
 # singletons), so the family is the equality, never the segment. A comparison of
 # ids the server already holds: no upstream request.
 _DUP_SEGMENT_RE = re.compile(r"-dup\d+(?=-|$)")
+# Section bodies carry their own marker (WO-29 B; F21, O116e): a second section of
+# the same number has the suffix `_2` on its last segment — `…-chap123-sec1932_2`
+# beside `…-sec1932`, a two-granule citation family under `citation:` in 3 of 3.
+_SECOND_SECTION_RE = re.compile(r"_\d+\Z")
 
 # The search-hit note, contractual character for character. The measured failure
 # shape it answers: both Rule 9 titles on one page, one fetched by id and presented
@@ -1562,9 +1566,10 @@ SAME_CITATION_ON_PAGE_NOTE = (
 
 
 def normalized_granule_id(granule_id: str) -> str:
-    """The id with every `-dup{N}` segment removed: equal for every member of a
-    same-citation family within an edition and for nothing else."""
-    return _DUP_SEGMENT_RE.sub("", granule_id)
+    """The id with a trailing `_{N}` removed from its last segment and every
+    `-dup{N}` segment removed: equal for every member of a same-citation family
+    within an edition and for nothing else."""
+    return _DUP_SEGMENT_RE.sub("", _SECOND_SECTION_RE.sub("", granule_id))
 
 
 def _annotate_same_citation_on_page(pointers: list[dict[str, Any]]) -> None:
