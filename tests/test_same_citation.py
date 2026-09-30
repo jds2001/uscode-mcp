@@ -434,3 +434,126 @@ class TestByIdNote:
         )
         assert out["outcome"] == "not_found"
         assert "same_citation_candidates" not in out
+
+
+# ---------------------------------------------------------------------------
+# Part C — the family filter on resolution (F20)
+# ---------------------------------------------------------------------------
+
+
+def resolution_handler(page: list[dict], count: int | None = None, seen: list | None = None):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if seen is not None:
+            seen.append(request)
+        if request.url.path == "/search":
+            body = fx.request_body(request)
+            if "collection:PLAW" in body["query"]:
+                return fx.json_response(fx.search_response([], count=0))
+            return fx.json_response(fx.search_response(page, count=count))
+        if request.url.path.endswith("/htm"):
+            return httpx.Response(200, text=fx.SECTION_HTML)
+        raise AssertionError(f"unexpected request: {request.method} {request.url}")
+
+    return handler
+
+
+class TestResolutionFamilyFilter:
+    async def test_rule_4_four_hit_page_is_ambiguous_with_three(self, make_client):
+        out = await tools.get_us_code_section(
+            make_client(resolution_handler(RULE4_PAGE)), citation="28 U.S.C. App. Rule 4"
+        )
+        assert out["outcome"] == "ambiguous"
+        assert out["count"] == 3
+        assert out["count_unfiltered"] == 4
+        assert out["candidates_shown"] == 3 and out["capped"] is False
+        assert [c["granule_id"] for c in out["candidates"]] == [RULE4_A, RULE4_C, RULE4_B]
+        assert out["message"] == tools.USCODE_COLLISION_MESSAGE.format(n=3)
+
+    async def test_rule_4_1_on_the_same_page_resolves_to_itself(self, make_client):
+        seen = []
+        out = await tools.get_us_code_section(
+            make_client(resolution_handler(RULE4_PAGE, seen=seen)), citation="28 U.S.C. App. Rule 4.1", max_chars=1
+        )
+        assert out["outcome"] == "success"
+        assert out["provenance"]["granule_id"] == RULE4_1
+        assert fx.request_body(seen[0])["query"] == 'collection:USCODE citation:"28 U.S.C. App. Rule 4.1"'
+
+    async def test_rule_9_pair_is_unchanged(self, make_client):
+        out = await tools.get_us_code_section(
+            make_client(resolution_handler(RULE9_PAGE)), citation="28 U.S.C. App. Rule 9"
+        )
+        # Nothing filtered and a complete page: the envelope is byte-identical to before.
+        assert out["outcome"] == "ambiguous" and out["count"] == 2
+        assert "count_unfiltered" not in out
+        assert out["message"] == tools.USCODE_COLLISION_MESSAGE.format(n=2)
+        assert set(out) == {
+            "outcome",
+            "normalized_citation",
+            "query",
+            "year",
+            "count",
+            "candidates_shown",
+            "capped",
+            "message",
+            "candidates",
+        }
+
+    async def test_rule_8_three_members_are_unchanged(self, make_client):
+        out = await tools.get_us_code_section(
+            make_client(resolution_handler(RULE8_PAGE)), citation="28 U.S.C. App. Rule 8"
+        )
+        assert out["outcome"] == "ambiguous" and out["count"] == 3
+        assert [c["granule_id"] for c in out["candidates"]] == [RULE8_A, RULE8_C, RULE8_B]
+
+    async def test_a_family_of_one_after_the_filter_is_success(self, make_client):
+        page = [rule_hit(RULE4_1, "Serving Other Process"), rule_hit(RULE4_B, "Summons")]
+        out = await tools.get_us_code_section(
+            make_client(resolution_handler(page)), citation="28 U.S.C. App. Rule 4", max_chars=1
+        )
+        assert out["outcome"] == "success"
+        assert out["provenance"]["granule_id"] == RULE4_B
+
+    async def test_only_over_matches_is_a_redirect_not_a_wrong_success(self, make_client):
+        # A citation whose only token matches are other rules names nothing that exists.
+        page = [rule_hit(RULE4_1, "Serving Other Process")]
+        out = await tools.get_us_code_section(make_client(resolution_handler(page)), citation="28 U.S.C. App. Rule 4")
+        assert out["outcome"] == "appendix_redirect"
+
+    async def test_section_citations_are_untouched(self, make_client):
+        seen = []
+        out = await tools.get_us_code_section(
+            make_client(resolution_handler([fx.usc_hit()], seen=seen)), citation="17 U.S.C. 107", max_chars=1
+        )
+        assert out["outcome"] == "success" and "count_unfiltered" not in out
+
+    async def test_numbered_appendix_section_is_untouched(self, make_client):
+        hit = fx.usc_hit(package_id="USCODE-2024-title18", granule_id="USCODE-2024-title18-app-sec1201")
+        out = await tools.get_us_code_section(
+            make_client(resolution_handler([hit])), citation="18 U.S.C. App. 1201", max_chars=1
+        )
+        assert out["outcome"] == "success"
+
+    async def test_year_and_rule_filters_compose(self, make_client):
+        page = [dict(h, dateIssued="2024-01-08") for h in RULE4_PAGE] + [
+            fx.usc_hit(
+                package_id="USCODE-2023-title28",
+                granule_id="USCODE-2023-title28-app-federalru-dup1-rule4",
+                date_issued="2023-01-03",
+                title="Summons",
+            )
+        ]
+        out = await tools.get_us_code_section(
+            make_client(resolution_handler(page, count=119)), citation="28 U.S.C. App. Rule 4", year=2024
+        )
+        assert out["outcome"] == "ambiguous"
+        assert out["count"] == 3 and out["count_all_editions"] == 119
+        assert [c["granule_id"] for c in out["candidates"]] == [RULE4_A, RULE4_C, RULE4_B]
+
+    async def test_a_capped_page_under_the_rule_filter_says_so(self, make_client):
+        out = await tools.get_us_code_section(
+            make_client(resolution_handler(RULE4_PAGE, count=250)), citation="28 U.S.C. App. Rule 4"
+        )
+        assert out["outcome"] == "ambiguous"
+        assert out["count"] == 3 and out["count_unfiltered"] == 250 and out["capped"] is True
+        assert out["message"].startswith(tools.USCODE_COLLISION_MESSAGE.format(n=3))
+        assert "250" in out["message"]

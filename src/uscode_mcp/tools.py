@@ -796,6 +796,57 @@ SAME_CITATION_EDITION_NOT_ON_PAGE_MESSAGE = (
 _APPENDIX_RULE_ID_RE = re.compile(r"-app-.*-rule(?P<rule>\d+(?:\.\d+)?)\Z")
 
 
+# WO-28 C (F20): the citation field's match is token-based — `citation:"28 U.S.C.
+# App. Rule 4"` returns Rule 4.1 beside the three Rule 4s (O115c) — so on an
+# appendix-rule citation the candidate list is the family only: hits whose id's rule
+# segment equals the requested rule number exactly.
+_APPENDIX_RULE_TEXT_RE = re.compile(r"^rule\s+(?P<rule>\S+)$", re.IGNORECASE)
+
+
+def _requested_rule(parsed: USCCitation) -> str | None:
+    """The rule number an appendix-rule citation names ("Rule 4.1" → "4.1"); None
+    for a section, a numbered appendix section or a bare appendix citation."""
+    if not parsed.appendix:
+        return None
+    m = _APPENDIX_RULE_TEXT_RE.match(parsed.appendix_text)
+    return m.group("rule") if m else None
+
+
+def _rule_of_id(granule_id: Any) -> str | None:
+    if not isinstance(granule_id, str):
+        return None
+    m = _APPENDIX_RULE_ID_RE.search(normalized_granule_id(granule_id))
+    return m.group("rule") if m else None
+
+
+def _filter_to_rule_family(results: list[dict[str, Any]], rule: str) -> list[dict[str, Any]]:
+    return [r for r in results if _rule_of_id(r.get("granuleId")) == rule]
+
+
+def _rule_filtered_disambiguation_fields(
+    count_unfiltered: Any, page_size: int, results: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """The ambiguous fields when the rule filter ran (WO-28 C): `count` is the family
+    on the page, upstream's token-match total rides beside as `count_unfiltered`,
+    and the list is capped exactly when the page itself was incomplete."""
+    count = len(results)
+    message = _uscode_ambiguous_message(count, results)
+    capped = isinstance(count_unfiltered, int) and count_unfiltered > page_size
+    if capped:
+        message += (
+            f" The candidate list is capped at one search page: showing {count} of at least {count} — the rule "
+            f"filter ran over the first page only, of {count_unfiltered} hits matching the citation's tokens."
+        )
+    return {
+        "count": count,
+        "count_unfiltered": count_unfiltered,
+        "candidates_shown": count,
+        "capped": capped,
+        "message": message,
+        "candidates": [_result_pointer(r) for r in results],
+    }
+
+
 def _appendix_rule_citation_from_id(granule_id: str, package_title: str) -> USCCitation | None:
     """`28 U.S.C. App. Rule 9` from `USCODE-2024-title28-app-federalru-dup1-rule9`;
     None for any id that is not an appendix rule's."""
@@ -939,6 +990,16 @@ async def _resolve_granule(
     results = page
     if year is not None:
         results = [r for r in page if str(r.get("dateIssued", "")).startswith(str(year))]
+    requested_rule = _requested_rule(parsed)
+    rule_filtered = False
+    if requested_rule is not None:
+        before = results
+        results = _filter_to_rule_family(results, requested_rule)
+        # The rule-filtered fields are served when the filter changed the list or
+        # the page was incomplete (the filtered figure is then a floor); otherwise
+        # the envelope is the one served before this filter existed.
+        count = data.get("count")
+        rule_filtered = len(results) != len(before) or (isinstance(count, int) and count > len(page))
 
     if not results:
         if parsed.appendix:
@@ -991,6 +1052,8 @@ async def _resolve_granule(
     if len(results) > 1:
         if year is not None:
             fields = _year_filtered_disambiguation_fields(data.get("count"), len(page), year, results)
+        elif rule_filtered:
+            fields = _rule_filtered_disambiguation_fields(data.get("count"), len(page), results)
         else:
             fields = _disambiguation_fields(
                 data.get("count"), results, _uscode_ambiguous_message(data.get("count"), results)
