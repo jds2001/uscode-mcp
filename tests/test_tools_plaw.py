@@ -63,6 +63,59 @@ class TestGetPublicLaw:
         assert out["outcome"] == "out_of_scope_private_law"
         assert "not a" in out["message"] and "failed lookup" in out["message"]
 
+    async def test_package_id_form_resolves_exactly_as_the_citation_does(self, make_client):
+        """WO-25 (O110c): the package id the server hands out is accepted as `citation`."""
+        hit = fx.plaw_hit(package_id="PLAW-119publ74")
+        summary = fx.plaw_summary(package_id="PLAW-119publ74")
+        outs, queries = [], []
+        for citation in ("PLAW-119publ74", "plaw-119publ74", "Pub. L. 119-74"):
+            seen = []
+            handler = plaw_handler(search_payload=fx.search_response([hit]), summary=summary, seen=seen)
+            outs.append(await tools.get_public_law(make_client(handler), citation=citation))
+            queries.append([fx.request_body(r) for r in seen if r.url.path == "/search"])
+
+        assert outs[0]["outcome"] == "success"
+        assert outs[0]["provenance"]["package_id"] == "PLAW-119publ74"
+        assert (outs[0]["congress"], outs[0]["law_number"]) == (119, 74)
+        assert outs[0] == outs[1] == outs[2]
+        assert queries[0] == queries[1] == queries[2]
+        assert queries[0] == [
+            {"query": "collection:PLAW lawtype:public congress:119 docnumber:74", "pageSize": 100, "offsetMark": "*"}
+        ]
+
+    async def test_package_id_form_keeps_the_identity_check(self, make_client):
+        hit = fx.plaw_hit(package_id="PLAW-119pvtl74")
+        client = make_client(plaw_handler(search_payload=fx.search_response([hit])))
+        out = await tools.get_public_law(client, citation="PLAW-119publ74")
+        assert out["outcome"] == "upstream_error"
+        assert "PLAW-119publ74" in out["detail"] and "PLAW-119pvtl74" in out["detail"]
+
+    async def test_package_id_form_zero_hits_is_not_found(self, make_client):
+        client = make_client(plaw_handler(search_payload=fx.search_response([])))
+        out = await tools.get_public_law(client, citation="PLAW-119publ9999")
+        assert out["outcome"] == "not_found"
+        assert (out["congress"], out["law_number"]) == (119, 9999)
+
+    async def test_private_package_id_is_out_of_scope_like_the_private_citation(self, make_client):
+        by_id = await tools.get_public_law(make_client(None), citation="PLAW-118pvtl1")
+        by_citation = await tools.get_public_law(make_client(None), citation="Private Law 118-1")
+        assert by_id["outcome"] == "out_of_scope_private_law"
+        assert by_id["message"] == by_citation["message"]
+        assert by_id["citation"] == "PLAW-118pvtl1"
+
+    @pytest.mark.parametrize("citation", ["PLAW-118-31", "PLAW-118publ", "PLAW-publ31"])
+    async def test_malformed_package_id_is_invalid_argument_before_any_request(self, make_client, citation):
+        out = await tools.get_public_law(make_client(None), citation=citation)
+        assert out["outcome"] == "invalid_argument"
+        assert out["detail"] == (
+            f"could not parse {citation!r} as a public-law citation "
+            "(expected e.g. 'Pub. L. 118-31' or 'PLAW-118publ31')"
+        )
+
+    async def test_package_id_with_congress_and_number_is_rejected(self, make_client):
+        out = await tools.get_public_law(make_client(None), citation="PLAW-118publ31", congress=118, law_number=31)
+        assert out["outcome"] == "invalid_argument"
+
     async def test_uslm_format_returns_raw_xml(self, make_client):
         out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31, format="uslm")
         assert out["outcome"] == "success"

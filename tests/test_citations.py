@@ -119,3 +119,34 @@ class TestPublicLaw:
     def test_unparseable_raises(self, raw):
         with pytest.raises(CitationParseError):
             parse_public_law(raw)
+
+    @pytest.mark.parametrize("raw", ["PLAW-119publ74", "plaw-119publ74", "Plaw-119PUBL74", "  PLAW-119publ74 "])
+    def test_package_id_form_is_the_public_law(self, raw):
+        """WO-25: the id search_public_laws and the staleness caveat hand out."""
+        assert parse_public_law(raw) == parse_public_law("Pub. L. 119-74")
+
+    @pytest.mark.parametrize("raw", ["PLAW-118pvtl1", "plaw-118PVTL1"])
+    def test_private_package_id_is_the_private_law(self, raw):
+        assert parse_public_law(raw) == parse_public_law("Private Law 118-1")
+
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            "PLAW-118-31",
+            "PLAW-118publ",
+            "PLAW-publ31",
+            "PLAW-118hr31",
+            "PLAW-0118publ31",
+            "PLAW-118publ031",
+            "PLAW-118publ31x",
+            "PLAW 118publ31",
+            "PLAW-118 publ31",
+            "USCODE-2024-title17",
+        ],
+    )
+    def test_other_package_id_shapes_raise_with_both_examples(self, raw):
+        with pytest.raises(CitationParseError) as err:
+            parse_public_law(raw)
+        assert str(err.value) == (
+            f"could not parse {raw!r} as a public-law citation (expected e.g. 'Pub. L. 118-31' or 'PLAW-118publ31')"
+        )

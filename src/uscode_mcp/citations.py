@@ -9,7 +9,8 @@ Implements the normalization contract in documentation/30-search.md:
 - Appendix citations are flagged, not resolved: no citation-field form is known to
   match appendix granules (O19/E10), so the tool layer returns a structured redirect.
 
-Public-law citations normalize to (congress, number, law_type); private laws are
+Public-law citations, including the GovInfo package id ``PLAW-{n}publ{m}``, normalize
+to (congress, number, law_type); private laws (``PLAW-{n}pvtl{m}`` too) are
 recognized so the tool layer can report them as a distinct out-of-scope outcome (R6).
 """
 
@@ -120,12 +121,26 @@ _PL_RE = re.compile(
 )
 
 
+# The GovInfo package id, which search_public_laws hits and the staleness caveat hand
+# the caller: PLAW-{congress}publ{number}, or pvtl for the private series. Numbers
+# carry no leading zero, so the id that resolves is exactly the id given.
+_PLAW_ID_RE = re.compile(r"^\s*plaw-(?P<congress>[1-9]\d*)(?P<series>publ|pvtl)(?P<num>[1-9]\d*)\s*$", re.IGNORECASE)
+
+
 def parse_public_law(citation: str) -> PublicLawCitation:
-    """Parse 'Pub. L. 118-31', 'Public Law 118-31', 'P.L. 118-31' (and private-law equivalents)."""
+    """Parse 'Pub. L. 118-31', 'Public Law 118-31', 'P.L. 118-31', the package id 'PLAW-118publ31'
+    (case-insensitive), and the private-law equivalents ('Private Law 118-1', 'PLAW-118pvtl1')."""
+    package_id = _PLAW_ID_RE.match(citation)
+    if package_id:
+        law_type = "private" if package_id.group("series").lower() == "pvtl" else "public"
+        return PublicLawCitation(
+            congress=int(package_id.group("congress")), number=int(package_id.group("num")), law_type=law_type
+        )
     m = _PL_RE.match(citation)
     if not m:
         raise CitationParseError(
-            f"could not parse {citation!r} as a public-law citation (expected e.g. 'Pub. L. 118-31')"
+            f"could not parse {citation!r} as a public-law citation (expected e.g. 'Pub. L. 118-31' or "
+            "'PLAW-118publ31')"
         )
     law_type = "private" if m.group("priv") else "public"
     return PublicLawCitation(congress=int(m.group("congress")), number=int(m.group("num")), law_type=law_type)
