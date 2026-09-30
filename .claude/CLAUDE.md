@@ -17,4 +17,6 @@ There are two sessions, one for spec maintenance and one for implementation. The
 
 The implementation session MUST NOT write into documentation/ - that is the exclusive domain of the spec session.
 
+The one exception, ruled R34b: the repository-root README is the spec session's to keep current — the one file outside documentation/ it writes, without a work order, whenever a closed work order or a scored run makes a sentence in it stale; the implementation session does not edit README.md.
+
 The implementation session should write unit tests for everything that is built, and make sure that all applicable unit tests pass on the code that was written. These tests should not just test the happy path of the code, but also make sure that failures are surfaced appropriately.
