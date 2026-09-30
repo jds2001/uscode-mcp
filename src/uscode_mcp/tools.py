@@ -35,7 +35,16 @@ from typing import Any
 
 from . import superseded
 from .citations import CitationParseError, USCCitation, parse_public_law, parse_usc
-from .govinfo import GovInfoClient, GovInfoTransportError, GovInfoURLPolicyError, UpstreamResponse
+from .govinfo import (
+    NOT_FOUND_BODY_BOUND,
+    RATE_LIMITED_BODY_BOUND,
+    UPSTREAM_ERROR_BODY_BOUND,
+    GovInfoClient,
+    GovInfoTransportError,
+    GovInfoURLPolicyError,
+    UpstreamResponse,
+    relay_body,
+)
 from .htmltext import (
     add_audience_sentence,
     edition_year_from_package_id,
@@ -85,7 +94,7 @@ def _upstream_failure(resp: UpstreamResponse, detail: str | None = None) -> dict
         "outcome": "upstream_error",
         "http_status": resp.status,
         "url": resp.url,
-        "body": resp.text[:5000],
+        **relay_body(resp.text, UPSTREAM_ERROR_BODY_BOUND),
     }
     if detail:
         out["detail"] = detail
@@ -100,7 +109,7 @@ def _rate_limited(resp: UpstreamResponse) -> dict[str, Any]:
         "http_status": 429,
         "rate_limit": resp.rate_limit_info(),
         "url": resp.url,
-        "body": resp.text[:2000],
+        **relay_body(resp.text, RATE_LIMITED_BODY_BOUND),
     }
 
 
@@ -1141,7 +1150,7 @@ async def _deliver_by_id(
             "not_found_kind": not_found_kind,
             "http_status": summary_resp.status,
             "url": summary_resp.url,
-            "body": summary_resp.text[:2000],
+            **relay_body(summary_resp.text, NOT_FOUND_BODY_BOUND),
             "message": (
                 f"GovInfo has {what}. This is 'not found', not an upstream failure. Check the id against a "
                 "disambiguation list or search_us_code result; if package_id was derived, pass it explicitly."

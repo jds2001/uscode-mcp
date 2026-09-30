@@ -27,6 +27,35 @@ DEFAULT_BASE_URL = "https://api.govinfo.gov"
 API_KEY_ENV_VAR = "GOVINFO_API_KEY"
 _RATE_LIMIT_HEADERS = ("x-ratelimit-limit", "x-ratelimit-remaining", "retry-after")
 
+# Bounds, in characters, on an upstream body relayed in a served envelope (WO-26 B;
+# 40-tools.md, "Failure bodies are bounded only out loud"). An error page can be
+# long and a failure is no reason to flood the caller's context, so each relay
+# point keeps the bound it served before this order; what changed is that a cut
+# is now disclosed by :func:`relay_body` rather than presented as the body.
+UPSTREAM_ERROR_BODY_BOUND = 5000  # `upstream_error`, and every body inside `not_checked`
+RATE_LIMITED_BODY_BOUND = 2000  # the `rate_limited` outcome
+NOT_FOUND_BODY_BOUND = 2000  # the by-id `not_found` outcome's summary body
+
+
+def relay_body(text: str, bound: int) -> dict[str, Any]:
+    """The fields that relay an upstream body: ``body`` alone, verbatim, when the body
+    is within ``bound``; otherwise ``body`` is the body's first ``bound`` characters
+    unaltered and ``body_cut``, ``body_total_chars``, ``body_shown_chars`` and
+    ``body_note`` say so, with the full length in characters. A body at or under the
+    bound is served byte-identically to before the disclosure existed."""
+    if len(text) <= bound:
+        return {"body": text}
+    return {
+        "body": text[:bound],
+        "body_cut": True,
+        "body_total_chars": len(text),
+        "body_shown_chars": bound,
+        "body_note": (
+            f"The upstream body was cut: 'body' is its first {bound:,} characters of {len(text):,}; "
+            "nothing after that point is relayed."
+        ),
+    }
+
 
 class GovInfoTransportError(Exception):
     """Network-level failure: no HTTP response was received at all."""

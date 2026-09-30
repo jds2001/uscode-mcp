@@ -46,7 +46,7 @@ import time
 from datetime import date, timedelta
 from typing import Any
 
-from .govinfo import GovInfoClient, GovInfoTransportError, UpstreamResponse
+from .govinfo import UPSTREAM_ERROR_BODY_BOUND, GovInfoClient, GovInfoTransportError, UpstreamResponse, relay_body
 
 # The laws[] list is capped at one search page of this size; the true upstream
 # count is always carried, and capping is stated whenever it happened.
@@ -193,7 +193,7 @@ def not_checked(
     if response is not None:
         out["http_status"] = response.status
         out["url"] = response.url
-        out["body"] = response.text[:5000]
+        out.update(relay_body(response.text, UPSTREAM_ERROR_BODY_BOUND))
         if response.rate_limited:
             out["rate_limit"] = response.rate_limit_info()
     out["caveat"] = CAVEAT_NOT_CHECKED
