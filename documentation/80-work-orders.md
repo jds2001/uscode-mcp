@@ -354,7 +354,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-24 — search results are relevance-ordered, and the description says how to query (contract in `40-tools.md`, "Result order", and `30-search.md`, "Result order"; measured basis O109; consumer effect preregistered as E38)
 
-**Status:** ISSUED 2026-09-29. Two changes, one commit.
+**Status:** LANDED `f89f850` and VERIFIED (O111a, b), CLOSED 2026-09-29: both ranks served at 1, the PLAW default order on the record, the description differing from the pre-WO-24 served text by the sentence and its joining alone. Paging under the sort measured as E39 (O112): boundary repeats are upstream's, none added by the server. History: ISSUED 2026-09-29. Two changes, one commit.
 
 **What it is.** The served `search_us_code` sends no `sorts`, and upstream's default order is string-descending on granule id (O109c). For the asker's words `bank notes as collateral` the one heading match, 12 U.S.C. 582, is at 73 of 134 — page 4 at the default `page_size` — and a Sonnet 5.5 consumer in the field read one page of a narrower query and answered from 12 U.S.C. 412 (S31). Under `score DESC` § 582 is at 1 of 134 and 17 U.S.C. 107 is at 1 of 323 for `fair use factors`, with `count` and page membership unchanged.
 
@@ -368,7 +368,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-25 — `get_public_law` accepts the package-id form the server itself hands out (measured basis O110c, F18; the WO-14 caveat's own recipe)
 
-**Status:** ISSUED 2026-09-29. One grammar change, one commit.
+**Status:** LANDED `6856ae4` and VERIFIED (O111c), CLOSED 2026-09-29: the id form resolves as the citation does, the private series and the malformed forms refused as ordered; the implementation's leading-zero refusal ratified into `40-tools.md`. History: ISSUED 2026-09-29. One grammar change, one commit.
 
 **What it is.** `search_public_laws` hits carry `package_id` values of the form `PLAW-{n}publ{m}`, `possibly_superseded.laws[]` carries the same, and the caveat served on every `get_us_code_section` success says "call get_public_law with its package_id". `get_public_law` refuses that string: `citation: "PLAW-119publ74"` → `invalid_argument`, "could not parse 'PLAW-119publ74' as a public-law citation (expected e.g. 'Pub. L. 118-31')". Measured: eight refused calls in two of four DeepSeek A4 rows, every input copied from a server response, both rows recovering by rewriting to "Pub. L. N-M" (O110c).
 
@@ -380,7 +380,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-26 — a cancelled call leaves nothing running, and a cut failure body says so (S32; contracts in `40-tools.md`, "A cancelled call leaves nothing running" and "Failure bodies are bounded only out loud")
 
-**Status:** ISSUED 2026-09-29. Queued behind WO-24 and WO-25 (both underway) and independent of both; not urgent — the maintainer relayed S32 as feedback that arrived before it was asked for, and hands this order over when it suits. Two parts, one commit each.
+**Status:** ISSUED 2026-09-29. Next in the queue — WO-24 and WO-25 are closed (O111) — and independent of both; not urgent — the maintainer relayed S32 as feedback that arrived before it was asked for, and hands this order over when it suits. Two parts, one commit each.
 
 **What it is.** S32, an architecture review of the implementation by another model, reports two behaviors that contradict sentences already in this spec, each with an offline reproduction that was not handed over. Neither is observable from outside the process. So the first artifact of each part is the reproduction itself: a unit test that fails before the fix. **Expectation:** both fail before the fix, as the review says. **Falsifier:** either passes before the fix — that finding is wrong, its part stops at the test, the report says so, and the contract sentence stays as a guard that costs nothing.
 
@@ -389,3 +389,13 @@ Then add a unit test that fails if any served string — `instructions`, every t
 **Part B — a cut failure body says so.** At every place an upstream body is relayed — `upstream_error`, the rate-limited outcome, `not_checked` inside `possibly_superseded` — a body within the bound is relayed verbatim, and a longer one is relayed as its opening characters with the envelope saying it was cut and giving the full length in characters. The bound and the field names are the implementation's, stated in the report; this session ratifies them into `40-tools.md`. Artifacts: unit tests at the bound, one character over and far over (the review's 6,000-character 500 and 3,000-character 429) for each outcome that relays a body, asserting a verbatim body or the disclosure with the true length; the pre-fix run failing on the over-bound cases. A body at or under the bound is served byte-identically before and after.
 
 **Not in this order.** Splitting `tools.py`, consolidating response construction, or giving the remembered `currentthrough` an owner (S32 findings 3 and 4) — code structure, the implementation session's own call; if done, alongside this order or later, every description, envelope and served string stays byte-identical, the report says how that was checked, and this session re-probes from a fresh process. Admission control, deadlines and trace-write blocking (S32 item 5), which belong to a deployment model the spec does not have. Any change to the bound beyond what disclosure needs. Writing under `documentation/`.
+
+## WO-27 — a page past the end says so (F19, O111e; contract in `40-tools.md`, "A page past the end is not zero results")
+
+**Status:** ISSUED 2026-09-29. Queued behind WO-26 and independent of it. One message, one commit.
+
+**What it is.** Walking a search to its end, the last call returns an empty page with `count` 0 — upstream's own value past the end, in both orders (O112) — and the server serves the zero-results message, "this is 'found nothing'", after it has served every hit. The envelope is faithful and the message is false.
+
+**Part A.** On `search_us_code` and `search_public_laws`, when the request's `offset_mark` is anything but "*" and no hits come back, the message is the contract's sentence, character for character; the zero-results message stays for first pages. `outcome`, `count`, `results`, `offset_mark` and `query` are served as now. Artifacts: unit tests on both tools — an empty continuation page gets the new message, an empty first page keeps the zero-results message, a non-empty continuation page is unchanged; a fresh-process probe walking `bank notes as collateral` at `page_size` 100 to its end, the terminal envelope pasted. This session re-walks it from a fresh process.
+
+**Not in this order.** Correcting `count` on that page — the server holds no state between calls. Deduplicating across pages (E39, O112). Any other served string. Writing under `documentation/`.
