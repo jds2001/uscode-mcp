@@ -181,7 +181,11 @@ class TestServerBuiltQueriesCarryNoSort:
 
         assert out["outcome"] == "success"
         bodies = _search_bodies(seen)
-        assert [b["query"] for b in bodies] == [out["possibly_superseded"]["query"]]
+        # The detector and, since WO-28 B, the same-citation family search: both
+        # select by citation and carry no sort.
+        assert sorted(b["query"] for b in bodies) == sorted(
+            [out["possibly_superseded"]["query"], 'collection:USCODE citation:"17 U.S.C. 107"']
+        )
         assert all("sorts" not in b for b in bodies)
 
     async def test_public_law_resolution_request_is_unsorted(self, make_client):

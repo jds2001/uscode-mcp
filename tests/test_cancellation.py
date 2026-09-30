@@ -190,11 +190,31 @@ class TestCancelledCallLeavesNothingRunning:
         )
         await recorder.event("summary").wait()
         await asyncio.sleep(0)
-        assert sorted(recorder.seen) == ["detector", "summary"]
+        # WO-28 B: the same-citation family search is a third request the call owns.
+        assert sorted(recorder.seen) == ["detector", "search", "summary"]
 
         requests_at_cancel = await cancel_and_settle(call, recorder)
 
         assert pending_tasks() - before == set(), "a task started for the cancelled call is still running"
+        assert recorder.seen[requests_at_cancel:] == []
+
+    async def test_by_id_cancelled_during_the_summary_with_the_family_search_in_flight(self, make_client):
+        # Cold (no speculative detector): the family search is the one request
+        # beside the summary, and it must not outlive the call either.
+        recorder = Recorder(hold={"summary": 0.5, "search": 0.5})
+        before = pending_tasks()
+        call = asyncio.create_task(
+            tools.get_us_code_section(
+                make_client(recorder), granule_id="USCODE-2024-title17-chap1-sec107", citation="17 U.S.C. 107"
+            )
+        )
+        await recorder.event("summary").wait()
+        await asyncio.sleep(0)
+        assert sorted(recorder.seen) == ["search", "summary"]
+
+        requests_at_cancel = await cancel_and_settle(call, recorder)
+
+        assert pending_tasks() - before == set(), "the family search outlived the cancelled call"
         assert recorder.seen[requests_at_cancel:] == []
 
 

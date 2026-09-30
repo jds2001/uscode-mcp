@@ -769,6 +769,150 @@ class _Detector:
 # ---------------------------------------------------------------------------
 
 
+def _citation_query(parsed: USCCitation) -> str:
+    """The citation search: the one query that selects a citation's granules."""
+    return f'collection:USCODE citation:"{parsed.normalized}"'
+
+
+# WO-28 B: the by-id note. The served message inside `same_citation_candidates`,
+# contractual character for character (WO-17 part B's shape), and the disclosure
+# served when the family search itself failed — the lookup never fails for it.
+SAME_CITATION_CANDIDATES_MESSAGE = (
+    "This provision shares its citation with {n} other(s): {titles}. The person asking should be told."
+)
+SAME_CITATION_NOT_CHECKED_MESSAGE = (
+    "Whether other provisions share this citation was not checked: the citation search failed, and its "
+    "failure is in 'not_checked'. Do not present this as the only provision with this citation."
+)
+SAME_CITATION_EDITION_NOT_ON_PAGE_MESSAGE = (
+    "Whether other provisions share this citation was not checked: the citation search returned no granule of "
+    "this provision's edition ({package_id}), so its family could not be read from the page — the search covers "
+    "the current edition, and this granule is from another. Do not present this as the only provision with this "
+    "citation."
+)
+
+# An appendix rule's id, after dup-segment removal: `-app-` and a trailing `-rule{n}`
+# segment (the measured grammar, O115). The group is the rule number the citation names.
+_APPENDIX_RULE_ID_RE = re.compile(r"-app-.*-rule(?P<rule>\d+(?:\.\d+)?)\Z")
+
+
+def _appendix_rule_citation_from_id(granule_id: str, package_title: str) -> USCCitation | None:
+    """`28 U.S.C. App. Rule 9` from `USCODE-2024-title28-app-federalru-dup1-rule9`;
+    None for any id that is not an appendix rule's."""
+    m = _APPENDIX_RULE_ID_RE.search(normalized_granule_id(granule_id))
+    if m is None:
+        return None
+    return parse_usc(citation=f"{package_title} U.S.C. App. Rule {m.group('rule')}")
+
+
+class _FamilySearch:
+    """The citation search a by-id call runs for its same-citation family (WO-28 B),
+    owned by the call the way the detector is: started before the summary fetch so
+    it overlaps the two upstream round trips, awaited only once the lookup has
+    succeeded, and closed — cancelled if still in flight — when the call ends by
+    any path. The request is the resolution path's without a year (`historical`
+    false): one edition per page (O93b), so the current edition's family is never
+    beyond the page — `historical` true was measured to return 119 hits across
+    editions for Rule 4 and cap at 100. An id from another edition finds no
+    granule of its edition on the page, and that is disclosed, not read as a
+    family of one."""
+
+    def __init__(self, client: GovInfoClient, parsed: USCCitation | None) -> None:
+        self._client = client
+        self.query = _citation_query(parsed) if parsed is not None else None
+        self._task: asyncio.Task[Any] | None = None
+
+    def start(self) -> None:
+        if self.query is None:
+            return
+        body = {"query": self.query, "pageSize": MAX_PAGE_SIZE, "offsetMark": "*", "historical": False}
+        self._task = asyncio.create_task(self._run(body, asyncio.current_task()))
+
+    async def _run(self, body: dict[str, Any], owner: asyncio.Task[Any] | None) -> Any:
+        if owner is not None and owner.cancelling():
+            raise asyncio.CancelledError
+        return await _search(self._client, body)
+
+    async def result(self) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        """(data, None) or (None, failure); (None, None) when no search was started."""
+        if self._task is None:
+            return None, None
+        task, self._task = self._task, None
+        data, failure, _ = await task
+        return data, failure
+
+    async def close(self) -> None:
+        if self._task is None:
+            return
+        task, self._task = self._task, None
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+def _same_citation_candidates(
+    fetched_granule_id: str, query: str | None, data: dict[str, Any] | None, failure: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    """The `same_citation_candidates` object for a by-id success, or None for a
+    family of one. Membership is normalized-id equality with the fetched granule,
+    which also drops the dotted over-match (Rule 4.1 beside the Rule 4s)."""
+    if failure is not None:
+        return {"count": None, "others": None, "not_checked": failure, "message": SAME_CITATION_NOT_CHECKED_MESSAGE}
+    if data is None:
+        return None
+    ids = [hit["granuleId"] for hit in data["results"] if isinstance(hit.get("granuleId"), str)]
+    package_match = _USCODE_GRANULE_ID_RE.match(fetched_granule_id)
+    edition_prefix = package_match.group("package") + "-" if package_match else None
+    if edition_prefix is not None and not any(i.startswith(edition_prefix) for i in ids):
+        package_id = edition_prefix[:-1]
+        return {
+            "count": None,
+            "others": None,
+            "not_checked": {
+                "reason": "edition_not_on_page",
+                "detail": (
+                    f"the citation search returned {len(ids)} granule(s), none from {package_id}; "
+                    "the page covers the current edition only."
+                ),
+                "query": query,
+            },
+            "message": SAME_CITATION_EDITION_NOT_ON_PAGE_MESSAGE.format(package_id=package_id),
+        }
+    family_key = normalized_granule_id(fetched_granule_id)
+    others = [
+        {"granule_id": hit.get("granuleId"), "title": hit.get("title")}
+        for hit in data["results"]
+        if isinstance(hit.get("granuleId"), str)
+        and hit["granuleId"] != fetched_granule_id
+        and normalized_granule_id(hit["granuleId"]) == family_key
+    ]
+    if not others:
+        return None
+    message = SAME_CITATION_CANDIDATES_MESSAGE.format(n=len(others), titles="; ".join(str(o["title"]) for o in others))
+    size = len(others) + 1
+    out: dict[str, Any] = {"count": size, "others": others, "message": message}
+    shown = len(data["results"])
+    count = data.get("count")
+    if isinstance(count, int) and count > shown:
+        out["capped"] = True
+        out["message"] += (
+            f" The citation search page was capped at {shown} of {count} hits, so a family member beyond it "
+            f"is not seen: {size} is a floor, showing {size} of at least that many."
+        )
+    return out
+
+
+def _insert_after(out: dict[str, Any], after: str, key: str, value: Any) -> dict[str, Any]:
+    """The same mapping with `key` placed right after `after` (a new dict)."""
+    rebuilt: dict[str, Any] = {}
+    for k, v in out.items():
+        rebuilt[k] = v
+        if k == after:
+            rebuilt[key] = value
+    if key not in rebuilt:
+        rebuilt[key] = value
+    return rebuilt
+
+
 async def _resolve_granule(
     client: GovInfoClient,
     parsed: USCCitation,
@@ -780,7 +924,7 @@ async def _resolve_granule(
     Returns ``(hit, download, txt_link, None)`` on success, or ``(None, None, None,
     outcome)`` for every early outcome: upstream failure, not_found,
     appendix_redirect, ambiguous, or a hit without a txtLink."""
-    query = f'collection:USCODE citation:"{parsed.normalized}"'
+    query = _citation_query(parsed)
     body = {
         "query": query,
         "pageSize": MAX_PAGE_SIZE,
@@ -1104,10 +1248,25 @@ async def _get_section_by_id(
     # The id names its edition, so the detector can predict its bound from the
     # remembered currentthrough of that edition year (verified after the fetch).
     detector = _Detector(client, parsed, int(m.group("year")))
+    # WO-28 B: the family search runs on the caller's citation, or — without one —
+    # on the citation an appendix-rule id names; on any other id there is none.
+    family = _FamilySearch(
+        client, parsed if parsed is not None else _appendix_rule_citation_from_id(granule_id, package_title)
+    )
     try:
         detector.start_early()
-        return await _deliver_by_id(client, detector, parsed, granule_id, package_id, head, max_chars, start_char, find)
+        family.start()
+        out = await _deliver_by_id(client, detector, parsed, granule_id, package_id, head, max_chars, start_char, find)
+        if out.get("outcome") != "success":
+            return out
+        candidates = _same_citation_candidates(
+            out["provenance"]["granule_id"] or granule_id, family.query, *await family.result()
+        )
+        if candidates is None:
+            return out
+        return _insert_after(out, "possibly_superseded", "same_citation_candidates", candidates)
     finally:
+        await family.close()
         await detector.close()
 
 

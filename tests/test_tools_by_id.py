@@ -23,8 +23,13 @@ SUMMARY_PATH = f"/packages/{PID}/granules/{GID}/summary"
 DETECTOR_QUERY_107 = 'collection:PLAW lawtype:public publishdate:range(2025-01-07,) uscodecitation:"17 U.S.C. 107"'
 
 
-def by_id_handler(summary_response=None, htm_text=fx.SECTION_HTML, seen=None, detector_response=None):
-    """Serve the granule summary, the /htm link it carries, and the PLAW detector."""
+def by_id_handler(
+    summary_response=None, htm_text=fx.SECTION_HTML, seen=None, detector_response=None, family_response=None
+):
+    """Serve the granule summary, the /htm link it carries, the PLAW detector, and —
+    WO-28 B — the USCODE citation search the id path runs for the same-citation
+    family when a citation is given or the id is an appendix rule. The default
+    family page is one section hit, a family of one."""
 
     def handler(request):
         if seen is not None:
@@ -35,8 +40,12 @@ def by_id_handler(summary_response=None, htm_text=fx.SECTION_HTML, seen=None, de
             return httpx.Response(200, text=htm_text)
         if request.url.path == "/search":
             body = fx.request_body(request)
-            assert "collection:PLAW" in body["query"], "the id path must not run a citation search"
-            return detector_response if detector_response is not None else fx.json_response(fx.search_response([]))
+            if "collection:PLAW" in body["query"]:
+                return detector_response if detector_response is not None else fx.json_response(fx.search_response([]))
+            assert body["query"].startswith('collection:USCODE citation:"'), body["query"]
+            return (
+                family_response if family_response is not None else fx.json_response(fx.search_response([fx.usc_hit()]))
+            )
         raise AssertionError(f"unexpected request: {request.method} {request.url}")
 
     return handler
@@ -67,7 +76,11 @@ class TestByIdSuccess:
         paths = [r.url.path for r in seen if r.url.path != "/search"]
         assert paths[0] == SUMMARY_PATH
         assert paths[1] == f"/packages/{PID}/granules/{GID}/htm"
-        assert all(r.url.path != "/search" or "collection:PLAW" in fx.request_body(r)["query"] for r in seen)
+        # WO-28 B: with a citation alongside, the id path runs one citation search for
+        # the same-citation family, beside the detector; nothing else.
+        searches = [fx.request_body(r)["query"] for r in seen if r.url.path == "/search"]
+        assert sorted(searches) == sorted([DETECTOR_QUERY_107, 'collection:USCODE citation:"17 U.S.C. 107"'])
+        assert "same_citation_candidates" not in out  # a family of one
 
     async def test_txtlink_is_taken_verbatim_not_constructed(self, make_client):
         seen = []
