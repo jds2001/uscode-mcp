@@ -573,14 +573,15 @@ class TestPublicLinksById:
 
 
 class TestGranuleIdGrammar:
-    """WO-15 B (40-tools.md "By-id behavior"): the id is accepted only when it is
-    USCODE-{year}-title{n} followed by hyphen-separated segments of letters and digits
-    — a character class, not a parse — and anything else is refused before any request,
+    """WO-15 B (40-tools.md "By-id behavior"), widened by WO-29 A (F21): the id is
+    accepted only when it is USCODE-{year}-title{n} followed by hyphen-separated
+    segments of letters and digits, in which a dot or an underscore may appear inside
+    a segment but never lead it, never repeat and never sit beside a hyphen — a
+    character class, not a parse — and anything else is refused before any request,
     so no id can ever reach the summary URL (S26 finding 2)."""
 
     REFUSED = [
         "USCODE-2024-title17-x/../../../search?x=1",  # the S26 traversal id
-        "USCODE-2024-title17-chap1.sec107",  # dotted
         "USCODE-2024-title17-chap1-sec107?api_key=x",  # query-bearing
         "USCODE-2024-title17-chap1 sec107",  # whitespace inside
         "USCODE-2024-title17-chap1-sec107#frag",
@@ -591,6 +592,15 @@ class TestGranuleIdGrammar:
         "uscode-2024-title17-chap1-sec107",  # the grammar is case-exact, as served
         "USCODE-24-title17-chap1-sec107",
         "USCODE-2024-title17",  # a package id is not a granule id
+        # WO-29 A: a dot or underscore is admitted inside a segment only.
+        "USCODE-2024-title28-app-federalru-dup1-.1",  # leading dot
+        "USCODE-2024-title28-app-federalru-dup1-rule4..1",  # doubled
+        "USCODE-2024-title28-app-federalru-dup1-rule4.",  # trailing dot
+        "USCODE-2024-title28-partV-chap123-sec1932_",  # trailing underscore
+        "USCODE-2024-title28-partV-chap123-_2",  # leading underscore
+        "USCODE-2024-title28-partV-chap123-sec1932_.2",  # adjacent marks
+        "USCODE-2024-title28-partV-chap123-sec1932_2/../x",  # traversal after a marked segment
+        "USCODE-2024-title28.partV-chap123-sec1932",  # a dot in the leading segments
     ]
 
     @pytest.mark.parametrize("bad", REFUSED)
@@ -621,6 +631,15 @@ class TestGranuleIdGrammar:
         "USCODE-2024-title42-chap6A-subchapII-partD-sec254c-8",
         "USCODE-2024-title12-chap13-sec1701z-6",
         "USCODE-2024-title5a-app-inspector-sec1",
+        # WO-29 A (F21, O116): the corpus's dotted appendix rules and `_2` second sections.
+        "USCODE-2024-title28-app-federalru-dup1-rule4.1",
+        "USCODE-2024-title28-partV-chap123-sec1932_2",
+        "USCODE-2024-title5-partIII-subpartB-chap35-subchapVII-sec3598_2",
+        "USCODE-2024-title17-chap1.sec107",  # a dot inside a segment, refused before WO-29
+        # WO-29's artifact list names `…-rule.1` as a refusal, but the contract's
+        # character class admits a dot between letters and digits inside a segment;
+        # refusing it would take a parse of the segment, which the order excludes.
+        "USCODE-2024-title28-app-federalru-dup1-rule.1",
     ]
 
     @pytest.mark.parametrize("good", ACCEPTED)

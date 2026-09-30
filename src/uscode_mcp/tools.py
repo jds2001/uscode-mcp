@@ -1114,15 +1114,20 @@ async def _resolve_granule(
     return hit, download, txt_link, None
 
 
-# The accepted granule id grammar (40-tools.md "By-id behavior", WO-15 B; O86b: 540 of
-# 540 GovInfo-served ids): the leading USCODE-{year}-title{n} segments, then one or
-# more hyphen-separated segments of letters and digits only. A character class, not
-# a parse — nothing beyond the leading segments is interpreted. Anything else (a
-# slash, dot, query character or whitespace included) is refused before any request,
-# so no id can reach the summary URL (S26 finding 2: `/../` did, and its 404 read as
-# "no package").
+# The accepted granule id grammar (40-tools.md "By-id behavior", WO-15 B, widened by
+# WO-29 A from F21/O116): the leading USCODE-{year}-title{n} segments, then one or
+# more hyphen-separated segments of letters and digits, in which a dot or an
+# underscore may appear inside the segment but never lead it, never repeat and
+# never sit beside a hyphen. The corpus has both — dotted appendix rules
+# (`…-dup1-rule4.1`) and second sections of a number (`…-sec1932_2`), 52 of 19,947
+# ids across eight 2024 titles — and the server hands those ids out in search
+# results and candidate lists, so it must take them back. A character class, not a
+# parse — nothing beyond the leading segments is interpreted. Anything else (a
+# slash, `..`, a leading dot, a query character or whitespace included) is refused
+# before any request, so no id can reach the summary URL (S26 finding 2: `/../`
+# did, and its 404 read as "no package").
 _USCODE_GRANULE_ID_RE = re.compile(
-    r"^(?P<package>USCODE-(?P<year>\d{4})-title(?P<title>\d+[a-z]?))(?:-[A-Za-z0-9]+)+\Z"
+    r"^(?P<package>USCODE-(?P<year>\d{4})-title(?P<title>\d+[a-z]?))(?:-[A-Za-z0-9]+(?:[._][A-Za-z0-9]+)*)+\Z"
 )
 _USCODE_PACKAGE_ID_RE = re.compile(r"^USCODE-\d{4}-title(?P<title>\d+[a-z]?)\Z")
 
@@ -1267,8 +1272,9 @@ async def _get_section_by_id(
     if not m:
         return _invalid_argument(
             f"granule_id {granule_id!r} is not a USCODE granule id; nothing was fetched. Expected "
-            "USCODE-{year}-title{n} followed by hyphen-separated segments of letters and digits only, "
-            "exactly as a disambiguation list or search_us_code result carried it."
+            "USCODE-{year}-title{n} followed by hyphen-separated segments of letters and digits (a dot or an "
+            "underscore may appear inside a segment, never leading or repeated), exactly as a disambiguation "
+            "list or search_us_code result carried it."
         )
     derived = package_id is None or not package_id.strip()
     if derived:
