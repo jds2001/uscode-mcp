@@ -380,7 +380,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-26 — a cancelled call leaves nothing running, and a cut failure body says so (S32; contracts in `40-tools.md`, "A cancelled call leaves nothing running" and "Failure bodies are bounded only out loud")
 
-**Status:** ISSUED 2026-09-29. Next in the queue — WO-24 and WO-25 are closed (O111) — and independent of both; not urgent — the maintainer relayed S32 as feedback that arrived before it was asked for, and hands this order over when it suits. Two parts, one commit each.
+**Status:** LANDED `3b49342` (A) and `b2eb34f` (B), VERIFIED at unit level with the reproductions as the order required (O116a: A's cancellation tests 4 of 6 failing before the fix, B's 18 over-bound cases failing and 11 within-bound passing), CLOSED 2026-09-29; bounds and field names ratified into `40-tools.md`. History: ISSUED 2026-09-29. Next in the queue — WO-24 and WO-25 are closed (O111) — and independent of both; not urgent — the maintainer relayed S32 as feedback that arrived before it was asked for, and hands this order over when it suits. Two parts, one commit each.
 
 **What it is.** S32, an architecture review of the implementation by another model, reports two behaviors that contradict sentences already in this spec, each with an offline reproduction that was not handed over. Neither is observable from outside the process. So the first artifact of each part is the reproduction itself: a unit test that fails before the fix. **Expectation:** both fail before the fix, as the review says. **Falsifier:** either passes before the fix — that finding is wrong, its part stops at the test, the report says so, and the contract sentence stays as a guard that costs nothing.
 
@@ -392,7 +392,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-27 — a page past the end says so (F19, O111e; contract in `40-tools.md`, "A page past the end is not zero results")
 
-**Status:** ISSUED 2026-09-29. Queued behind WO-26 and independent of it. One message, one commit.
+**Status:** LANDED `c954ee5`, VERIFIED from a fresh process (O116b: the walk's terminal page carries the message character for character; a first-page zero keeps the zero-results message), CLOSED 2026-09-29. History: ISSUED 2026-09-29. Queued behind WO-26 and independent of it. One message, one commit.
 
 **What it is.** Walking a search to its end, the last call returns an empty page with `count` 0 — upstream's own value past the end, in both orders (O112) — and the server serves the zero-results message, "this is 'found nothing'", after it has served every hit. The envelope is faithful and the message is false.
 
@@ -402,7 +402,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-28 — same-citation families read from ids: the search-hit note, the by-id note, and the Rule 4.1 over-match (R34a; contract in `40-tools.md`, "Same-citation families are read from ids"; measured basis O107, E40/O115; consumer effect preregistered as E41)
 
-**Status:** ISSUED 2026-09-29. Queued behind WO-26 and WO-27 and independent of both. Four parts, one commit each; this session probes the served strings from a fresh process before E41's after arm runs.
+**Status:** LANDED `8566c4a` (A), `110da9b` (B), `d205409` (C), `27ae69f` (D), VERIFIED from a fresh process (O116c–e) and CLOSED 2026-09-29; B's edition rule and message placement and C's `count_unfiltered` ratified; F21 found by the implementation on the way (the dotted id refused) and widened by this session's scan — WO-29. E41 is ready to run. History: ISSUED 2026-09-29. Queued behind WO-26 and WO-27 and independent of both. Four parts, one commit each; this session probes the served strings from a fresh process before E41's after arm runs.
 
 **What it is.** Every gpt-oss A5 row that searched first and fetched one Rule 9 by `granule_id` presented it as the only one — 5 of 5 at O107, 9 across runs — while every row that reached `ambiguous` named both (7 of 7). The `ambiguous` message never reaches the search path. E40 measured the mechanism that makes both notes free: same-citation granules have ids equal once every `dup{N}` segment is removed. The same rule fixes a resolution defect found on the way: `28 U.S.C. App. Rule 4` served as four provisions sharing a citation, one of them Rule 4.1.
 
@@ -415,3 +415,15 @@ Then add a unit test that fails if any served string — `instructions`, every t
 **Part D — the README exception recorded (R34b).** CONTRIBUTING's two-session section, `AGENTS.md` and `.claude/CLAUDE.md` (kept identical; the sync test) gain one sentence: the repository-root README is the spec session's to keep current and is the one file outside `documentation/` it writes, without a work order, whenever a closed work order or a scored run makes a sentence in it stale. Artifact: the diff; the sync test passing.
 
 **Not in this order.** Any change to the `ambiguous` message's wording (R28). Any note on `search_public_laws` hits (no collision measured in PLAW). Constructing a granule id (settled); part B derives a citation from an id it was given and verifies the family on the ids upstream returns. Writing under `documentation/`.
+
+## WO-29 — ids the server hands out can be re-entered, and the second-section marker joins the family rule (F21, O116e; contract in `40-tools.md`, "By-id behavior" and "Same-citation families", consequence (4))
+
+**Status:** ISSUED 2026-09-29. Two parts, one commit each; this session probes both from a fresh process.
+
+**What it is.** The by-id grammar (WO-15 B) admits letters and digits only, from a 540-id sample with neither dot nor underscore. The corpus has both: 52 of 19,947 ids across eight 2024 titles — dotted appendix rules in titles 11, 18 and 28, and `_2` second sections in titles 5 and 28 — and the server serves those ids in search results and candidate lists, then refuses them (`…-dup1-rule4.1` → `invalid_argument`, "is not a USCODE granule id"). The `_2` ids are citation families the `dup` rule does not see: 3 of 3 return two granules under `citation:`.
+
+**Part A — the grammar.** `(-[A-Za-z0-9]+(?:[._][A-Za-z0-9]+)*)+` after `USCODE-{year}-title{n}`: a dot or underscore inside a segment, never leading, never doubled, never adjacent to a hyphen. Every refusal WO-15 B pinned stays refused (the traversal id, the query-bearing id, whitespace, the bare package id). Artifacts: unit tests accepting `USCODE-2024-title28-app-federalru-dup1-rule4.1`, `USCODE-2024-title28-partV-chap123-sec1932_2` and `USCODE-2024-title5-partIII-subpartB-chap35-subchapVII-sec3598_2`, and refusing `…-rule.1`, `…-rule4..1`, `…-sec1932_`, `…-_2`, `…/../`; a fresh-process probe fetching the Rule 4.1 id and the § 1932 second-section id with `find` on one word each, envelopes pasted.
+
+**Part B — the family rule.** `normalized_granule_id` also removes a trailing `_\d+` from the last segment. Artifacts: unit tests — a page holding `…-sec1932` and `…-sec1932_2` annotates both; by-id on `…-sec1932_2` with `citation` "28 U.S.C. 1932" names the other; `…-sec1932` alone on a page carries nothing; the Rule 9 cases unchanged; a fresh-process probe of `citation:"28 U.S.C. 1932"` through `search_us_code` (both hits annotated) and by-id on the `_2` granule, pasted.
+
+**Not in this order.** Any parse of the segments beyond the character class. Any change to resolution (both § 1932s already resolve as `ambiguous`). Writing under `documentation/`.
