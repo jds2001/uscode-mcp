@@ -567,6 +567,13 @@ class _Detector:
     on a mismatch, or issuing for the first time on a cold lookup; ``finish`` waits
     a bounded budget once the text is ready and renders the three-state object.
     Every path ends in a `possibly_superseded` object; none can fail the lookup.
+
+    Ownership (WO-26 A): the detector's task belongs to the tool call that created
+    it. The call wraps everything after construction in ``try/finally: await
+    detector.close()``, so a call that ends early — a failure outcome, a shape
+    error, or the caller's cancellation arriving at any await — cancels the query
+    before it returns or re-raises, and a task created but not yet started never
+    runs at all.
     """
 
     def __init__(self, client: GovInfoClient, parsed: USCCitation | None, year: int | None) -> None:
@@ -613,7 +620,16 @@ class _Detector:
             return
         assert self._citation is not None
         self.query = superseded.build_query(self._citation, self.since)
-        self._task = asyncio.create_task(superseded.run_detector(self._client, self.query))
+        self._task = asyncio.create_task(self._run(self.query, asyncio.current_task()))
+
+    async def _run(self, query: str, owner: asyncio.Task[Any] | None) -> superseded.DetectorOutcome:
+        # WO-26 A: a cancellation requested of the owning call is delivered at the
+        # call's next step, and a task created just before takes its first step in
+        # that gap. A query that would go out in the gap is one the call will never
+        # read: refuse to send it rather than send-and-cancel.
+        if owner is not None and owner.cancelling():
+            raise asyncio.CancelledError
+        return await superseded.run_detector(self._client, query)
 
     async def _discard(self) -> None:
         if self._task is None:
@@ -634,8 +650,12 @@ class _Detector:
             self._issued = "before_search"
             self._launch(self._predicted)
 
-    async def abandon(self) -> None:
-        """The lookup is failing before any success object exists; drop the query."""
+    async def close(self) -> None:
+        """The call that owns this detector is ending — by a result, an exception or
+        the caller's cancellation (WO-26 A). Whatever query is still in flight is
+        cancelled and awaited here, so nothing started for the call outlives it and
+        no request is issued on its behalf afterwards. A no-op once `finish` has
+        consumed the task, so every completed call's response is unchanged."""
         await self._discard()
 
     async def after_fetch(self, edition_year: int | None, currentthrough: str | None) -> None:
@@ -939,7 +959,6 @@ async def _fetch_and_deliver(
     edition_year = edition_year_from_package_id(package_id)
     resp, failure = await _fetch(client, txt_link, "txtLink")
     if failure is not None:
-        await detector.abandon()
         return failure
     assert resp is not None
     html = resp.text
@@ -980,7 +999,6 @@ async def _fetch_and_deliver(
         )
     past_end = _past_end_failure(start_char, len(text))
     if past_end is not None:
-        await detector.abandon()
         return past_end
     if start_char:
         # R13a: the block is invariant per (section, year); a reading call has no use
@@ -989,7 +1007,6 @@ async def _fetch_and_deliver(
     try:
         window = window_text(text, start_char=start_char, max_chars=max_chars)
     except ValueError as exc:
-        await detector.abandon()
         return _invalid_argument(str(exc))
     add_audience_sentence(window, provenance["public_pdf_link"], provenance["details_link"])
 
@@ -1078,12 +1095,28 @@ async def _get_section_by_id(
     # The id names its edition, so the detector can predict its bound from the
     # remembered currentthrough of that edition year (verified after the fetch).
     detector = _Detector(client, parsed, int(m.group("year")))
-    detector.start_early()
+    try:
+        detector.start_early()
+        return await _deliver_by_id(client, detector, parsed, granule_id, package_id, head, max_chars, start_char, find)
+    finally:
+        await detector.close()
 
+
+async def _deliver_by_id(
+    client: GovInfoClient,
+    detector: _Detector,
+    parsed: USCCitation | None,
+    granule_id: str,
+    package_id: str,
+    head: dict[str, Any],
+    max_chars: int,
+    start_char: int,
+    find: str | None,
+) -> dict[str, Any]:
+    """The by-id path's upstream work, run inside the detector's ownership scope."""
     try:
         summary_resp = await client.granule_summary(package_id, granule_id)
     except GovInfoTransportError as exc:
-        await detector.abandon()
         return _transport_failure(exc)
     # Measured not-found shapes (WO-3 verification run, 2026-09-15): a nonexistent
     # package answers 404; a nonexistent granule under an existing package — or a
@@ -1096,7 +1129,6 @@ async def _get_section_by_id(
     elif summary_resp.status == 400 and "invalid granuleid" in summary_resp.text.lower():
         not_found_kind = "granule"
     if not_found_kind is not None:
-        await detector.abandon()
         what = (
             f"no package {package_id!r} (HTTP 404)"
             if not_found_kind == "package"
@@ -1117,21 +1149,17 @@ async def _get_section_by_id(
         }
     failure = _classify(summary_resp)
     if failure is not None:
-        await detector.abandon()
         return failure
     try:
         summary = summary_resp.json()
     except ValueError:
-        await detector.abandon()
         return _upstream_failure(summary_resp, detail="granule summary was not valid JSON")
     if not isinstance(summary, dict):
-        await detector.abandon()
         return _upstream_failure(
             summary_resp, detail=f"granule summary expected a JSON object, got {type(summary).__name__}"
         )
     raw_download = summary.get("download")
     if raw_download is not None and not isinstance(raw_download, dict):
-        await detector.abandon()
         return _upstream_failure(
             summary_resp,
             detail=f"granule summary expected 'download' to be an object, got {type(raw_download).__name__}",
@@ -1139,13 +1167,11 @@ async def _get_section_by_id(
     download = raw_download or {}
     txt_link = download.get("txtLink")
     if txt_link is not None and not isinstance(txt_link, str):
-        await detector.abandon()
         return _upstream_failure(
             summary_resp,
             detail=f"granule summary expected 'download.txtLink' to be a string, got {type(txt_link).__name__}",
         )
     if not txt_link:
-        await detector.abandon()
         return {
             "outcome": "upstream_error",
             "http_status": None,
@@ -1226,25 +1252,28 @@ async def get_us_code_section(
     # R14: with a remembered bound the detector goes out before the citation
     # search, overlapping both upstream round trips; it is verified after the fetch.
     detector = _Detector(client, parsed, year)
-    detector.start_early()
-    hit, download, txt_link, early = await _resolve_granule(client, parsed, year, normalization)
-    if early is not None:
-        await detector.abandon()
-        return early
-    assert hit is not None and download is not None and txt_link is not None
-    head = {"citation": parsed.normalized, "normalization": normalization}
-    return await _fetch_and_deliver(
-        client,
-        detector,
-        parsed,
-        hit,
-        download,
-        txt_link,
-        max_chars,
-        start_char,
-        find,
-        head,
-    )
+    try:
+        detector.start_early()
+        hit, download, txt_link, early = await _resolve_granule(client, parsed, year, normalization)
+        if early is not None:
+            return early
+        assert hit is not None and download is not None and txt_link is not None
+        head = {"citation": parsed.normalized, "normalization": normalization}
+        return await _fetch_and_deliver(
+            client,
+            detector,
+            parsed,
+            hit,
+            download,
+            txt_link,
+            max_chars,
+            start_char,
+            find,
+            head,
+        )
+    finally:
+        # WO-26 A: whatever ended the call, nothing started for it keeps running.
+        await detector.close()
 
 
 # ---------------------------------------------------------------------------

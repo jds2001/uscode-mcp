@@ -755,7 +755,7 @@ class TestNoBoundIsTrue:
         assert detector._bound_error is not None and detector._task is None
         detector._launch("2025-01-06")
         assert detector._bound_error is None and detector._task is not None
-        await detector.abandon()
+        await detector.close()
 
     async def test_speculative_query_is_cancelled_and_accounted_for_when_the_payload_has_no_bound(self, make_client):
         # Warm the memory with a valid bound, then serve a payload whose currentthrough
