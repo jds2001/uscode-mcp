@@ -7,7 +7,6 @@ import httpx
 import pytest
 
 from uscode_mcp import tools
-from uscode_mcp.htmltext import window_text
 
 
 def plaw_handler(search_payload=None, summary=None, htm=fx.PLAW_HTML, uslm=fx.PLAW_USLM, seen=None):
@@ -284,7 +283,8 @@ class TestGetPublicLaw:
         out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31, max_chars=20)
         assert out["outcome"] == "success"
         assert out["text"]["truncated"] is True
-        assert out["text"]["next_start_char"] == 20
+        assert 1 <= out["text"]["returned_chars"] <= 20
+        assert out["text"]["next_start_char"] == out["text"]["returned_chars"]
         assert out["text"]["total_chars"] > 20
 
 
@@ -472,9 +472,10 @@ class TestBannerCoordinateDisclosure:
         offset = located["find"]["occurrences"][0]["start_char"]
 
         read = await tools.get_public_law(
-            make_client(plaw_handler()), congress=118, law_number=31, start_char=offset, max_chars=12
+            make_client(plaw_handler()), congress=118, law_number=31, start_char=offset, max_chars=40
         )
-        assert read["text"]["content"] == "NDAA fixture"
+        assert read["text"]["start_char"] == offset
+        assert read["text"]["content"].startswith("NDAA fixture")
 
     async def test_no_message_claim_when_there_is_no_banner(self, make_client):
         out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31)
@@ -539,12 +540,14 @@ class TestAudienceSentenceOnTruncatedLaw:
     async def test_continuation_sentence_and_banner_are_byte_unchanged(self, make_client):
         out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31, max_chars=40)
         text = out["text"]
-        # Reconstruct what the window said before WO-6 from the response's own coordinates.
-        bare = window_text("x" * text["total_chars"], start_char=text["start_char"], max_chars=40)
-        assert text["message"].startswith(bare["message"])
-        assert "NOT part of the payload" not in bare["message"]
-        assert text["banner"] == bare["banner"]
-        assert len(text["content"]) == text["returned_chars"] == 40
+        # The size sentence and the banner as they read before WO-6, on the bounds of
+        # the window actually returned (WO-31: max_chars is an upper bound).
+        total, n = text["total_chars"], text["returned_chars"]
+        assert 1 <= len(text["content"]) == n <= 40
+        assert text["message"].startswith(f"Payload is {total} chars; returned chars 0-{n - 1}.")
+        assert f" Continue with start_char={n}. The start_char continuation is for" in text["message"]
+        assert "NOT part of the payload" not in text["message"]
+        assert text["banner"] == f"[WINDOW chars 0–{n - 1:,} of {total:,} — truncated; continue with start_char={n}]"
 
     async def test_untruncated_response_has_no_audience_sentence(self, make_client):
         out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31)

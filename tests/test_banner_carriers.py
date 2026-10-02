@@ -49,8 +49,10 @@ async def test_truncated_content_is_payload_only_for_both_text_tools(make_client
     assert text["truncated"] is True
     assert text["banner"].startswith("[WINDOW ")
     assert not text["content"].startswith("[WINDOW ")
-    assert text["returned_chars"] == len(text["content"]) == 20
-    assert "Continue with start_char=20." in text["message"]
+    # WO-31: max_chars is an upper bound; the markers follow the window returned.
+    assert 1 <= text["returned_chars"] == len(text["content"]) <= 20
+    assert text["next_start_char"] == text["returned_chars"]
+    assert f"Continue with start_char={text['next_start_char']}." in text["message"]
     assert "banner" not in text["message"]
     assert "NOT part of the payload" not in text["message"]
     assert response["provenance"]["public_pdf_link"] in text["message"]

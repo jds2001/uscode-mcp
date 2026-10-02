@@ -348,6 +348,45 @@ def truncation_banner(start_char: int, end: int, total: int) -> str:
     return f"[WINDOW chars {start_char:,}–{end - 1:,} of {total:,} — truncated; continue with start_char={end}]"
 
 
+def _window_end(text: str, start_char: int, max_chars: int) -> tuple[int, str]:
+    """Where a window that stops short of the payload's end is ended, and at what
+    (WO-31, R36): ``max_chars`` is an upper bound, and the first of four steps that
+    applies decides. A paragraph break is two or more consecutive newlines in the
+    text as served; a single newline is not one (in a public law it is a line wrap
+    inside a sentence, O121b), and sentence punctuation is never a boundary (a
+    period and a space is a citation more often than a sentence end, O121e).
+
+    The caller guarantees ``start_char + max_chars < len(text)``. The end returned
+    is in ``(start_char, start_char + max_chars]``: no window is lengthened or empty.
+    """
+    asked = start_char + max_chars
+    # (1) As asked: the requested end already sits at a paragraph break — at the
+    # start of the newline run, inside it, or just after it. Every `structure` field
+    # ends there (O121d), so a field read by its own coordinates is returned whole.
+    before, at = text[asked - 1], text[asked]
+    if (
+        (at == "\n" and text[asked + 1 : asked + 2] == "\n")
+        or (before == "\n" and at == "\n")
+        or (before == "\n" and asked >= 2 and text[asked - 2] == "\n")
+    ):
+        return asked, "paragraph"
+    # (2) The last paragraph break inside the window, when the text up to and
+    # including it is at least half of max_chars; the window ends just after the
+    # blank line, so the next window opens on a paragraph's first character.
+    last_break = text.rfind("\n\n", start_char, asked)
+    if last_break != -1:
+        break_end = last_break + 2
+        if 2 * (break_end - start_char) >= max_chars:
+            return break_end, "paragraph"
+    # (3) The last whitespace inside the window — a paragraph longer than the window
+    # (3,099 characters in 7 U.S.C. 2020, O121b) — so that no word is split.
+    for i in range(asked - 1, start_char - 1, -1):
+        if text[i].isspace():
+            return i + 1, "word"
+    # (4) As asked: the window holds no whitespace at all (the max_chars: 1 call).
+    return asked, "character"
+
+
 def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dict[str, Any]:
     """Return a window of text with explicit truncation markers (never silent).
 
@@ -363,8 +402,10 @@ def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dic
         raise ValueError(f"max_chars must be > 0, got {max_chars}")
     total = len(text)
     end = min(start_char + max_chars, total)
-    content = text[start_char:end]
     truncated = end < total
+    if truncated:
+        end, _ = _window_end(text, start_char, max_chars)
+    content = text[start_char:end]
     result: dict[str, Any] = {
         "total_chars": total,
         "start_char": start_char,

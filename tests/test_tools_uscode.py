@@ -9,7 +9,6 @@ import httpx
 import pytest
 
 from uscode_mcp import tools
-from uscode_mcp.htmltext import window_text
 
 
 def section_handler(search_payload, htm_text=fx.SECTION_HTML, seen=None):
@@ -131,11 +130,14 @@ class TestGetSectionSuccess:
         client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
         first = await tools.get_us_code_section(client, citation="17 U.S.C. 107", max_chars=50)
         assert first["text"]["truncated"] is True
-        assert first["text"]["returned_chars"] == 50
+        assert 1 <= first["text"]["returned_chars"] <= 50
         next_start = first["text"]["next_start_char"]
-        assert next_start == 50
+        assert next_start == first["text"]["returned_chars"]
         rest = await tools.get_us_code_section(client, citation="17 U.S.C. 107", start_char=next_start)
-        assert rest["text"]["start_char"] == 50
+        assert rest["text"]["start_char"] == next_start
+        assert rest["text"]["truncated"] is False
+        whole = await tools.get_us_code_section(client, citation="17 U.S.C. 107")
+        assert first["text"]["content"] + rest["text"]["content"] == whole["text"]["content"]
         full = first["text"]["content"] + rest["text"]["content"]
         assert "must never be dropped" in full
 
@@ -1000,7 +1002,7 @@ class TestStructureRidesOnTheLocatingCall:
         out = await tools.get_us_code_section(
             self._client(make_client), citation="17 U.S.C. 107", start_char=50, max_chars=40
         )
-        assert out["text"]["returned_chars"] == 40
+        assert 1 <= out["text"]["returned_chars"] == len(out["text"]["content"]) <= 40
         assert out["text"]["start_char"] == 50
 
     async def test_the_omitted_key_is_present_on_every_success(self, make_client):
@@ -1099,11 +1101,13 @@ class TestAudienceSentenceOnTruncatedSection:
         client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
         out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", max_chars=50)
         text = out["text"]
-        bare = window_text("x" * text["total_chars"], start_char=text["start_char"], max_chars=50)
-        assert text["message"].startswith(bare["message"])
-        assert "NOT part of the payload" not in bare["message"]
-        assert text["banner"] == bare["banner"]
-        assert len(text["content"]) == text["returned_chars"] == 50
+        # On the bounds of the window actually returned (WO-31: max_chars is an upper bound).
+        total, n = text["total_chars"], text["returned_chars"]
+        assert 1 <= len(text["content"]) == n <= 50
+        assert text["message"].startswith(f"Payload is {total} chars; returned chars 0-{n - 1}.")
+        assert f" Continue with start_char={n}. The start_char continuation is for" in text["message"]
+        assert "NOT part of the payload" not in text["message"]
+        assert text["banner"] == f"[WINDOW chars 0–{n - 1:,} of {total:,} — truncated; continue with start_char={n}]"
 
     async def test_reading_call_window_also_carries_the_sentence(self, make_client):
         # A continuation window that is itself truncated is still a truncated response.

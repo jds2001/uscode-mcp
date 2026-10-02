@@ -47,14 +47,17 @@ class TestSectionDefault:
         out = await tools.get_us_code_section(section_client(make_client), citation="17 U.S.C. 107")
         text = out["text"]
         assert text["total_chars"] > 20_000
-        assert text["returned_chars"] == 20_000
+        # WO-31: the default is an upper bound; the window ends at a paragraph break
+        # or a word boundary at most 20,000 in, and every marker follows it.
+        n = text["returned_chars"]
+        assert 10_000 <= n <= 20_000
         assert text["truncated"] is True
-        assert text["next_start_char"] == 20_000
-        expected = f"[WINDOW chars 0–19,999 of {text['total_chars']:,} — truncated; continue with start_char=20000]"
+        assert text["next_start_char"] == n
+        expected = f"[WINDOW chars 0–{n - 1:,} of {text['total_chars']:,} — truncated; continue with start_char={n}]"
         assert text["banner"] == expected
         assert not text["content"].startswith("[WINDOW")
-        assert len(text["content"]) == text["returned_chars"]
-        assert "start_char=20000" in text["message"]
+        assert len(text["content"]) == n
+        assert f"start_char={n}." in text["message"]
 
     async def test_explicit_larger_max_chars_is_honored(self, make_client):
         out = await tools.get_us_code_section(section_client(make_client), citation="17 U.S.C. 107", max_chars=100_000)
@@ -72,8 +75,8 @@ class TestSectionDefault:
             return httpx.Response(200, text=BIG_SECTION_HTML)
 
         out = await tools.get_us_code_section(make_client(handler), granule_id="USCODE-2024-title17-chap1-sec107")
-        assert out["text"]["returned_chars"] == 20_000
-        assert out["text"]["next_start_char"] == 20_000
+        assert 10_000 <= out["text"]["returned_chars"] <= 20_000
+        assert out["text"]["next_start_char"] == out["text"]["returned_chars"]
 
     async def test_find_still_searches_the_full_payload(self, make_client):
         out = await tools.get_us_code_section(
@@ -89,10 +92,11 @@ class TestPublicLawDefault:
         out = await tools.get_public_law(plaw_client(make_client), congress=118, law_number=31)
         text = out["text"]
         assert text["total_chars"] > 20_000
-        assert text["returned_chars"] == 20_000
+        n = text["returned_chars"]
+        assert 10_000 <= n <= 20_000
         assert text["truncated"] is True
-        assert text["next_start_char"] == 20_000
-        assert text["banner"].startswith("[WINDOW chars 0–19,999 of ")
+        assert text["next_start_char"] == n
+        assert text["banner"].startswith(f"[WINDOW chars 0–{n - 1:,} of ")
         assert not text["content"].startswith("[WINDOW")
         assert len(text["content"]) == text["returned_chars"]
 
