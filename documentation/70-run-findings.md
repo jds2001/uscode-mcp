@@ -743,3 +743,25 @@ Before arm: the worktree at `14696ed` (implementation `54f0237`, no sort, the pr
 **The after arm.** Every `floor` first query put § 582 at rank 1 — including r02's `title:collateral bank notes`, the operator the description now teaches, sent first — and r03's second query was the description's own example, `title:collateral usctitlenum:12` (9 hits, § 582 at 2), from whose headings it correctly named §§ 412 and 414–417 as related provisions about Federal Reserve notes' backing. Every nano row sent `bank notes collateral` unquoted, saw § 582 first, fetched it, and answered in two calls. Every pass row in both arms fetched § 582 and quoted or paraphrased the prohibition from the returned text; answer text checked against each row's `text.content`.
 
 **E38 (O114): expectation held on `floor` — before 2 of 5 against a bar of at most 2, after 5 of 5 against a bar of at least 4 with the section on the first query's page; neither falsifier fired.** The nano expectation (after above before) was unreachable: before was already 5 of 5, which the preregistration could not know, and the arm's effect is in calls per row (3–5 to 2). Q31's array stays parked: no after row missed § 582, and no row that saw it on the first page answered from elsewhere.
+
+## Run 20261001222244-e41-both — E41: A5 × 10 on `loop-floor` and on `loop-floor-nano` after WO-28 (the maintainer's directory name)
+
+Run by the maintainer 2026-10-01 in one command; manifest version 13 (`8f7b86cc…`), server `a6bcfaf`, harness 0.1.0; 20 of 20 rows reached and scored, 0 harness failures; all 17 checks pass or vacuous; `loop-floor` $0.0224, nano $0.0534. Scored on A5's clauses, with E41's reads per row: the path, the notes served, and whether the answer names both provisions. PAGE is the search-hit note (`same_citation_on_page`), BYID the by-id message (`same_citation_candidates`). Outcome and reading: O117.
+
+| Cell | Row | Path | Notes served | Fetched | Names both | A5 |
+|---|---|---|---|---|---|---|
+| `loop-floor` | r01 | search, by id | PAGE, BYID | `rule9` | yes — and tells the asker "The rule you asked for is" the first | pass |
+| `loop-floor` | r02 | search | PAGE | none | yes, asks which | pass |
+| `loop-floor` | r03 | search, by id ×2 | PAGE, BYID ×2 | both | yes | pass |
+| `loop-floor` | r04 | search, by id | PAGE, BYID | `rule9` | no | class 1 |
+| `loop-floor` | r05 | search, by id | PAGE, BYID | `rule9` | no | class 1 |
+| `loop-floor` | r06 | search, by id | PAGE, BYID | `rule9` | no | class 1 |
+| `loop-floor` | r07 | search, by id | PAGE, BYID | `rule9` | no | class 1 |
+| `loop-floor` | r08 | search, by id | PAGE, BYID | `rule9` | no | class 1 |
+| `loop-floor` | r09 | search, by id | PAGE, BYID | `dup1-rule9` | no | class 1 |
+| `loop-floor` | r10 | search, by id ×2 | PAGE, BYID ×2 | both | yes | pass |
+| `loop-floor-nano` | r01–r06, r09, r10 | `ambiguous`, by id ×2 with `citation` | BYID ×2 | both | yes | pass |
+| `loop-floor-nano` | r07 | `ambiguous`, by id with `citation` | BYID | `dup1-rule9` | no | class 1 |
+| `loop-floor-nano` | r08 | `ambiguous` | none | none | yes, lists both | pass |
+
+`loop-floor` 4 of 10, nano 9 of 10. The quoted rule text was not checked against the payloads in this scoring (O117f).
