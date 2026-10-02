@@ -418,7 +418,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-29 — ids the server hands out can be re-entered, and the second-section marker joins the family rule (F21, O116e; contract in `40-tools.md`, "By-id behavior" and "Same-citation families", consequence (4))
 
-**Status:** ISSUED 2026-09-29. Two parts, one commit each; this session probes both from a fresh process.
+**Status:** LANDED `9370e4d` (A), `a6bcfaf` (B), VERIFIED from a fresh process (O118) and CLOSED 2026-10-01. One correction to this order, not to the build: `…-rule.1` in part A's refusal list is admitted by the contract's regex, and the regex stands (O118c). History: ISSUED 2026-09-29. Two parts, one commit each; this session probes both from a fresh process.
 
 **What it is.** The by-id grammar (WO-15 B) admits letters and digits only, from a 540-id sample with neither dot nor underscore. The corpus has both: 52 of 19,947 ids across eight 2024 titles — dotted appendix rules in titles 11, 18 and 28, and `_2` second sections in titles 5 and 28 — and the server serves those ids in search results and candidate lists, then refuses them (`…-dup1-rule4.1` → `invalid_argument`, "is not a USCODE granule id"). The `_2` ids are citation families the `dup` rule does not see: 3 of 3 return two granules under `citation:`.
 
