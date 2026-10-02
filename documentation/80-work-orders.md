@@ -430,7 +430,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-30 — the collision notes stop inviting a choice (R35, O117; contract in `40-tools.md`, "Same-citation families are read from ids", consequences (1) and (2))
 
-**Status:** ISSUED 2026-10-01. Two parts, one commit each; strings only. This session probes both from a fresh process before E42 runs.
+**Status:** LANDED `84ddcdd` (A), `4905b5a` (B), VERIFIED from a fresh process (O119) and CLOSED 2026-10-01. E42 is ready to run. History: ISSUED 2026-10-01. Two parts, one commit each; strings only. This session probes both from a fresh process before E42 runs.
 
 **What it is.** WO-28's two notes reached every row that could carry them at E41 and 6 of 10 gpt-oss rows still presented one Rule 9 as the only one; one row that named both told the asker which they had asked for. The hit note says the asker "should be told which is meant", which a consumer can satisfy by choosing; the by-id message says "should be told." and stops. Both are replaced. No field, no shape, no condition under which either is served changes.
 
