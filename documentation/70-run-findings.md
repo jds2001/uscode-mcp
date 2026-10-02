@@ -765,3 +765,24 @@ Run by the maintainer 2026-10-01 in one command; manifest version 13 (`8f7b86cc�
 | `loop-floor-nano` | r08 | `ambiguous` | none | none | yes, lists both | pass |
 
 `loop-floor` 4 of 10, nano 9 of 10. The quoted rule text was not checked against the payloads in this scoring (O117f).
+
+## Run 20261001230441-e42-both — E42: A5 × 10 on `loop-floor` and on `loop-floor-nano` after WO-30 (the maintainer's directory name)
+
+Run by the maintainer 2026-10-01; manifest version 13 (`8f7b86cc…`), server `4905b5a`, harness 0.1.0; 20 of 20 rows reached and scored, 0 harness failures (`loop-floor` r01 on its second attempt after a provider 429); all 17 checks pass or vacuous; `loop-floor` $0.0277, nano $0.0551. Scored on A5's clauses and the grounding rule, with E42's reads per row. Outcome and reading: O120.
+
+| Cell | Row | Path | Fetched | Names both | States the asker's meaning | Quoted text | Score |
+|---|---|---|---|---|---|---|---|
+| `loop-floor` | r01 | search, by id ×2 | both | yes | no | elided, grounded | pass |
+| `loop-floor` | r02 | search, by id ×2 | both | yes | no | stops at the cut | pass |
+| `loop-floor` | r03 | search, by id ×2 | both, in full | yes | no | none shown; summaries called "the complete statutory text" | class 3 |
+| `loop-floor` | r04 | search, by id ×2 | both | yes | no, asks | stops at the cut | pass |
+| `loop-floor` | r05 | search, by id ×2 | both | yes | no | stops at the cut, says so | pass |
+| `loop-floor` | r06 | search, by id ×2 | both | yes | no | (c) finished past the cut: "procedural standards…" | class 1 (F17) |
+| `loop-floor` | r07 | search, by id ×2 | both | yes | no | (c) finished past the cut: "procedural rules…" | class 1 (F17) |
+| `loop-floor` | r08 | search, by id ×2 | both | yes | no | (g) described past the cut | class 1 (F17) |
+| `loop-floor` | r09 | search, by id | `rule9` | yes, offers the other | no | grounded | pass |
+| `loop-floor` | r10 | search, by id ×2 | both | yes | no | (c) finished past the cut as the rule, wrong | class 1 (F17) |
+| `loop-floor-nano` | r01–r07, r09, r10 | `ambiguous`, by id ×2 with `citation` | both | yes | no; most ask | grounded | pass |
+| `loop-floor-nano` | r08 | `ambiguous`, by id ×2 with `citation` | both | yes | no, asks | close paraphrase laid out as text | class 3 |
+
+A5's clause: `loop-floor` 10 of 10, nano 10 of 10. With the grounding rule: `loop-floor` 6 of 10, nano 10 of 10.
