@@ -16,7 +16,7 @@ import fx
 import httpx
 import pytest
 
-from uscode_mcp import tools
+from uscode_mcp import htmltext, tools
 from uscode_mcp.htmltext import _window_end, window_text
 
 # "aaaa bbbb" is chars 0–8, the blank line's two newlines are 9 and 10, "cccc" opens at 11.
@@ -397,3 +397,212 @@ class TestStructureCoordinates:
             )
             assert out["text"]["content"] == content[start:end], field["field"]
             assert out["text"]["returned_chars"] == end - start
+
+
+# ---------------------------------------------------------------------------
+# Part B — what the response says
+# ---------------------------------------------------------------------------
+
+SECTION_PDF = "https://www.govinfo.gov/content/pkg/USCODE-2024-title17/pdf/USCODE-2024-title17-chap1-sec107.pdf"
+LAW_PDF = "https://www.govinfo.gov/content/pkg/PLAW-118publ31/pdf/PLAW-118publ31.pdf"
+AUDIENCE = (
+    "The start_char continuation is for the tool caller, not the person asking. A person who wants the whole "
+    "document should be given the PDF link: {pdf}"
+)
+TRUNCATED_KEYS = [
+    "total_chars",
+    "start_char",
+    "returned_chars",
+    "truncated",
+    "next_start_char",
+    "requested_max_chars",
+    "ends_at",
+    "content",
+    "banner",
+    "message",
+]
+UNTRUNCATED_KEYS = ["total_chars", "start_char", "returned_chars", "truncated", "next_start_char", "content"]
+
+
+class TestWhatTheWindowSays:
+    def test_a_shortened_paragraph_end_says_how_far_short_and_why(self):
+        w = window_text(BREAK_AT_TEN, max_chars=20)
+        assert w["requested_max_chars"] == 20 and w["ends_at"] == "paragraph"
+        assert w["returned_chars"] == 10
+        assert w["message"] == (
+            "Payload is 60 chars; returned chars 0-9. The window ends at a paragraph break, 10 chars before the 20 "
+            "asked for, so that no sentence is cut; max_chars is an upper bound. Continue with start_char=10."
+        )
+
+    def test_a_full_length_paragraph_end_inserts_nothing(self):
+        for max_chars in (9, 10, 11):  # just before, inside and just after the blank line
+            w = window_text(TWO_PARAGRAPHS, max_chars=max_chars)
+            assert w["requested_max_chars"] == max_chars and w["ends_at"] == "paragraph"
+            assert w["returned_chars"] == max_chars
+            assert w["message"] == (
+                f"Payload is 30 chars; returned chars 0-{max_chars - 1}. Continue with start_char={max_chars}."
+            )
+
+    def test_a_word_end_says_the_last_sentence_is_incomplete(self):
+        w = window_text(BREAK_AT_TEN, max_chars=21)
+        assert w["requested_max_chars"] == 21 and w["ends_at"] == "word"
+        assert w["message"] == (
+            "Payload is 60 chars; returned chars 0-19. The window ends inside a paragraph: its last sentence is "
+            "incomplete. Do not complete it or describe what follows; the rest is in the next window. Continue "
+            "with start_char=20."
+        )
+
+    def test_a_word_end_at_full_length_says_the_same(self):
+        # Full length is not the test: the window still ends inside a paragraph.
+        w = window_text("aaaa bbbb cccc dddd", max_chars=10)
+        assert w["ends_at"] == "word" and w["returned_chars"] == 10
+        assert "The window ends inside a paragraph: its last sentence is incomplete." in w["message"]
+
+    def test_a_character_end_says_the_last_sentence_is_incomplete(self):
+        w = window_text("x" * 50, max_chars=10)
+        assert w["requested_max_chars"] == 10 and w["ends_at"] == "character"
+        assert w["message"] == (
+            "Payload is 50 chars; returned chars 0-9. The window ends inside a paragraph: its last sentence is "
+            "incomplete. Do not complete it or describe what follows; the rest is in the next window. Continue "
+            "with start_char=10."
+        )
+
+    def test_the_max_chars_one_locating_call(self):
+        w = window_text("abc def\n\nghi", max_chars=1)
+        assert w["requested_max_chars"] == 1 and w["ends_at"] == "character"
+
+    def test_the_two_sentences_are_the_contract_text_character_for_character(self):
+        assert htmltext.WINDOW_ENDS_AT_PARAGRAPH_SENTENCE == (
+            "The window ends at a paragraph break, {short} chars before the {requested} asked for, so that no "
+            "sentence is cut; max_chars is an upper bound."
+        )
+        assert htmltext.WINDOW_ENDS_INSIDE_PARAGRAPH_SENTENCE == (
+            "The window ends inside a paragraph: its last sentence is incomplete. Do not complete it or describe "
+            "what follows; the rest is in the next window."
+        )
+
+    def test_field_set_and_order_on_a_truncated_window(self):
+        assert list(window_text(BREAK_AT_TEN, max_chars=20)) == TRUNCATED_KEYS
+        assert list(window_text("x" * 50, max_chars=10)) == TRUNCATED_KEYS
+
+    def test_an_untruncated_window_carries_neither_field_nor_any_message(self):
+        for w in (
+            window_text(TWO_PARAGRAPHS, max_chars=1000),
+            window_text(TWO_PARAGRAPHS, start_char=11, max_chars=19),
+        ):
+            assert w["truncated"] is False
+            assert list(w) == UNTRUNCATED_KEYS
+            assert "requested_max_chars" not in w and "ends_at" not in w
+            assert "message" not in w and "banner" not in w
+
+    def test_the_banner_form_is_unchanged(self):
+        w = window_text(BREAK_AT_TEN, max_chars=20)
+        assert w["banner"] == "[WINDOW chars 0–9 of 60 — truncated; continue with start_char=10]"
+        assert "paragraph" not in w["banner"] and "upper bound" not in w["banner"]
+
+    def test_ends_at_names_the_step_over_random_texts(self):
+        rng = random.Random(43)
+        seen = set()
+        for _ in range(3000):
+            text = "".join(rng.choice("abcde. \n\n") for _ in range(rng.randint(2, 100)))
+            max_chars = rng.randint(1, 30)
+            w = window_text(text, max_chars=max_chars)
+            if not w["truncated"]:
+                assert "ends_at" not in w and "requested_max_chars" not in w
+                continue
+            assert w["requested_max_chars"] == max_chars
+            seen.add(w["ends_at"])
+            end = w["next_start_char"]
+            short = max_chars - w["returned_chars"]
+            if w["ends_at"] == "paragraph":
+                assert "\n\n" in text[max(end - 2, 0) : end + 2], (text, max_chars)
+                assert ("The window ends at a paragraph break" in w["message"]) == (short > 0)
+                assert "incomplete" not in w["message"]
+                if short:
+                    assert f", {short} chars before the {max_chars} asked for," in w["message"]
+            elif w["ends_at"] == "word":
+                assert text[end - 1].isspace(), (text, max_chars)
+                assert "its last sentence is incomplete" in w["message"]
+            else:
+                assert w["ends_at"] == "character" and short == 0
+                assert not any(c.isspace() for c in w["content"])
+                assert "its last sentence is incomplete" in w["message"]
+        assert seen == {"paragraph", "word", "character"}
+
+
+@pytest.mark.parametrize(
+    ("read", "pdf"), [(read_section, SECTION_PDF), (read_section_by_id, SECTION_PDF), (read_law, LAW_PDF)]
+)
+class TestWhatBothToolsSay:
+    async def test_shortened_paragraph_end_message_whole_and_in_order(self, make_client, read, pdf):
+        whole = (await read(make_client, max_chars=1_000_000))["text"]
+        start = whole["content"].index("Paragraph 1 ")
+        text = (await read(make_client, start_char=start, max_chars=200))["text"]
+        total, n = text["total_chars"], text["returned_chars"]
+        end = start + n
+        assert n < 200
+        assert text["requested_max_chars"] == 200 and text["ends_at"] == "paragraph"
+        assert text["message"] == (
+            f"Payload is {total} chars; returned chars {start}-{end - 1}. "
+            f"The window ends at a paragraph break, {200 - n} chars before the 200 asked for, so that no sentence "
+            f"is cut; max_chars is an upper bound. "
+            f"Continue with start_char={end}. " + AUDIENCE.format(pdf=pdf)
+        )
+        assert list(text) == TRUNCATED_KEYS
+
+    async def test_word_end_message_whole_and_in_order(self, make_client, read, pdf):
+        whole = (await read(make_client, max_chars=1_000_000))["text"]
+        start = whole["content"].index("A long paragraph: ")
+        text = (await read(make_client, start_char=start, max_chars=100))["text"]
+        total, end = text["total_chars"], start + text["returned_chars"]
+        assert text["requested_max_chars"] == 100 and text["ends_at"] == "word"
+        assert text["message"] == (
+            f"Payload is {total} chars; returned chars {start}-{end - 1}. "
+            "The window ends inside a paragraph: its last sentence is incomplete. Do not complete it or describe "
+            "what follows; the rest is in the next window. "
+            f"Continue with start_char={end}. " + AUDIENCE.format(pdf=pdf)
+        )
+
+    async def test_full_length_paragraph_end_message_is_the_message_as_it_was(self, make_client, read, pdf):
+        # A paragraph read by its own extent: nothing inserted, every sentence as before WO-31.
+        whole = (await read(make_client, max_chars=1_000_000))["text"]
+        start = whole["content"].index("Paragraph 1 ")
+        end = whole["content"].index("Paragraph 2 ")
+        text = (await read(make_client, start_char=start, max_chars=end - start))["text"]
+        assert text["returned_chars"] == end - start
+        assert text["requested_max_chars"] == end - start and text["ends_at"] == "paragraph"
+        assert text["message"] == (
+            f"Payload is {text['total_chars']} chars; returned chars {start}-{end - 1}. "
+            f"Continue with start_char={end}. " + AUDIENCE.format(pdf=pdf)
+        )
+        assert text["banner"] == (
+            f"[WINDOW chars {start:,}–{end - 1:,} of {text['total_chars']:,} — truncated; "
+            f"continue with start_char={end}]"
+        )
+
+    async def test_the_locating_call_ends_at_a_character(self, make_client, read, pdf):
+        text = (await read(make_client, max_chars=1))["text"]
+        assert text["returned_chars"] == 1
+        assert text["requested_max_chars"] == 1 and text["ends_at"] == "character"
+
+    async def test_an_untruncated_response_carries_neither_field(self, make_client, read, pdf):
+        text = (await read(make_client, max_chars=1_000_000))["text"]
+        assert list(text) == UNTRUNCATED_KEYS
+
+
+class TestDefaultMaxCharsInForce:
+    async def test_requested_max_chars_is_the_default_when_none_was_passed(self, make_client):
+        big = fx.PLAW_HTML.replace("SEC. 2.", "".join(f"<p>{p}</p>" for p in PARAGRAPHS * 40) + "SEC. 2.")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/search":
+                return fx.json_response(fx.search_response([fx.plaw_hit()]))
+            if request.url.path.endswith("/summary"):
+                return fx.json_response(fx.plaw_summary())
+            return httpx.Response(200, text=big)
+
+        text = (await tools.get_public_law(make_client(handler), congress=118, law_number=31))["text"]
+        assert text["truncated"] is True
+        assert text["requested_max_chars"] == 20_000 == tools.DEFAULT_MAX_CHARS
+        assert text["ends_at"] == "paragraph" and text["content"].endswith("\n\n")
+        assert 10_000 <= text["returned_chars"] <= 20_000

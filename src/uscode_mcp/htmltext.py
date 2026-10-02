@@ -348,6 +348,19 @@ def truncation_banner(start_char: int, end: int, total: int) -> str:
     return f"[WINDOW chars {start_char:,}–{end - 1:,} of {total:,} — truncated; continue with start_char={end}]"
 
 
+# WO-31 B (R36): the sentence a truncated window's message carries between the size
+# sentence and the continuation, contractual character for character. A paragraph end
+# at full length inserts nothing.
+WINDOW_ENDS_AT_PARAGRAPH_SENTENCE = (
+    "The window ends at a paragraph break, {short} chars before the {requested} asked for, so that no sentence "
+    "is cut; max_chars is an upper bound."
+)
+WINDOW_ENDS_INSIDE_PARAGRAPH_SENTENCE = (
+    "The window ends inside a paragraph: its last sentence is incomplete. Do not complete it or describe what "
+    "follows; the rest is in the next window."
+)
+
+
 def _window_end(text: str, start_char: int, max_chars: int) -> tuple[int, str]:
     """Where a window that stops short of the payload's end is ended, and at what
     (WO-31, R36): ``max_chars`` is an upper bound, and the first of four steps that
@@ -395,6 +408,11 @@ def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dic
     always equals ``len(content)``, and ``total_chars``/``start_char``/
     ``next_start_char`` remain the coordinate system used by ``find`` and
     ``structure`` offsets.
+
+    ``max_chars`` is an upper bound (WO-31): a truncated window is ended by
+    :func:`_window_end`, carries ``requested_max_chars`` and ``ends_at``
+    (``"paragraph"``, ``"word"`` or ``"character"``), and says in its message when
+    it is shorter than asked or ends inside a paragraph.
     """
     if start_char < 0:
         raise ValueError(f"start_char must be >= 0, got {start_char}")
@@ -403,8 +421,9 @@ def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dic
     total = len(text)
     end = min(start_char + max_chars, total)
     truncated = end < total
+    ends_at = None
     if truncated:
-        end, _ = _window_end(text, start_char, max_chars)
+        end, ends_at = _window_end(text, start_char, max_chars)
     content = text[start_char:end]
     result: dict[str, Any] = {
         "total_chars": total,
@@ -415,10 +434,21 @@ def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dic
         "content": content,
     }
     if truncated:
+        # WO-31 B: what the window was asked for and what it ended at, on a truncated
+        # window only, ahead of the payload.
+        result = {k: v for k, v in result.items() if k != "content"}
+        result["requested_max_chars"] = max_chars
+        result["ends_at"] = ends_at
+        result["content"] = content
         banner = truncation_banner(start_char, end, total)
         result["banner"] = banner
+        if ends_at == "paragraph":
+            short = max_chars - len(content)
+            how = WINDOW_ENDS_AT_PARAGRAPH_SENTENCE.format(short=short, requested=max_chars) + " " if short else ""
+        else:
+            how = WINDOW_ENDS_INSIDE_PARAGRAPH_SENTENCE + " "
         result["message"] = (
-            f"Payload is {total} chars; returned chars {start_char}-{end - 1}. Continue with start_char={end}."
+            f"Payload is {total} chars; returned chars {start_char}-{end - 1}. {how}Continue with start_char={end}."
         )
     return result
 
