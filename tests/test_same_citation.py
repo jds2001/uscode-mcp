@@ -19,9 +19,12 @@ RULE8_A = "USCODE-2024-title28-app-federalru-rule8"
 RULE8_B = "USCODE-2024-title28-app-federalru-dup1-rule8"
 RULE8_C = "USCODE-2024-title28-app-federalru-dup1-rule8-dup1"
 
+# WO-30 A (R35): `{n}` is the object's `count`; the dash is U+2014.
 NOTE = (
-    "This provision shares its citation with {n} other result(s) on this page: {titles}. The person asking "
-    "should be told which is meant, or shown each as a distinct provision."
+    "This is one of {n} distinct provisions on this page that share one citation; the other(s): {titles}. The "
+    "citation does not say which one the person asking means \u2014 do not choose for them, and do not present one "
+    "as the only match. Name each by its title as a distinct provision, and if you read only one, say which you "
+    "did not read."
 )
 
 
@@ -73,15 +76,59 @@ class TestSearchHitNote:
             "count": 2,
             "others": [{"granule_id": CRIM_RULE9, "title": "Rule 9. Arrest Warrant"}],
         }
-        assert civ["note"] == NOTE.format(n=1, titles="Rule 9. Arrest Warrant")
+        assert civ["note"] == NOTE.format(n=2, titles="Rule 9. Arrest Warrant")
         assert crim["same_citation_on_page"] == {
             "count": 2,
             "others": [{"granule_id": CIV_RULE9, "title": "Rule 9. Pleading Special Matters"}],
         }
-        assert crim["note"] == NOTE.format(n=1, titles="Rule 9. Pleading Special Matters")
+        assert crim["note"] == NOTE.format(n=2, titles="Rule 9. Pleading Special Matters")
 
     async def test_note_is_the_contract_text_character_for_character(self):
         assert tools.SAME_CITATION_ON_PAGE_NOTE == NOTE
+
+    async def test_the_served_note_for_a_family_of_two_is_pinned_whole(self, make_client):
+        # WO-30 A: the string as served, written out — not built from the template under test.
+        hits = [rule_hit(CIV_RULE9, "Rule 9. Pleading Special Matters"), rule_hit(CRIM_RULE9, "Rule 9. Arrest Warrant")]
+        out = await tools.search_us_code(make_client(page_handler(hits)), '"Rule 9" usctitlenum:28')
+        assert out["results"][0]["note"] == (
+            "This is one of 2 distinct provisions on this page that share one citation; the other(s): "
+            "Rule 9. Arrest Warrant. The citation does not say which one the person asking means \u2014 do not "
+            "choose for them, and do not present one as the only match. Name each by its title as a distinct "
+            "provision, and if you read only one, say which you did not read."
+        )
+        assert out["results"][1]["note"] == (
+            "This is one of 2 distinct provisions on this page that share one citation; the other(s): "
+            "Rule 9. Pleading Special Matters. The citation does not say which one the person asking means \u2014 "
+            "do not choose for them, and do not present one as the only match. Name each by its title as a "
+            "distinct provision, and if you read only one, say which you did not read."
+        )
+
+    async def test_the_served_note_for_a_family_of_three_is_pinned_whole(self, make_client):
+        hits = [
+            rule_hit(RULE8_A, "Rule 8. Civil"),
+            rule_hit(RULE8_B, "Rule 8. Criminal"),
+            rule_hit(RULE8_C, "Rule 8. Bankruptcy"),
+            rule_hit(CIV_RULE9, "Rule 9. Civil"),
+        ]
+        out = await tools.search_us_code(make_client(page_handler(hits)), "Rule 8")
+        assert out["results"][1]["note"] == (
+            "This is one of 3 distinct provisions on this page that share one citation; the other(s): "
+            "Rule 8. Civil; Rule 8. Bankruptcy. The citation does not say which one the person asking means \u2014 "
+            "do not choose for them, and do not present one as the only match. Name each by its title as a "
+            "distinct provision, and if you read only one, say which you did not read."
+        )
+        for hit in out["results"][:3]:
+            assert hit["note"].startswith("This is one of 3 distinct provisions on this page")
+            assert hit["same_citation_on_page"]["count"] == 3
+        # A hit outside any family still carries no note.
+        assert "note" not in out["results"][3] and "same_citation_on_page" not in out["results"][3]
+
+    async def test_the_withdrawn_wording_is_gone(self, make_client):
+        # R35: "told which is meant" is satisfied by the consumer choosing (E41, 6 of 10 rows).
+        hits = [rule_hit(CIV_RULE9, "Rule 9. Civil"), rule_hit(CRIM_RULE9, "Rule 9. Criminal")]
+        out = await tools.search_us_code(make_client(page_handler(hits)), "Rule 9")
+        for hit in out["results"]:
+            assert "which is meant" not in hit["note"] and "other result(s)" not in hit["note"]
 
     async def test_one_member_alone_carries_neither_field(self, make_client):
         hits = [rule_hit(CRIM_RULE9, "Rule 9. Arrest Warrant"), rule_hit(RULE8_A, "Rule 8. General Rules of Pleading")]
@@ -107,10 +154,10 @@ class TestSearchHitNote:
                 {"granule_id": RULE8_C, "title": "Rule 8. Bankruptcy"},
             ],
         }
-        assert a["note"] == NOTE.format(n=2, titles="Rule 8. Criminal; Rule 8. Bankruptcy")
+        assert a["note"] == NOTE.format(n=3, titles="Rule 8. Criminal; Rule 8. Bankruptcy")
         assert b["same_citation_on_page"]["count"] == 3
         assert [o["granule_id"] for o in b["same_citation_on_page"]["others"]] == [RULE8_A, RULE8_C]
-        assert b["note"] == NOTE.format(n=2, titles="Rule 8. Civil; Rule 8. Bankruptcy")
+        assert b["note"] == NOTE.format(n=3, titles="Rule 8. Civil; Rule 8. Bankruptcy")
         assert [o["granule_id"] for o in c["same_citation_on_page"]["others"]] == [RULE8_A, RULE8_B]
 
     async def test_a_page_of_sections_carries_no_field(self, make_client):
@@ -598,7 +645,7 @@ class TestSecondSectionMarker:
             "count": 2,
             "others": [{"granule_id": SEC1932_2, "title": "1932.1 Revocation of earned release credit"}],
         }
-        assert first["note"] == NOTE.format(n=1, titles="1932.1 Revocation of earned release credit")
+        assert first["note"] == NOTE.format(n=2, titles="1932.1 Revocation of earned release credit")
         assert second["same_citation_on_page"]["others"] == [
             {"granule_id": SEC1932, "title": "Judicial Panel on Multidistrict Litigation"}
         ]

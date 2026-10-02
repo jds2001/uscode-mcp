@@ -1556,12 +1556,16 @@ _DUP_SEGMENT_RE = re.compile(r"-dup\d+(?=-|$)")
 # beside `…-sec1932`, a two-granule citation family under `citation:` in 3 of 3.
 _SECOND_SECTION_RE = re.compile(r"_\d+\Z")
 
-# The search-hit note, contractual character for character. The measured failure
-# shape it answers: both Rule 9 titles on one page, one fetched by id and presented
-# as the only provision — 4 of 5 gpt-oss rows at O107.
+# The search-hit note, contractual character for character; `{n}` is the object's
+# `count`. The measured failure shape it answers: both Rule 9 titles on one page,
+# one fetched by id and presented as the only provision — 4 of 5 gpt-oss rows at
+# O107. The WO-28 wording ("should be told which is meant") could be satisfied by
+# the consumer choosing, and 6 of 10 rows at E41 did (R35, WO-30 A).
 SAME_CITATION_ON_PAGE_NOTE = (
-    "This provision shares its citation with {n} other result(s) on this page: {titles}. The person asking "
-    "should be told which is meant, or shown each as a distinct provision."
+    "This is one of {n} distinct provisions on this page that share one citation; the other(s): {titles}. The "
+    "citation does not say which one the person asking means — do not choose for them, and do not present one as "
+    "the only match. Name each by its title as a distinct provision, and if you read only one, say which you did "
+    "not read."
 )
 
 
@@ -1588,7 +1592,7 @@ def _annotate_same_citation_on_page(pointers: list[dict[str, Any]]) -> None:
             others = [{"granule_id": m["granule_id"], "title": m["title"]} for m in members if m is not pointer]
             pointer["same_citation_on_page"] = {"count": len(members), "others": others}
             pointer["note"] = SAME_CITATION_ON_PAGE_NOTE.format(
-                n=len(others), titles="; ".join(str(o["title"]) for o in others)
+                n=len(members), titles="; ".join(str(o["title"]) for o in others)
             )
 
 
