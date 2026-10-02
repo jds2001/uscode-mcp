@@ -775,10 +775,14 @@ def _citation_query(parsed: USCCitation) -> str:
 
 
 # WO-28 B: the by-id note. The served message inside `same_citation_candidates`,
-# contractual character for character (WO-17 part B's shape), and the disclosure
-# served when the family search itself failed — the lookup never fails for it.
+# contractual character for character (WO-17 part B's shape; `{n}` is `count`), and
+# the disclosure served when the family search itself failed — the lookup never
+# fails for it. The WO-28 wording ended "The person asking should be told." and
+# changed no row that had already chosen one, 0 of 6 at E41 (R35, WO-30 B).
 SAME_CITATION_CANDIDATES_MESSAGE = (
-    "This provision shares its citation with {n} other(s): {titles}. The person asking should be told."
+    "This provision is one of {n} that share its citation; the other(s): {titles}. Reading this one does not make "
+    "it the one the person asking meant. Tell them {n} provisions share the citation and name each by its title; "
+    "do not present this one as the only match."
 )
 SAME_CITATION_NOT_CHECKED_MESSAGE = (
     "Whether other provisions share this citation was not checked: the citation search failed, and its "
@@ -938,8 +942,8 @@ def _same_citation_candidates(
     ]
     if not others:
         return None
-    message = SAME_CITATION_CANDIDATES_MESSAGE.format(n=len(others), titles="; ".join(str(o["title"]) for o in others))
     size = len(others) + 1
+    message = SAME_CITATION_CANDIDATES_MESSAGE.format(n=size, titles="; ".join(str(o["title"]) for o in others))
     out: dict[str, Any] = {"count": size, "others": others, "message": message}
     shown = len(data["results"])
     count = data.get("count")

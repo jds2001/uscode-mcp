@@ -209,7 +209,12 @@ class TestSearchHitNote:
 # Part B — the by-id note
 # ---------------------------------------------------------------------------
 
-CANDIDATES_MESSAGE = "This provision shares its citation with {n} other(s): {titles}. The person asking should be told."
+# WO-30 B (R35): `{n}` is `count`, the fetched granule included.
+CANDIDATES_MESSAGE = (
+    "This provision is one of {n} that share its citation; the other(s): {titles}. Reading this one does not make "
+    "it the one the person asking meant. Tell them {n} provisions share the citation and name each by its title; "
+    "do not present this one as the only match."
+)
 T28 = "USCODE-2024-title28"
 RULE4_A = "USCODE-2024-title28-app-federalru-rule4"
 RULE4_B = "USCODE-2024-title28-app-federalru-dup1-rule4"
@@ -282,11 +287,60 @@ class TestByIdNote:
         assert out["same_citation_candidates"] == {
             "count": 2,
             "others": [{"granule_id": CIV_RULE9, "title": "Release in a Criminal Case"}],
-            "message": CANDIDATES_MESSAGE.format(n=1, titles="Release in a Criminal Case"),
+            "message": CANDIDATES_MESSAGE.format(n=2, titles="Release in a Criminal Case"),
         }
 
     async def test_message_is_the_contract_text(self):
         assert tools.SAME_CITATION_CANDIDATES_MESSAGE == CANDIDATES_MESSAGE
+
+    @pytest.mark.parametrize("citation", ["28 U.S.C. App. Rule 9", None])
+    async def test_the_served_message_for_a_family_of_two_is_pinned_whole(self, make_client, citation):
+        # WO-30 B: the string as served, written out, with and without `citation` alongside.
+        out = await tools.get_us_code_section(
+            make_client(by_id_handler(CRIM_RULE9, RULE9_PAGE, [])), granule_id=CRIM_RULE9, citation=citation
+        )
+        assert out["outcome"] == "success"
+        assert out["same_citation_candidates"]["count"] == 2
+        assert out["same_citation_candidates"]["message"] == (
+            "This provision is one of 2 that share its citation; the other(s): Release in a Criminal Case. Reading "
+            "this one does not make it the one the person asking meant. Tell them 2 provisions share the citation "
+            "and name each by its title; do not present this one as the only match."
+        )
+
+    @pytest.mark.parametrize("citation", ["28 U.S.C. App. Rule 8", None])
+    async def test_the_served_message_for_a_family_of_three_is_pinned_whole(self, make_client, citation):
+        out = await tools.get_us_code_section(
+            make_client(by_id_handler(RULE8_B, RULE8_PAGE, [])), granule_id=RULE8_B, citation=citation
+        )
+        assert out["outcome"] == "success"
+        assert out["same_citation_candidates"]["count"] == 3
+        assert out["same_citation_candidates"]["message"] == (
+            "This provision is one of 3 that share its citation; the other(s): Stay or Injunction Pending Appeal; "
+            "Reply Brief. Reading this one does not make it the one the person asking meant. Tell them 3 provisions "
+            "share the citation and name each by its title; do not present this one as the only match."
+        )
+
+    async def test_the_withdrawn_wording_is_gone(self, make_client):
+        # R35: "should be told." left what to tell to the consumer (0 of 6 rows changed at E41).
+        out = await tools.get_us_code_section(
+            make_client(by_id_handler(CRIM_RULE9, RULE9_PAGE, [])),
+            granule_id=CRIM_RULE9,
+            citation="28 U.S.C. App. Rule 9",
+        )
+        assert "should be told" not in out["same_citation_candidates"]["message"]
+
+    async def test_the_not_checked_messages_are_byte_identical_to_before(self):
+        # WO-30 B changes the family-read message only; these two are written out, not read back.
+        assert tools.SAME_CITATION_NOT_CHECKED_MESSAGE == (
+            "Whether other provisions share this citation was not checked: the citation search failed, and its "
+            "failure is in 'not_checked'. Do not present this as the only provision with this citation."
+        )
+        assert tools.SAME_CITATION_EDITION_NOT_ON_PAGE_MESSAGE == (
+            "Whether other provisions share this citation was not checked: the citation search returned no granule "
+            "of this provision's edition ({package_id}), so its family could not be read from the page \u2014 the "
+            "search covers the current edition, and this granule is from another. Do not present this as the only "
+            "provision with this citation."
+        )
 
     async def test_field_follows_possibly_superseded(self, make_client):
         out = await tools.get_us_code_section(
@@ -307,7 +361,7 @@ class TestByIdNote:
             {"granule_id": RULE8_A, "title": "Stay or Injunction Pending Appeal"},
             {"granule_id": RULE8_C, "title": "Reply Brief"},
         ]
-        assert sc["message"] == CANDIDATES_MESSAGE.format(n=2, titles="Stay or Injunction Pending Appeal; Reply Brief")
+        assert sc["message"] == CANDIDATES_MESSAGE.format(n=3, titles="Stay or Injunction Pending Appeal; Reply Brief")
 
     async def test_without_citation_on_an_appendix_rule_id_derives_the_citation(self, make_client):
         seen = []
@@ -395,7 +449,7 @@ class TestByIdNote:
         assert [o["granule_id"] for o in sc["others"]] == [RULE4_A, RULE4_C]
         assert "Serving Other Process" not in sc["message"]
         assert sc["message"] == CANDIDATES_MESSAGE.format(
-            n=2, titles="Appeal as of Right-When Taken; Answer; Motions; Time"
+            n=3, titles="Appeal as of Right-When Taken; Answer; Motions; Time"
         )
 
     async def test_a_page_with_the_fetched_granule_missing_still_names_its_family(self, make_client):
@@ -466,8 +520,13 @@ class TestByIdNote:
         )
         sc = out["same_citation_candidates"]
         assert sc["count"] == 2 and sc["capped"] is True
-        assert sc["message"].startswith(CANDIDATES_MESSAGE.format(n=1, titles="Release in a Criminal Case"))
+        assert sc["message"].startswith(CANDIDATES_MESSAGE.format(n=2, titles="Release in a Criminal Case"))
         assert "178" in sc["message"] and "2 of" in sc["message"]
+        # The capped sentence is unchanged by WO-30 B.
+        assert sc["message"] == CANDIDATES_MESSAGE.format(n=2, titles="Release in a Criminal Case") + (
+            " The citation search page was capped at 2 of 178 hits, so a family member beyond it is not seen: "
+            "2 is a floor, showing 2 of at least that many."
+        )
 
     async def test_family_search_failure_on_a_failed_lookup_serves_the_lookup_failure(self, make_client):
         # A by-id call that fails upstream is the failure it is; no family field rides on it.
@@ -664,7 +723,7 @@ class TestSecondSectionMarker:
         assert out["same_citation_candidates"] == {
             "count": 2,
             "others": [{"granule_id": SEC1932, "title": "Judicial Panel on Multidistrict Litigation"}],
-            "message": CANDIDATES_MESSAGE.format(n=1, titles="Judicial Panel on Multidistrict Litigation"),
+            "message": CANDIDATES_MESSAGE.format(n=2, titles="Judicial Panel on Multidistrict Litigation"),
         }
 
     async def test_by_id_on_the_second_section_without_citation_runs_no_search(self, make_client):
