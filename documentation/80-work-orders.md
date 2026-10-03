@@ -454,7 +454,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-32 — the paragraph-end sentence leads with incompleteness (R37, Q33; contract in `40-tools.md`, "A window ends where a paragraph does", the `"paragraph"` shorter-than-asked sentence; measured basis O123; consumer effect preregistered as E44)
 
-**Status:** ISSUED 2026-10-02. One string, one commit; this session probes both tools from a fresh process before E44 runs.
+**Status:** LANDED `fd99c45`, VERIFIED from a fresh process (O124) and CLOSED 2026-10-02. E44 is ready to run. History: ISSUED 2026-10-02. One string, one commit; this session probes both tools from a fresh process before E44 runs.
 
 **What it is.** At E43 six of nineteen gpt-oss rows asked for the apology in the notes to 42 U.S.C. 2210 made one default call, received a 19,984-character window ending at a paragraph break with the WO-31 sentence "The window ends at a paragraph break, 16 chars before the 20000 asked for, so that no sentence is cut; max_chars is an upper bound.", and answered from memory; no default-first row had stopped there before the sentence existed (O123c, F22). The sentence is replaced. Nothing else in the response changes.
 
