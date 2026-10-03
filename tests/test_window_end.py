@@ -430,9 +430,24 @@ class TestWhatTheWindowSays:
         assert w["requested_max_chars"] == 20 and w["ends_at"] == "paragraph"
         assert w["returned_chars"] == 10
         assert w["message"] == (
-            "Payload is 60 chars; returned chars 0-9. The window ends at a paragraph break, 10 chars before the 20 "
-            "asked for, so that no sentence is cut; max_chars is an upper bound. Continue with start_char=10."
+            "Payload is 60 chars; returned chars 0-9. This window is 10 of 60 chars and is not the end of the "
+            "document; what is asked about may lie in a later window. It ends at a paragraph break, 10 chars before "
+            "the 20 asked for, so its last paragraph is whole; max_chars is an upper bound. Continue with "
+            "start_char=10."
         )
+
+    def test_the_paragraph_end_sentence_carries_no_thousands_separators(self):
+        # WO-32: the size sentence has none, so the inserted sentence has none.
+        text = ("word " * 2400) + "\n\n" + "x" * 10000
+        w = window_text(text, max_chars=20_000)
+        assert w["ends_at"] == "paragraph" and w["returned_chars"] == 12002
+        assert w["message"] == (
+            "Payload is 22002 chars; returned chars 0-12001. This window is 12002 of 22002 chars and is not the "
+            "end of the document; what is asked about may lie in a later window. It ends at a paragraph break, "
+            "7998 chars before the 20000 asked for, so its last paragraph is whole; max_chars is an upper bound. "
+            "Continue with start_char=12002."
+        )
+        assert w["banner"] == "[WINDOW chars 0–12,001 of 22,002 — truncated; continue with start_char=12002]"
 
     def test_a_full_length_paragraph_end_inserts_nothing(self):
         for max_chars in (9, 10, 11):  # just before, inside and just after the blank line
@@ -473,8 +488,9 @@ class TestWhatTheWindowSays:
 
     def test_the_two_sentences_are_the_contract_text_character_for_character(self):
         assert htmltext.WINDOW_ENDS_AT_PARAGRAPH_SENTENCE == (
-            "The window ends at a paragraph break, {short} chars before the {requested} asked for, so that no "
-            "sentence is cut; max_chars is an upper bound."
+            "This window is {returned} of {total} chars and is not the end of the document; what is asked about "
+            "may lie in a later window. It ends at a paragraph break, {short} chars before the {requested} asked "
+            "for, so its last paragraph is whole; max_chars is an upper bound."
         )
         assert htmltext.WINDOW_ENDS_INSIDE_PARAGRAPH_SENTENCE == (
             "The window ends inside a paragraph: its last sentence is incomplete. Do not complete it or describe "
@@ -516,7 +532,7 @@ class TestWhatTheWindowSays:
             short = max_chars - w["returned_chars"]
             if w["ends_at"] == "paragraph":
                 assert "\n\n" in text[max(end - 2, 0) : end + 2], (text, max_chars)
-                assert ("The window ends at a paragraph break" in w["message"]) == (short > 0)
+                assert ("is not the end of the document" in w["message"]) == (short > 0)
                 assert "incomplete" not in w["message"]
                 if short:
                     assert f", {short} chars before the {max_chars} asked for," in w["message"]
@@ -544,8 +560,9 @@ class TestWhatBothToolsSay:
         assert text["requested_max_chars"] == 200 and text["ends_at"] == "paragraph"
         assert text["message"] == (
             f"Payload is {total} chars; returned chars {start}-{end - 1}. "
-            f"The window ends at a paragraph break, {200 - n} chars before the 200 asked for, so that no sentence "
-            f"is cut; max_chars is an upper bound. "
+            f"This window is {n} of {total} chars and is not the end of the document; what is asked about may lie "
+            f"in a later window. It ends at a paragraph break, {200 - n} chars before the 200 asked for, so its "
+            f"last paragraph is whole; max_chars is an upper bound. "
             f"Continue with start_char={end}. " + AUDIENCE.format(pdf=pdf)
         )
         assert list(text) == TRUNCATED_KEYS

@@ -350,10 +350,13 @@ def truncation_banner(start_char: int, end: int, total: int) -> str:
 
 # WO-31 B (R36): the sentence a truncated window's message carries between the size
 # sentence and the continuation, contractual character for character. A paragraph end
-# at full length inserts nothing.
+# at full length inserts nothing. WO-32 (R37, O123/F22): the paragraph-end sentence
+# leads with "not the end of the document" — six of nineteen gpt-oss rows had taken
+# one clean-ended window, told only that no sentence was cut, as the whole document.
 WINDOW_ENDS_AT_PARAGRAPH_SENTENCE = (
-    "The window ends at a paragraph break, {short} chars before the {requested} asked for, so that no sentence "
-    "is cut; max_chars is an upper bound."
+    "This window is {returned} of {total} chars and is not the end of the document; what is asked about may lie "
+    "in a later window. It ends at a paragraph break, {short} chars before the {requested} asked for, so its last "
+    "paragraph is whole; max_chars is an upper bound."
 )
 WINDOW_ENDS_INSIDE_PARAGRAPH_SENTENCE = (
     "The window ends inside a paragraph: its last sentence is incomplete. Do not complete it or describe what "
@@ -444,7 +447,14 @@ def window_text(text: str, start_char: int = 0, max_chars: int = 100_000) -> dic
         result["banner"] = banner
         if ends_at == "paragraph":
             short = max_chars - len(content)
-            how = WINDOW_ENDS_AT_PARAGRAPH_SENTENCE.format(short=short, requested=max_chars) + " " if short else ""
+            how = (
+                WINDOW_ENDS_AT_PARAGRAPH_SENTENCE.format(
+                    returned=len(content), total=total, short=short, requested=max_chars
+                )
+                + " "
+                if short
+                else ""
+            )
         else:
             how = WINDOW_ENDS_INSIDE_PARAGRAPH_SENTENCE + " "
         result["message"] = (
