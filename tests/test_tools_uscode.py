@@ -974,6 +974,67 @@ class TestSectionFind:
         assert "find" not in out
 
 
+FIND_SNIPPET_SENTENCES = (
+    " Each snippet is limited context around a match, cut mid-word at both ends, for choosing where to read; it "
+    "is not the text. Do not quote a snippet, and do not reconstruct or infer what surrounds it without retrieving "
+    'it. When find identifies the requested material, treat that as "found where to read", not "finished reading".'
+)
+MANY_NEEDLES_HTML = (
+    "<!-- documentid:USCODE-2024-title17-chap1-sec107 currentthrough:20250106 itempath:/2024/title17/chap1/sec107 -->"
+    "\n<html><head><title>17 USC 107</title></head><body>\n<h3>&sect;107. Many matches</h3>\n"
+    + "".join(f"<p>Paragraph {i} carries the needle word.</p>\n" for i in range(60))
+    + "</body></html>\n"
+)
+
+
+class TestWhatFindSays:
+    """WO-33 (R39, Q35; O127): the whole served `find` message on get_us_code_section —
+    uncapped, capped, at the max_chars: 1 locating call, and with zero occurrences."""
+
+    async def test_an_uncapped_find_serves_the_whole_message(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", find="Effective date")
+        total = out["text"]["total_chars"]
+        assert out["find"]["capped"] is False
+        assert out["find"]["message"] == (
+            f"1 occurrence(s) of 'Effective date' in the full {total}-char payload. Offsets share the coordinate "
+            "system of total_chars/start_char — re-request with start_char set to one of them to read around it."
+            + FIND_SNIPPET_SENTENCES
+        )
+
+    async def test_the_locating_call_serves_the_same_find_block(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        full = await tools.get_us_code_section(client, citation="17 U.S.C. 107", find="Effective date")
+        tiny = await tools.get_us_code_section(client, citation="17 U.S.C. 107", find="Effective date", max_chars=1)
+        assert tiny["text"]["returned_chars"] == 1
+        assert tiny["find"] == full["find"]
+
+    async def test_a_capped_find_appends_the_cap_sentence(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()]), htm_text=MANY_NEEDLES_HTML))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", find="needle")
+        assert out["outcome"] == "success"
+        found = out["find"]
+        total = out["text"]["total_chars"]
+        assert found["total_occurrences"] == 60 and found["occurrences_shown"] == 50 and found["capped"] is True
+        assert len(found["occurrences"]) == 50
+        assert found["message"] == (
+            f"60 occurrence(s) of 'needle' in the full {total}-char payload. Offsets share the coordinate system "
+            "of total_chars/start_char — re-request with start_char set to one of them to read around it."
+            + FIND_SNIPPET_SENTENCES
+            + " The occurrence list is capped: showing 50 of 60."
+        )
+
+    async def test_zero_occurrences_serves_the_unchanged_message(self, make_client):
+        client = make_client(section_handler(fx.search_response([fx.usc_hit()])))
+        out = await tools.get_us_code_section(client, citation="17 U.S.C. 107", find="antidisestablishment")
+        total = out["text"]["total_chars"]
+        assert out["find"]["message"] == (
+            f"Zero occurrences of 'antidisestablishment' in the full {total}-char payload. The search succeeded "
+            "— this is 'found nothing', not a failure. Note the payload is the plain text of this document only; "
+            "try a shorter or differently spelled substring."
+        )
+
+
 class TestStructureRidesOnTheLocatingCall:
     """R13a: structure on start_char=0, disclosed omission on a reading call."""
 

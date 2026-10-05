@@ -529,6 +529,20 @@ def occurrence_offsets(text: str, needle: str) -> list[int]:
     return [m.start() for m in re.finditer(re.escape(needle), text, re.IGNORECASE)]
 
 
+# WO-33 (R39, Q35; O127): the `find` block's message when something was found, contractual
+# character for character. The first two sentences are the WO-32 text; the three that
+# follow say what a snippet is — at E45, 8 of 99 gpt-oss rows quoted a find snippet as
+# the operative language, 6 altering it where the mid-word cut joined one subsection's
+# tail to the next one's opening. The capped sentence is appended after, as before.
+FIND_FOUND_MESSAGE = (
+    "{total} occurrence(s) of {needle!r} in the full {total_chars}-char payload. Offsets share the coordinate "
+    "system of total_chars/start_char — re-request with start_char set to one of them to read around it. Each "
+    "snippet is limited context around a match, cut mid-word at both ends, for choosing where to read; it is not "
+    "the text. Do not quote a snippet, and do not reconstruct or infer what surrounds it without retrieving it. "
+    'When find identifies the requested material, treat that as "found where to read", not "finished reading".'
+)
+
+
 def find_occurrences(
     text: str,
     needle: str,
@@ -563,11 +577,7 @@ def find_occurrences(
             "text of this document only; try a shorter or differently spelled substring."
         )
     else:
-        message = (
-            f"{len(matches)} occurrence(s) of {needle!r} in the full {len(text)}-char payload. "
-            "Offsets share the coordinate system of total_chars/start_char — re-request with "
-            "start_char set to one of them to read around it."
-        )
+        message = FIND_FOUND_MESSAGE.format(total=len(matches), needle=needle, total_chars=len(text))
         if capped:
             message += f" The occurrence list is capped: showing {len(shown)} of {len(matches)}."
     return {

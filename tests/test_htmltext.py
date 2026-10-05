@@ -8,6 +8,7 @@ from bisect import bisect_left
 import fx
 import pytest
 
+from uscode_mcp import htmltext
 from uscode_mcp.htmltext import (
     add_audience_sentence,
     audience_sentence,
@@ -630,3 +631,86 @@ class TestNormalizationIsUnchangedByTheOffsetMapRewrite:
         assert len(text) > 900_000
         assert structure["omitted"] is True
         assert peak < 6 * len(text) * 4, f"peak {peak / 1e6:.0f} MB for {len(text):,} chars"
+
+
+class TestWhatFindSays:
+    """WO-33 (R39, Q35; O127): the `find` message says what a snippet is. The first two
+    sentences are the WO-32 text unchanged; the capped sentence and the zero-occurrence
+    message are byte-identical to before; the snippet shape does not move (R39b)."""
+
+    WO32_TEXT = (
+        "2 occurrence(s) of 'beta' in the full 27-char payload. Offsets share the coordinate system of "
+        "total_chars/start_char — re-request with start_char set to one of them to read around it."
+    )
+    SNIPPET_SENTENCES = (
+        " Each snippet is limited context around a match, cut mid-word at both ends, for choosing where to read; "
+        "it is not the text. Do not quote a snippet, and do not reconstruct or infer what surrounds it without "
+        'retrieving it. When find identifies the requested material, treat that as "found where to read", not '
+        '"finished reading".'
+    )
+
+    def test_the_message_is_the_contract_text_character_for_character(self):
+        assert htmltext.FIND_FOUND_MESSAGE == (
+            "{total} occurrence(s) of {needle!r} in the full {total_chars}-char payload. Offsets share the "
+            "coordinate system of total_chars/start_char — re-request with start_char set to one of them to read "
+            "around it. Each snippet is limited context around a match, cut mid-word at both ends, for choosing "
+            "where to read; it is not the text. Do not quote a snippet, and do not reconstruct or infer what "
+            "surrounds it without retrieving it. When find identifies the requested material, treat that as "
+            '"found where to read", not "finished reading".'
+        )
+
+    def test_an_uncapped_find_serves_the_whole_message(self):
+        r = find_occurrences("alpha beta gamma beta delta", "beta")
+        assert r["capped"] is False
+        assert r["message"] == self.WO32_TEXT + self.SNIPPET_SENTENCES
+        # The quotation marks around the two phrases are straight double quotes.
+        assert '"found where to read", not "finished reading".' in r["message"]
+        assert "“" not in r["message"] and "”" not in r["message"]
+
+    def test_the_first_two_sentences_are_the_wo32_text_unchanged(self):
+        r = find_occurrences("alpha beta gamma beta delta", "beta")
+        assert r["message"].startswith(self.WO32_TEXT + " Each snippet")
+
+    def test_a_capped_find_appends_the_cap_sentence_after_the_new_text(self):
+        r = find_occurrences("ab" * 100, "a", max_occurrences=5)
+        assert r["capped"] is True and r["occurrences_shown"] == 5
+        assert r["message"] == (
+            "100 occurrence(s) of 'a' in the full 200-char payload. Offsets share the coordinate system of "
+            "total_chars/start_char — re-request with start_char set to one of them to read around it."
+            + self.SNIPPET_SENTENCES
+            + " The occurrence list is capped: showing 5 of 100."
+        )
+
+    def test_the_zero_occurrence_message_is_unchanged(self):
+        r = find_occurrences("alpha beta", "gamma")
+        assert r["message"] == (
+            "Zero occurrences of 'gamma' in the full 10-char payload. The search succeeded — this is 'found "
+            "nothing', not a failure. Note the payload is the plain text of this document only; try a shorter or "
+            "differently spelled substring."
+        )
+        assert "snippet" not in r["message"]
+
+    def test_the_snippet_shape_and_every_other_field_are_unchanged(self):
+        text = "lead in words\nbefore the NEEDLE and after it\ntrailing words"
+        r = find_occurrences(text, "needle", context=10)
+        assert list(r) == [
+            "needle",
+            "case_sensitive",
+            "match_kind",
+            "searched_chars",
+            "total_occurrences",
+            "occurrences_shown",
+            "capped",
+            "occurrences",
+            "message",
+        ]
+        assert r["occurrences"] == [{"start_char": 25, "snippet": "…efore the NEEDLE and after…"}]
+        assert r["searched_chars"] == len(text) and r["match_kind"] == "literal substring, non-overlapping"
+
+    def test_the_default_snippet_context_is_the_r39b_shape(self):
+        # R39b: about 165 characters around the match, cut mid-word, ellipses at both ends.
+        text = ("x" * 1000) + " NEEDLE " + ("y" * 1000)
+        r = find_occurrences(text, "needle")
+        snippet = r["occurrences"][0]["snippet"]
+        assert snippet.startswith("…") and snippet.endswith("…")
+        assert len(snippet) == 2 + 2 * htmltext.FIND_SNIPPET_CONTEXT + len("needle")

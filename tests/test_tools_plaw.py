@@ -432,6 +432,65 @@ class TestPublicLawFind:
         assert "find" not in out
 
 
+FIND_SNIPPET_SENTENCES = (
+    " Each snippet is limited context around a match, cut mid-word at both ends, for choosing where to read; it "
+    "is not the text. Do not quote a snippet, and do not reconstruct or infer what surrounds it without retrieving "
+    'it. When find identifies the requested material, treat that as "found where to read", not "finished reading".'
+)
+MANY_NEEDLES_HTML = (
+    "<html><body>\n<h2>Public Law 118-31</h2>\n"
+    + "".join(f"<p>SEC. {i}. This section carries the needle word.</p>\n" for i in range(60))
+    + "</body></html>\n"
+)
+
+
+class TestWhatFindSays:
+    """WO-33 (R39, Q35; O127): the whole served `find` message on get_public_law —
+    uncapped, capped, at the max_chars: 1 locating call, and with zero occurrences."""
+
+    async def test_an_uncapped_find_serves_the_whole_message(self, make_client):
+        out = await tools.get_public_law(make_client(plaw_handler()), congress=118, law_number=31, find="NDAA fixture")
+        total = out["text"]["total_chars"]
+        assert out["find"]["capped"] is False
+        assert out["find"]["message"] == (
+            f"1 occurrence(s) of 'NDAA fixture' in the full {total}-char payload. Offsets share the coordinate "
+            "system of total_chars/start_char — re-request with start_char set to one of them to read around it."
+            + FIND_SNIPPET_SENTENCES
+        )
+
+    async def test_the_locating_call_serves_the_same_find_block(self, make_client):
+        client = make_client(plaw_handler())
+        full = await tools.get_public_law(client, congress=118, law_number=31, find="NDAA fixture")
+        tiny = await tools.get_public_law(client, congress=118, law_number=31, find="NDAA fixture", max_chars=1)
+        assert tiny["text"]["returned_chars"] == 1
+        assert tiny["find"] == full["find"]
+
+    async def test_a_capped_find_appends_the_cap_sentence(self, make_client):
+        client = make_client(plaw_handler(htm=MANY_NEEDLES_HTML))
+        out = await tools.get_public_law(client, congress=118, law_number=31, find="needle")
+        assert out["outcome"] == "success"
+        found = out["find"]
+        total = out["text"]["total_chars"]
+        assert found["total_occurrences"] == 60 and found["occurrences_shown"] == 50 and found["capped"] is True
+        assert found["message"] == (
+            f"60 occurrence(s) of 'needle' in the full {total}-char payload. Offsets share the coordinate system "
+            "of total_chars/start_char — re-request with start_char set to one of them to read around it."
+            + FIND_SNIPPET_SENTENCES
+            + " The occurrence list is capped: showing 50 of 60."
+        )
+
+    async def test_zero_occurrences_serves_the_unchanged_message(self, make_client):
+        out = await tools.get_public_law(
+            make_client(plaw_handler()), congress=118, law_number=31, find="no such provision"
+        )
+        total = out["text"]["total_chars"]
+        assert out["find"]["message"] == (
+            f"Zero occurrences of 'no such provision' in the full {total}-char payload. The search succeeded — "
+            "this is 'found nothing', not a failure. Note the payload is the plain text of this document only; try "
+            "a shorter or differently spelled substring."
+        )
+
+
 class TestPublicLawTruncationBanner:
     """A windowed law separates its truncation banner from payload content."""
 
