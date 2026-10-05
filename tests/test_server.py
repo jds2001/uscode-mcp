@@ -1,11 +1,13 @@
 """Server wiring: the four tools are registered, their descriptions carry the
 spec-mandated caveats, and calls route through to the tool layer."""
 
+import hashlib
 import json
 import re
 
 import fx
 import httpx
+import pytest
 
 from uscode_mcp.govinfo import UpstreamResponse
 from uscode_mcp.server import create_server
@@ -338,3 +340,239 @@ async def test_section_description_teaches_passing_the_subsection_immediately_af
         "and reports whether that subsection exists in the statute text. "
         "Optional `year` selects a historical annual edition."
     ) in " ".join(description.split())
+
+
+# WO-34 (R40, Q36; O130d, F23): every property of every tool's input schema carries the
+# description the contract's "Parameter descriptions" table pins, character for character.
+# This is the test's own copy of that table, one entry per property; the served schema must
+# carry exactly these properties and no other.
+PINNED_PARAMETER_DESCRIPTIONS = {
+    "get_us_code_section": {
+        "citation": (
+            'A US Code citation as the asker gave it — "17 U.S.C. 107", "17 USC 107", "17 U.S.C. § 107(b)", "42 '
+            'U.S.C. 2210 note". A subsection suffix is stripped and reported; "note" resolves to the containing '
+            "section. Pass this, or title with section."
+        ),
+        "title": 'US Code title number as a string ("17"), paired with section — an alternative to citation.',
+        "section": 'Section number within the title ("107", "2210"), paired with title — an alternative to citation.',
+        "year": (
+            "Annual edition year to read instead of the latest (2023). Ignored with granule_id, which names its own "
+            "edition."
+        ),
+        "granule_id": (
+            "A granule id exactly as a search result or an ambiguous candidate list gives it "
+            '("USCODE-2024-title28-app-federalru-rule9"), to read one provision when a citation matches several. Pass'
+            " the same citation alongside so the staleness check still runs."
+        ),
+        "package_id": (
+            'The package the granule belongs to ("USCODE-2024-title28"). Optional with granule_id, from which it is '
+            "otherwise derived."
+        ),
+        "max_chars": (
+            "Upper bound on the characters of text returned; default 20000. A truncated window ends at a paragraph "
+            "break, carries explicit truncation markers and says where to continue. Pass 1 to receive the structure "
+            "map and nothing else."
+        ),
+        "start_char": (
+            "Character offset the window starts at, in the payload's own coordinates — the same ones find, structure "
+            "and next_start_char use. Default 0."
+        ),
+        "find": (
+            "An argument of this tool, not a tool. A case-insensitive literal substring searched across the FULL "
+            "section, not only the returned window; the response reports the true occurrence count with offsets in "
+            "the start_char coordinate system and short snippets. Snippets locate; they are not the text — read a "
+            "window at an offset to quote."
+        ),
+    },
+    "search_us_code": {
+        "query": (
+            "govinfo query syntax over the USCODE collection: the asker's topical words unquoted (all required); \"an "
+            'exact phrase" in double quotes; fields such as citation:"17 U.S.C. 107", usctitlenum:28, '
+            "title:collateral, packageid:USCODE-2024-title17. collection:USCODE is added when absent; any other "
+            "collection is refused."
+        ),
+        "historical": (
+            "Include superseded annual editions as well as the latest; default false. An argument, not a query term."
+        ),
+        "page_size": "Results per page; default 20.",
+        "offset_mark": (
+            'Pagination cursor: "*" for the first page (the default), then the offset_mark the previous response '
+            "returned."
+        ),
+    },
+    "get_public_law": {
+        "citation": (
+            'A public-law citation string — "Pub. L. 118-31", "Public Law 118-31", "P.L. 118-31". A private-law '
+            'citation ("Private Law 118-1") is answered as out of scope, not as a failed lookup. Pass this, or '
+            "congress with law_number."
+        ),
+        "congress": "Congress number (118), paired with law_number. Names the PUBLIC-law series only.",
+        "law_number": (
+            "Law number within the congress (31), paired with congress. Public laws only — not a private-law number."
+        ),
+        "format": (
+            '"text" (the default) or "uslm" for USLM XML, which packages offer for the 113th Congress (2013) and '
+            "later; its absence is reported as a distinct outcome."
+        ),
+        "max_chars": (
+            "Upper bound on the characters of text returned; default 20000. A law can run to millions of characters, "
+            "so a window is never the whole law; a truncated window ends at a paragraph break, carries explicit "
+            "truncation markers and says where to continue."
+        ),
+        "start_char": (
+            "Character offset the window starts at, in the payload's own coordinates — the same ones find, structure "
+            "and next_start_char use. Default 0."
+        ),
+        "find": (
+            "An argument of this tool, not a tool. A case-insensitive literal substring searched across the FULL law,"
+            " not only the returned window; the response reports the true occurrence count with offsets in the "
+            "start_char coordinate system and short snippets. Snippets locate; they are not the text — read a window "
+            "at an offset to quote."
+        ),
+    },
+    "search_public_laws": {
+        "query": (
+            'govinfo query syntax over the PLAW collection: uscodecitation:"42 U.S.C. 2210" for the laws that mention'
+            " a section (recall is incomplete — absence is never evidence), congress:118 docnumber:31, "
+            "publishdate:range(YYYY-MM-DD,), packageid:PLAW-118publ31 <terms> to test one law for terms. "
+            "collection:PLAW is accepted; any other collection is refused."
+        ),
+        "page_size": "Results per page; default 20.",
+        "offset_mark": (
+            'Pagination cursor: "*" for the first page (the default), then the offset_mark the previous response '
+            "returned."
+        ),
+    },
+}
+
+# The input schemas as served through WO-33: every key but `description` must still equal
+# this, and the property order is the signature order these dicts are written in.
+
+
+def _nullable(kind, title):
+    return {"anyOf": [{"type": kind}, {"type": "null"}], "default": None, "title": title}
+
+
+SCHEMAS_THROUGH_WO33 = {
+    "get_us_code_section": {
+        "properties": {
+            "citation": _nullable("string", "Citation"),
+            "title": _nullable("string", "Title"),
+            "section": _nullable("string", "Section"),
+            "year": _nullable("integer", "Year"),
+            "max_chars": {"default": 20000, "title": "Max Chars", "type": "integer"},
+            "start_char": {"default": 0, "title": "Start Char", "type": "integer"},
+            "find": _nullable("string", "Find"),
+            "granule_id": _nullable("string", "Granule Id"),
+            "package_id": _nullable("string", "Package Id"),
+        },
+        "title": "get_us_code_sectionArguments",
+        "type": "object",
+    },
+    "search_us_code": {
+        "properties": {
+            "query": {"title": "Query", "type": "string"},
+            "page_size": {"default": 20, "title": "Page Size", "type": "integer"},
+            "offset_mark": {"default": "*", "title": "Offset Mark", "type": "string"},
+            "historical": {"default": False, "title": "Historical", "type": "boolean"},
+        },
+        "required": ["query"],
+        "title": "search_us_codeArguments",
+        "type": "object",
+    },
+    "get_public_law": {
+        "properties": {
+            "congress": _nullable("integer", "Congress"),
+            "law_number": _nullable("integer", "Law Number"),
+            "citation": _nullable("string", "Citation"),
+            "format": {"default": "text", "title": "Format", "type": "string"},
+            "max_chars": {"default": 20000, "title": "Max Chars", "type": "integer"},
+            "start_char": {"default": 0, "title": "Start Char", "type": "integer"},
+            "find": _nullable("string", "Find"),
+        },
+        "title": "get_public_lawArguments",
+        "type": "object",
+    },
+    "search_public_laws": {
+        "properties": {
+            "query": {"title": "Query", "type": "string"},
+            "page_size": {"default": 20, "title": "Page Size", "type": "integer"},
+            "offset_mark": {"default": "*", "title": "Offset Mark", "type": "string"},
+        },
+        "required": ["query"],
+        "title": "search_public_lawsArguments",
+        "type": "object",
+    },
+}
+
+# sha256 of each tool's prose description and of the server instructions as served through
+# WO-33, from a fresh-process dump; the schema descriptions change none of them.
+DESCRIPTION_SHA256_THROUGH_WO33 = {
+    "get_public_law": "220c1d6d4b78586dc42828487dfac08db55550cedbcbba40c5f50d4e81dde156",
+    "get_us_code_section": "3244de9132c0faa14f68af64d9720b6d1323631e77d61668933cb0381b173b08",
+    "search_public_laws": "f7ceded41770faa62c46281816e80a560e322082c0c134075f48bc7419605cf9",
+    "search_us_code": "47ac538663329a0ebb79514ce18ad56af75eea1ff877e972fe8cc824740901d6",
+}
+INSTRUCTIONS_SHA256_THROUGH_WO33 = "3d7b1cb7ee688eacc7abd7b8f59815d711c7687118386150203d761a315774d2"
+
+
+def _without_descriptions(schema):
+    properties = {
+        name: {key: value for key, value in prop.items() if key != "description"}
+        for name, prop in schema["properties"].items()
+    }
+    return {**schema, "properties": properties}
+
+
+async def test_every_tool_parameter_carries_its_pinned_description():
+    by_name = {t.name: t for t in await create_server().list_tools()}
+    assert set(by_name) == set(PINNED_PARAMETER_DESCRIPTIONS)
+    for tool, pinned in PINNED_PARAMETER_DESCRIPTIONS.items():
+        properties = by_name[tool].input_schema["properties"]
+        # no served property is missing from the table, and the table names no unserved property
+        assert set(properties) == set(pinned), tool
+        for name, text in pinned.items():
+            assert properties[name]["description"] == text, (tool, name)
+
+
+def test_pinned_table_has_one_entry_per_property_and_says_find_is_an_argument():
+    assert sum(len(params) for params in PINNED_PARAMETER_DESCRIPTIONS.values()) == 23
+    for tool in ("get_us_code_section", "get_public_law"):
+        assert PINNED_PARAMETER_DESCRIPTIONS[tool]["find"].startswith("An argument of this tool, not a tool. ")
+    for tool, params in PINNED_PARAMETER_DESCRIPTIONS.items():
+        for name, text in params.items():
+            assert text == " ".join(text.split()) and not text.endswith(" "), (tool, name)
+
+
+async def test_description_is_the_only_key_the_schemas_gained():
+    by_name = {t.name: t for t in await create_server().list_tools()}
+    for tool, before in SCHEMAS_THROUGH_WO33.items():
+        served = by_name[tool].input_schema
+        assert _without_descriptions(served) == before, tool
+        assert list(served["properties"]) == list(before["properties"]), tool
+        assert served.get("required") == before.get("required"), tool
+        for name, prop in served["properties"].items():
+            assert set(prop) == set(before["properties"][name]) | {"description"}, (tool, name)
+
+
+async def test_schema_descriptions_leave_prose_descriptions_and_instructions_byte_identical():
+    from uscode_mcp.server import SERVER_INSTRUCTIONS
+
+    by_name = {t.name: t for t in await create_server().list_tools()}
+    for tool, digest in DESCRIPTION_SHA256_THROUGH_WO33.items():
+        assert hashlib.sha256(by_name[tool].description.encode()).hexdigest() == digest, tool
+    assert hashlib.sha256(SERVER_INSTRUCTIONS.encode()).hexdigest() == INSTRUCTIONS_SHA256_THROUGH_WO33
+
+
+def test_source_table_matches_the_pinned_table_and_an_unknown_parameter_fails_at_import():
+    from uscode_mcp.server import PARAMETER_DESCRIPTIONS, _described
+
+    assert PARAMETER_DESCRIPTIONS == PINNED_PARAMETER_DESCRIPTIONS
+    assert (
+        _described("get_us_code_section", "find").description
+        == PINNED_PARAMETER_DESCRIPTIONS["get_us_code_section"]["find"]
+    )
+    with pytest.raises(KeyError):
+        _described("get_us_code_section", "not_a_parameter")
+    with pytest.raises(KeyError):
+        _described("not_a_tool", "query")

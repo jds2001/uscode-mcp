@@ -9,9 +9,10 @@ import inspect
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Annotated, Any
 
 from mcp.server.mcpserver import MCPServer
+from pydantic import Field
 
 from . import tools
 from ._version import __version__
@@ -44,6 +45,120 @@ Text windows default to 20,000 characters (`max_chars`), because larger windows 
 model inline on the current driver; every window states `total_chars` and `next_start_char`, and `find` locates
 content in the full payload so you can read exactly the window you need.
 """
+
+# Every property of every tool's input schema carries a description, character for
+# character as documentation/40-tools.md ("Parameter descriptions") pins it. The texts
+# restate the prose descriptions on purpose: the schema is the one text a host shows the
+# model at every step, and `find` had been called as a tool by a consumer that never
+# learned it was an argument. Types, defaults, titles, required lists and property order
+# are untouched; `description` is the only key the schemas carry beyond what pydantic
+# derives from the signature.
+PARAMETER_DESCRIPTIONS: dict[str, dict[str, str]] = {
+    "get_us_code_section": {
+        "citation": (
+            'A US Code citation as the asker gave it — "17 U.S.C. 107", "17 USC 107", "17 U.S.C. § 107(b)", "42 '
+            'U.S.C. 2210 note". A subsection suffix is stripped and reported; "note" resolves to the containing '
+            "section. Pass this, or title with section."
+        ),
+        "title": 'US Code title number as a string ("17"), paired with section — an alternative to citation.',
+        "section": 'Section number within the title ("107", "2210"), paired with title — an alternative to citation.',
+        "year": (
+            "Annual edition year to read instead of the latest (2023). Ignored with granule_id, which names its own "
+            "edition."
+        ),
+        "granule_id": (
+            "A granule id exactly as a search result or an ambiguous candidate list gives it "
+            '("USCODE-2024-title28-app-federalru-rule9"), to read one provision when a citation matches several. Pass'
+            " the same citation alongside so the staleness check still runs."
+        ),
+        "package_id": (
+            'The package the granule belongs to ("USCODE-2024-title28"). Optional with granule_id, from which it is '
+            "otherwise derived."
+        ),
+        "max_chars": (
+            "Upper bound on the characters of text returned; default 20000. A truncated window ends at a paragraph "
+            "break, carries explicit truncation markers and says where to continue. Pass 1 to receive the structure "
+            "map and nothing else."
+        ),
+        "start_char": (
+            "Character offset the window starts at, in the payload's own coordinates — the same ones find, structure "
+            "and next_start_char use. Default 0."
+        ),
+        "find": (
+            "An argument of this tool, not a tool. A case-insensitive literal substring searched across the FULL "
+            "section, not only the returned window; the response reports the true occurrence count with offsets in "
+            "the start_char coordinate system and short snippets. Snippets locate; they are not the text — read a "
+            "window at an offset to quote."
+        ),
+    },
+    "search_us_code": {
+        "query": (
+            "govinfo query syntax over the USCODE collection: the asker's topical words unquoted (all required); \"an "
+            'exact phrase" in double quotes; fields such as citation:"17 U.S.C. 107", usctitlenum:28, '
+            "title:collateral, packageid:USCODE-2024-title17. collection:USCODE is added when absent; any other "
+            "collection is refused."
+        ),
+        "historical": (
+            "Include superseded annual editions as well as the latest; default false. An argument, not a query term."
+        ),
+        "page_size": "Results per page; default 20.",
+        "offset_mark": (
+            'Pagination cursor: "*" for the first page (the default), then the offset_mark the previous response '
+            "returned."
+        ),
+    },
+    "get_public_law": {
+        "citation": (
+            'A public-law citation string — "Pub. L. 118-31", "Public Law 118-31", "P.L. 118-31". A private-law '
+            'citation ("Private Law 118-1") is answered as out of scope, not as a failed lookup. Pass this, or '
+            "congress with law_number."
+        ),
+        "congress": "Congress number (118), paired with law_number. Names the PUBLIC-law series only.",
+        "law_number": (
+            "Law number within the congress (31), paired with congress. Public laws only — not a private-law number."
+        ),
+        "format": (
+            '"text" (the default) or "uslm" for USLM XML, which packages offer for the 113th Congress (2013) and '
+            "later; its absence is reported as a distinct outcome."
+        ),
+        "max_chars": (
+            "Upper bound on the characters of text returned; default 20000. A law can run to millions of characters, "
+            "so a window is never the whole law; a truncated window ends at a paragraph break, carries explicit "
+            "truncation markers and says where to continue."
+        ),
+        "start_char": (
+            "Character offset the window starts at, in the payload's own coordinates — the same ones find, structure "
+            "and next_start_char use. Default 0."
+        ),
+        "find": (
+            "An argument of this tool, not a tool. A case-insensitive literal substring searched across the FULL law,"
+            " not only the returned window; the response reports the true occurrence count with offsets in the "
+            "start_char coordinate system and short snippets. Snippets locate; they are not the text — read a window "
+            "at an offset to quote."
+        ),
+    },
+    "search_public_laws": {
+        "query": (
+            'govinfo query syntax over the PLAW collection: uscodecitation:"42 U.S.C. 2210" for the laws that mention'
+            " a section (recall is incomplete — absence is never evidence), congress:118 docnumber:31, "
+            "publishdate:range(YYYY-MM-DD,), packageid:PLAW-118publ31 <terms> to test one law for terms. "
+            "collection:PLAW is accepted; any other collection is refused."
+        ),
+        "page_size": "Results per page; default 20.",
+        "offset_mark": (
+            'Pagination cursor: "*" for the first page (the default), then the offset_mark the previous response '
+            "returned."
+        ),
+    },
+}
+
+
+def _described(tool: str, parameter: str) -> Any:
+    """The pydantic Field carrying the pinned description for one tool parameter.
+
+    An unknown name raises KeyError at import, so a signature cannot name a parameter the
+    table does not describe."""
+    return Field(description=PARAMETER_DESCRIPTIONS[tool][parameter])
 
 
 def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = None) -> MCPServer:
@@ -102,15 +217,15 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
 
     @consumer_tool()
     async def get_us_code_section(
-        citation: str | None = None,
-        title: str | None = None,
-        section: str | None = None,
-        year: int | None = None,
-        max_chars: int = tools.DEFAULT_MAX_CHARS,
-        start_char: int = 0,
-        find: str | None = None,
-        granule_id: str | None = None,
-        package_id: str | None = None,
+        citation: Annotated[str | None, _described("get_us_code_section", "citation")] = None,
+        title: Annotated[str | None, _described("get_us_code_section", "title")] = None,
+        section: Annotated[str | None, _described("get_us_code_section", "section")] = None,
+        year: Annotated[int | None, _described("get_us_code_section", "year")] = None,
+        max_chars: Annotated[int, _described("get_us_code_section", "max_chars")] = tools.DEFAULT_MAX_CHARS,
+        start_char: Annotated[int, _described("get_us_code_section", "start_char")] = 0,
+        find: Annotated[str | None, _described("get_us_code_section", "find")] = None,
+        granule_id: Annotated[str | None, _described("get_us_code_section", "granule_id")] = None,
+        package_id: Annotated[str | None, _described("get_us_code_section", "package_id")] = None,
     ) -> dict[str, Any]:
         """Resolve a US Code citation and return the section's full text — statutory text, source
         credits, and statutory notes included (note citations like "42 U.S.C. 2210 note" resolve to
@@ -186,10 +301,10 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
 
     @consumer_tool()
     async def search_us_code(
-        query: str,
-        page_size: int = tools.DEFAULT_PAGE_SIZE,
-        offset_mark: str = "*",
-        historical: bool = False,
+        query: Annotated[str, _described("search_us_code", "query")],
+        page_size: Annotated[int, _described("search_us_code", "page_size")] = tools.DEFAULT_PAGE_SIZE,
+        offset_mark: Annotated[str, _described("search_us_code", "offset_mark")] = "*",
+        historical: Annotated[bool, _described("search_us_code", "historical")] = False,
     ) -> dict[str, Any]:
         """Full-text and fielded search over the USCODE collection (govinfo query syntax) — the
         discovery path for topics, appendix material, and anything citation resolution redirects
@@ -212,13 +327,13 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
 
     @consumer_tool()
     async def get_public_law(
-        congress: int | None = None,
-        law_number: int | None = None,
-        citation: str | None = None,
-        format: str = "text",
-        max_chars: int = tools.DEFAULT_MAX_CHARS,
-        start_char: int = 0,
-        find: str | None = None,
+        congress: Annotated[int | None, _described("get_public_law", "congress")] = None,
+        law_number: Annotated[int | None, _described("get_public_law", "law_number")] = None,
+        citation: Annotated[str | None, _described("get_public_law", "citation")] = None,
+        format: Annotated[str, _described("get_public_law", "format")] = "text",
+        max_chars: Annotated[int, _described("get_public_law", "max_chars")] = tools.DEFAULT_MAX_CHARS,
+        start_char: Annotated[int, _described("get_public_law", "start_char")] = 0,
+        find: Annotated[str | None, _described("get_public_law", "find")] = None,
     ) -> dict[str, Any]:
         """Resolve a public law and return its text with provenance. Pass `congress` + `law_number`,
         or a `citation` string ("Pub. L. 118-31", "Public Law 118-31", "P.L. 118-31"). Public laws
@@ -255,9 +370,9 @@ def create_server(client: GovInfoClient | None = None, tracer: Tracer | None = N
 
     @consumer_tool()
     async def search_public_laws(
-        query: str,
-        page_size: int = tools.DEFAULT_PAGE_SIZE,
-        offset_mark: str = "*",
+        query: Annotated[str, _described("search_public_laws", "query")],
+        page_size: Annotated[int, _described("search_public_laws", "page_size")] = tools.DEFAULT_PAGE_SIZE,
+        offset_mark: Annotated[str, _described("search_public_laws", "offset_mark")] = "*",
     ) -> dict[str, Any]:
         """Full-text and fielded search over the PLAW collection (public laws only). Reverse lookup —
         which public laws touch a US Code section — is `uscodecitation:"42 U.S.C. 2210"`. A
