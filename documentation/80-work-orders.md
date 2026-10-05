@@ -464,7 +464,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-33 — the `find` message says a snippet is where to read, not what was read (R39, Q35; contract in `40-tools.md`, "Locating content in large payloads", the `find` block's message; measured basis O127; consumer effect preregistered as E46)
 
-**Status:** ISSUED 2026-10-04. One string, one commit; this session probes both tools from a fresh process before E46 runs.
+**Status:** LANDED `f1ffe60`, VERIFIED from a fresh process (O128) and CLOSED 2026-10-04. E46 is ready to run. History: ISSUED 2026-10-04. One string, one commit; this session probes both tools from a fresh process before E46 runs.
 
 **What it is.** At E45, 8 of 99 gpt-oss rows asked to quote the apology in the notes to 42 U.S.C. 2210 ran `find`, read windows that stopped short of the match, and quoted the `find` snippet as the operative language — 6 altering it, because the snippet around the second match is the last words of subsection (b) joined mid-word to the opening of (c) — and 4 rows that read the whole sentence still quoted it in the snippet's truncated shape (O127a, b). The `find` message said where to re-request and nothing about what a snippet is. Three sentences are added to it. Nothing else changes.
 
