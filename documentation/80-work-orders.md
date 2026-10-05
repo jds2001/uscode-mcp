@@ -474,7 +474,7 @@ Then add a unit test that fails if any served string — `instructions`, every t
 
 ## WO-34 — every tool parameter carries a schema description (R40, Q36; contract in `40-tools.md`, "Parameter descriptions"; measured basis O130d, F23; consumer effect preregistered as E47)
 
-**Status:** ISSUED 2026-10-05. One change across the four tools, one commit; this session probes the tool list from a fresh process before E47 runs.
+**Status:** LANDED `d4a57dc`, VERIFIED from a fresh process (O131) and CLOSED 2026-10-05. E47 ready. History: ISSUED 2026-10-05. One change across the four tools, one commit; this session probes the tool list from a fresh process before E47 runs.
 
 **What it is.** The served input schemas have no `description` on any property (O130d). A gpt-oss row called `find` as a tool, was told no such tool exists, and gave up on the facility (F23). Each of the 23 properties gets the description pinned in `40-tools.md`'s table, character for character. Nothing else about the tools changes.
 
