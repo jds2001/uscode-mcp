@@ -51,7 +51,7 @@ Example Claude Code / Claude Desktop stdio config:
 
 The figures below come from an end-to-end test harness, `mcp-e2e`, kept in its own repository and not shipped here. What is shipped is this server's half of it: the suite manifest at `documentation/e2e-manifest.json`, which pins the prompts, the models and providers, and the pass and fail criteria before each run, and the scored findings in `documentation/70-run-findings.md`. The harness mounts this server over MCP and hands a model one prompt at a time. Its "loop" driver is the leanest consumer it has: a plain tool-calling loop with a short system prompt and no agent framework, so what the model does with the server's responses is the model's own doing. A "crowded context" means the prompt arrives after the model has already spent part of its context window on an unrelated task, as a real session would, rather than into a fresh one. A row is one prompt to one model under one such setup; the harness records every tool call and the answer and runs mechanical checks, but pass and fail against the pinned criteria are a human judgment.
 
-Under that loop with a crowded context, the below tests were run:
+Under that loop with a crowded context, the below tests were run (note that some nubbers don't match up due to the presence of unscoreable runs - i.e., raw Harmony channel content delivered as the answer. `gpt-oss-120b` is particularly susceptible to this):
 
 ### `deepseek/deepseek-v4-flash` (gmicloud/fp8, low reasoning effort) 
 
